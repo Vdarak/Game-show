@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { useRoomSync } from "@/hooks/use-room-sync"
 import { NetworkIndicator } from "@/components/pwa/network-indicator"
-import { InstallPWA } from "@/components/pwa/install-prompt"
 import { motion } from "framer-motion"
 import { Users, Play, Copy, Check } from "lucide-react"
 
@@ -98,8 +97,6 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
-      <InstallPWA />
-      
       <div className="absolute right-4 top-4">
         <NetworkIndicator />
       </div>

@@ -9,12 +9,22 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>
 }
 
-export function InstallPWA() {
+interface InstallPWAProps {
+  showOnlyOnController?: boolean
+}
+
+export function InstallPWA({ showOnlyOnController = false }: InstallPWAProps) {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [isInstalled, setIsInstalled] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
+  const [isController, setIsController] = useState(false)
 
   useEffect(() => {
+    // Detect if we're on controller page
+    if (typeof window !== "undefined") {
+      setIsController(window.location.pathname === "/controller")
+    }
+
     // Check if PWA is supported
     if ('serviceWorker' in navigator) {
       setIsSupported(true)
@@ -72,7 +82,7 @@ export function InstallPWA() {
     }
 
     try {
-      console.log("[InstallPWA] Triggering install prompt")
+      console.log("[InstallPWA] Triggering install prompt (Chrome/Edge)")
       await deferredPrompt.prompt()
       const { outcome } = await deferredPrompt.userChoice
       console.log(`[InstallPWA] User response: ${outcome}`)
@@ -98,6 +108,11 @@ export function InstallPWA() {
   // Don't show if not supported
   if (!isSupported) {
     console.log("[InstallPWA] Not showing button - PWA not supported")
+    return null
+  }
+
+  // If showOnlyOnController is true, only show on controller page
+  if (showOnlyOnController && !isController) {
     return null
   }
 
