@@ -3,12 +3,16 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useGameState } from "@/hooks/use-game-state"
+import { useRoomSync } from "@/hooks/use-room-sync"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { StrikeIndicator } from "@/components/game/strike-indicator"
 import { formatScore } from "@/lib/game-utils"
 import { AnimatedNumber } from "@/components/game/animated-number"
+import { NetworkIndicator } from "@/components/pwa/network-indicator"
+import { InstallPWA } from "@/components/pwa/install-prompt"
+import { themes } from "@/lib/themes"
 import {
   ExternalLink,
   Plus,
@@ -22,6 +26,8 @@ import {
   Volume2,
   AlertCircle,
   Monitor,
+  Copy,
+  Check,
 } from "lucide-react"
 
 type DisplayWindow = {
@@ -45,33 +51,39 @@ export default function ControllerPage() {
     previousQuestion,
     updateTeamName,
     updateTeamColor,
+    updateTeamTheme,
+    addTeamStrike,
+    resetTeamStrikes,
     awardRoundPoints,
     resetGame,
     clearQuestion,
   } = useGameState()
 
+  const { roomState } = useRoomSync()
+  const [copied, setCopied] = useState(false)
+
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showScoreResetConfirm, setShowScoreResetConfirm] = useState(false)
-  const [gameStartTime] = useState(Date.now())
-  const [elapsedTime, setElapsedTime] = useState(0)
 
   const [displays, setDisplays] = useState<DisplayWindow[]>([
     { name: "Game Board", url: "/display/game-board", windowRef: null, status: "hidden" },
-    { name: "Team A", url: "/display/team/A", windowRef: null, status: "hidden" },
-    { name: "Team B", url: "/display/team/B", windowRef: null, status: "hidden" },
-    { name: "Team C", url: "/display/team/C", windowRef: null, status: "hidden" },
-    { name: "Team D", url: "/display/team/D", windowRef: null, status: "hidden" },
-    { name: "Audience", url: "/display/audience", windowRef: null, status: "hidden" },
+    { name: "Team Scores", url: "/display/teams", windowRef: null, status: "hidden" },
   ])
 
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set(["A"]))
+  const [scorePreset, setScorePreset] = useState<"default" | "alternative">("default")
+  const [scoreChangeValue, setScoreChangeValue] = useState(100)
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - gameStartTime) / 1000))
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [gameStartTime])
+  const handlePresetChange = (preset: "default" | "alternative") => {
+    setScorePreset(preset)
+    if (preset === "default") {
+      setScoreChangeValue(100)
+    } else {
+      setScoreChangeValue(20)
+    }
+  }
+
+  const presetValues = scorePreset === "default" ? [10, 20, 50, 100] : [10, 20, 50, 100]
 
   useEffect(() => {
     const checkInterval = setInterval(() => {
@@ -94,12 +106,6 @@ export default function ControllerPage() {
 
     return () => clearInterval(checkInterval)
   }, [])
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, "0")}`
-  }
 
   const openDisplay = (index: number) => {
     setDisplays((prev) =>
@@ -205,62 +211,64 @@ export default function ControllerPage() {
   const openAllDisplays = () => {
     const screenWidth = window.screen.availWidth
     const screenHeight = window.screen.availHeight
-    const cellWidth = Math.floor(screenWidth / 2)
-    const cellHeight = Math.floor(screenHeight / 3)
+    
+    // Game board on left half
+    const gameBoardWindow = window.open(
+      displays[0].url,
+      displays[0].name,
+      `width=${Math.floor(screenWidth / 2)},height=${screenHeight},left=0,top=0`
+    )
+    
+    // Team scores on right half
+    const teamsWindow = window.open(
+      displays[1].url,
+      displays[1].name,
+      `width=${Math.floor(screenWidth / 2)},height=${screenHeight},left=${Math.floor(screenWidth / 2)},top=0`
+    )
 
-    const gridPositions = [
-      { left: 0, top: 0 }, // Game Board - top left
-      { left: cellWidth, top: 0 }, // Team A - top right
-      { left: 0, top: cellHeight }, // Team B - middle left
-      { left: cellWidth, top: cellHeight }, // Team C - middle right
-      { left: 0, top: cellHeight * 2 }, // Team D - bottom left
-      { left: cellWidth, top: cellHeight * 2 }, // Audience - bottom right
-    ]
-
-    displays.forEach((display, index) => {
-      setTimeout(() => {
-        if (!display.windowRef || display.windowRef.closed) {
-          const pos = gridPositions[index]
-          const features = `width=${cellWidth},height=${cellHeight},left=${pos.left},top=${pos.top}`
-          const newWindow = window.open(display.url, display.name, features)
-
-          setDisplays((prev) =>
-            prev.map((d, i) => (i === index ? { ...d, windowRef: newWindow, status: "active" as const } : d)),
-          )
-        }
-      }, index * 150)
-    })
+    setDisplays([
+      { ...displays[0], windowRef: gameBoardWindow, status: "active" },
+      { ...displays[1], windowRef: teamsWindow, status: "active" },
+    ])
   }
 
-  const openAllTeamDisplays = () => {
-    const screenWidth = window.screen.availWidth
-    const screenHeight = window.screen.availHeight
-    const cellWidth = Math.floor(screenWidth / 2)
-    const cellHeight = Math.floor(screenHeight / 2)
+  const handleCopyRoomCode = () => {
+    if (roomState.roomCode) {
+      const code = roomState.roomCode
+      // Try modern clipboard API first, fallback to older method
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code)
+          .then(() => {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+          })
+          .catch(() => {
+            // Fallback if clipboard API fails
+            fallbackCopyToClipboard(code)
+          })
+      } else {
+        // Fallback for browsers without clipboard API
+        fallbackCopyToClipboard(code)
+      }
+    }
+  }
 
-    const gridPositions = [
-      { left: 0, top: 0 }, // Team A - top left
-      { left: cellWidth, top: 0 }, // Team B - top right
-      { left: 0, top: cellHeight }, // Team C - bottom left
-      { left: cellWidth, top: cellHeight }, // Team D - bottom right
-    ]
-
-    const teamDisplayIndices = [1, 2, 3, 4]
-
-    teamDisplayIndices.forEach((displayIndex, gridIndex) => {
-      setTimeout(() => {
-        const display = displays[displayIndex]
-        if (!display.windowRef || display.windowRef.closed) {
-          const pos = gridPositions[gridIndex]
-          const features = `width=${cellWidth},height=${cellHeight},left=${pos.left},top=${pos.top}`
-          const newWindow = window.open(display.url, display.name, features)
-
-          setDisplays((prev) =>
-            prev.map((d, i) => (i === displayIndex ? { ...d, windowRef: newWindow, status: "active" as const } : d)),
-          )
-        }
-      }, gridIndex * 150)
-    })
+  const fallbackCopyToClipboard = (text: string) => {
+    const textArea = document.createElement("textarea")
+    textArea.value = text
+    textArea.style.position = "fixed"
+    textArea.style.left = "-999999px"
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    try {
+      document.execCommand("copy")
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error("Failed to copy:", err)
+    }
+    document.body.removeChild(textArea)
   }
 
   const teams = state.teams || []
@@ -272,19 +280,34 @@ export default function ControllerPage() {
         <Card className="mb-2 bg-gray-800 p-3 sm:mb-4 sm:p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
+              <img src="/logo.svg" alt="Family Feud logo" className="h-10 w-10" />
               <h1 className="font-display text-base sm:text-lg">Family Feud Controller</h1>
             </div>
             <div className="flex items-center gap-3 sm:gap-6">
-              <div className="text-right">
-                <div className="text-xs text-gray-400">Round</div>
-                <div className="font-display text-xs sm:text-sm">
-                  {state.currentQuestionIndex + 1} / {state.questions.length}
+              <InstallPWA />
+              <NetworkIndicator />
+              {roomState.roomCode && (
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <div className="text-xs text-gray-400">Room Code</div>
+                    <div className="font-display text-sm font-bold tracking-widest text-blue-400">
+                      {roomState.roomCode}
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleCopyRoomCode}
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-400" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-gray-400">Time Elapsed</div>
-                <div className="font-display text-xs sm:text-sm">{formatTime(elapsedTime)}</div>
-              </div>
+              )}
             </div>
           </div>
         </Card>
@@ -294,16 +317,6 @@ export default function ControllerPage() {
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="font-display text-xs sm:text-sm">Display Status</h2>
             <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={openAllTeamDisplays}
-                variant="outline"
-                size="sm"
-                className="flex-1 bg-transparent text-xs sm:flex-none"
-              >
-                <ExternalLink className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Open All Team Displays</span>
-                <span className="sm:hidden">Teams</span>
-              </Button>
               <Button onClick={openAllDisplays} variant="default" size="sm" className="flex-1 text-xs sm:flex-none">
                 <ExternalLink className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Open All Displays</span>
@@ -311,7 +324,7 @@ export default function ControllerPage() {
               </Button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 sm:gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             {displays.map((display, index) => (
               <motion.div
                 key={display.name}
@@ -363,33 +376,60 @@ export default function ControllerPage() {
             {teams.map((team) => (
               <div
                 key={team.id}
-                className="group relative overflow-hidden rounded-xl border border-gray-700/50 bg-gray-900/50 p-3 transition-all hover:border-gray-600 sm:p-4"
+                className="group relative overflow-hidden rounded-xl border border-gray-700/50 p-3 transition-all hover:border-gray-600 sm:p-4"
               >
-                <div className="mb-2 text-center sm:mb-3">
-                  <AnimatedNumber
-                    value={team.score}
-                    color={team.color}
-                    size="medium"
-                    className="font-display tracking-tight"
-                  />
+                <div className="mb-3 text-center">
+                  <AnimatedNumber value={team.score} color={team.color} size="medium" />
                   <div className="mt-1 text-xs text-emerald-400">Round: +{formatScore(team.currentRoundScore)}</div>
                 </div>
 
                 <Input
                   value={team.name}
                   onChange={(e) => updateTeamName(team.id, e.target.value)}
-                  className="mb-2 border-0 bg-gray-800/50 text-center text-xs font-medium text-white placeholder:text-gray-500 focus-visible:ring-1 focus-visible:ring-gray-600"
+                  className="mb-3 border-0 bg-transparent text-center text-xs font-medium text-white placeholder:text-gray-500 focus-visible:ring-1 focus-visible:ring-gray-600"
                   placeholder={`Team ${team.id}`}
                 />
 
-                <div className="flex items-center justify-center gap-2">
-                  <div className="text-xs text-gray-500">Color</div>
-                  <input
-                    type="color"
-                    value={team.color}
-                    onChange={(e) => updateTeamColor(team.id, e.target.value)}
-                    className="h-5 w-12 cursor-pointer rounded border-0 bg-transparent sm:h-6 sm:w-16"
-                  />
+                <div className="mb-3 space-y-1">
+                  <div className="flex flex-wrap justify-center gap-1">
+                    {Object.values(themes).map((theme) => (
+                      <button
+                        key={theme.id}
+                        onClick={() => updateTeamTheme(team.id, theme.id)}
+                        className={`rounded-full px-2 py-1 text-xs transition-all ${
+                          team.theme === theme.id
+                            ? "bg-blue-500 text-white"
+                            : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                        }`}
+                      >
+                        {theme.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-center gap-3">
+                  <div className="text-sm font-medium text-gray-400">Strikes</div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => addTeamStrike(team.id)}
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
+                      disabled={team.strikes >= 3}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    <span className="text-xl font-bold text-red-400">{team.strikes}</span>
+                    <Button
+                      onClick={() => resetTeamStrikes(team.id)}
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-gray-400 hover:text-gray-300"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div
@@ -499,38 +539,58 @@ export default function ControllerPage() {
 
           <div className="lg:col-span-5">
             <Card className="h-full bg-gray-800 p-3 sm:p-4">
-              <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Score Control</h2>
+              <div className="mb-3 flex items-center justify-between sm:mb-4">
+                <h2 className="font-display text-xs sm:text-sm">Score Control</h2>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handlePresetChange("alternative")}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                      scorePreset === "alternative"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    }`}
+                  >
+                    10/20
+                  </button>
+                  <button
+                    onClick={() => handlePresetChange("default")}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                      scorePreset === "default"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    }`}
+                  >
+                    25/50
+                  </button>
+                </div>
+              </div>
 
               <div className="space-y-3">
-                <div className="space-y-2">
-                  <label className="block text-xs text-gray-400">Select Teams</label>
-                  <div className="flex gap-2">
+                {/* Team Selection - Single Row */}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={toggleSelectAll}
+                    variant={selectedTeams.size === 4 ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 text-xs"
+                  >
+                    All
+                  </Button>
+                  {teams.map((team) => (
                     <Button
-                      onClick={toggleSelectAll}
-                      variant={selectedTeams.size === 4 ? "default" : "outline"}
+                      key={team.id}
+                      onClick={() => toggleTeamSelection(team.id)}
+                      variant={selectedTeams.has(team.id) ? "default" : "outline"}
                       size="sm"
                       className="flex-1 text-xs"
+                      style={{
+                        backgroundColor: selectedTeams.has(team.id) ? team.color : undefined,
+                        borderColor: team.color,
+                      }}
                     >
-                      All Teams
+                      {team.id}
                     </Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {teams.map((team) => (
-                      <Button
-                        key={team.id}
-                        onClick={() => toggleTeamSelection(team.id)}
-                        variant={selectedTeams.has(team.id) ? "default" : "outline"}
-                        size="sm"
-                        className="text-xs"
-                        style={{
-                          backgroundColor: selectedTeams.has(team.id) ? team.color : undefined,
-                          borderColor: team.color,
-                        }}
-                      >
-                        {team.name}
-                      </Button>
-                    ))}
-                  </div>
+                  ))}
                 </div>
 
                 {selectedTeams.size > 0 && (
@@ -538,55 +598,51 @@ export default function ControllerPage() {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="space-y-2"
+                    className="space-y-3"
                   >
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => applyScoreToSelected(-10)}
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-xs"
-                      >
-                        <Minus className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </Button>
-                      <Button
-                        onClick={() => applyScoreToSelected(10)}
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-xs"
-                      >
-                        <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </Button>
+                    {/* Score Adjustment Controls */}
+                    <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
+                      <div className="mb-3 flex items-center justify-center gap-3">
+                        <Button
+                          onClick={() => applyScoreToSelected(-scoreChangeValue)}
+                          variant="outline"
+                          size="lg"
+                          className="h-12 w-12 text-xl"
+                        >
+                          <Minus className="h-5 w-5" />
+                        </Button>
+                        <div className="flex min-w-[120px] items-center justify-center">
+                          <AnimatedNumber value={scoreChangeValue} color="#3B82F6" size="large" />
+                        </div>
+                        <Button
+                          onClick={() => applyScoreToSelected(scoreChangeValue)}
+                          variant="default"
+                          size="lg"
+                          className="h-12 w-12 bg-blue-600 text-xl hover:bg-blue-500"
+                        >
+                          <Plus className="h-5 w-5" />
+                        </Button>
+                      </div>
+
+                      {/* Preset Value Buttons */}
+                      <div className="grid grid-cols-4 gap-2">
+                        {presetValues.map((value) => (
+                          <Button
+                            key={value}
+                            onClick={() => setScoreChangeValue(value)}
+                            variant={scoreChangeValue === value ? "default" : "outline"}
+                            size="sm"
+                            className={`text-xs ${
+                              scoreChangeValue === value ? "bg-blue-600 hover:bg-blue-500" : ""
+                            }`}
+                          >
+                            {value}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button onClick={() => applyScoreToSelected(5)} variant="secondary" size="sm" className="text-xs">
-                        +5
-                      </Button>
-                      <Button
-                        onClick={() => applyScoreToSelected(10)}
-                        variant="secondary"
-                        size="sm"
-                        className="text-xs"
-                      >
-                        +10
-                      </Button>
-                      <Button
-                        onClick={() => applyScoreToSelected(20)}
-                        variant="secondary"
-                        size="sm"
-                        className="text-xs"
-                      >
-                        +20
-                      </Button>
-                      <Button
-                        onClick={() => applyScoreToSelected(50)}
-                        variant="secondary"
-                        size="sm"
-                        className="text-xs"
-                      >
-                        +50
-                      </Button>
-                    </div>
+
+                    {/* Reset Button */}
                     <Button
                       onClick={handleResetScores}
                       variant={showScoreResetConfirm ? "destructive" : "outline"}
@@ -599,57 +655,6 @@ export default function ControllerPage() {
                   </motion.div>
                 )}
               </div>
-            </Card>
-          </div>
-        </div>
-
-        {/* Strikes and Round Control */}
-        <div className="mb-2 grid grid-cols-1 gap-2 sm:mb-4 sm:gap-4 lg:grid-cols-12">
-          <div className="lg:col-span-6">
-            <Card className="bg-gray-800 p-3 sm:p-4">
-              <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Strikes</h2>
-              <div className="mb-3 flex justify-center sm:mb-4">
-                <StrikeIndicator count={state.strikes} animated={false} size="medium" />
-              </div>
-              <div className="space-y-2">
-                <Button
-                  onClick={addStrike}
-                  variant="destructive"
-                  className="w-full text-xs"
-                  size="lg"
-                  disabled={state.strikes >= 3}
-                >
-                  Add Strike
-                </Button>
-                <Button onClick={resetStrikes} variant="outline" className="w-full bg-transparent text-xs" size="sm">
-                  <RotateCcw className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                  Reset Strikes
-                </Button>
-              </div>
-            </Card>
-          </div>
-
-          <div className="lg:col-span-6">
-            <Card className="bg-gray-800 p-3 sm:p-4">
-              <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Round Controls</h2>
-              <div className="grid grid-cols-2 gap-2">
-                {teams.map((team) => (
-                  <Button
-                    key={team.id}
-                    onClick={() => awardRoundPoints(team.id)}
-                    variant="default"
-                    className="text-xs"
-                    style={{ backgroundColor: team.color }}
-                  >
-                    <Trophy className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Award to {team.name}</span>
-                    <span className="sm:hidden">{team.name}</span>
-                  </Button>
-                ))}
-              </div>
-              <Button onClick={clearQuestion} variant="outline" className="mt-2 w-full bg-transparent text-xs">
-                Clear Question
-              </Button>
             </Card>
           </div>
         </div>

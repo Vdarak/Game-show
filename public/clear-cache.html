@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clear Cache - Family Feud</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    .container {
+      background: #2a2a2a;
+      border-radius: 8px;
+      padding: 30px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #3b82f6;
+      margin-top: 0;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 6px;
+      background: #333;
+    }
+    .success { color: #22c55e; }
+    .error { color: #ef4444; }
+    .info { color: #3b82f6; }
+    ul {
+      text-align: left;
+      line-height: 1.8;
+    }
+    code {
+      background: #1a1a1a;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧹 Clear Cache & Reset</h1>
+    <p>Use this page to clear all caches and service workers when you see old content on localhost.</p>
+    
+    <div>
+      <button onclick="clearAllCaches()">Clear All Caches</button>
+      <button onclick="unregisterServiceWorker()">Unregister Service Worker</button>
+      <button onclick="hardReload()">Hard Reload</button>
+      <button onclick="clearEverything()">Clear Everything</button>
+    </div>
+
+    <div id="status" class="status" style="display:none;"></div>
+
+    <div style="margin-top: 30px; padding-top: 30px; border-top: 1px solid #444;">
+      <h3>Manual Steps:</h3>
+      <ul>
+        <li><strong>Chrome/Edge:</strong> Press <code>Ctrl+Shift+Delete</code> (or <code>Cmd+Shift+Delete</code> on Mac)</li>
+        <li><strong>Or:</strong> Open DevTools → Application tab → Clear storage → "Clear site data"</li>
+        <li><strong>Hard Reload:</strong> Press <code>Ctrl+Shift+R</code> (or <code>Cmd+Shift+R</code> on Mac)</li>
+        <li><strong>Disable Cache:</strong> DevTools → Network tab → Check "Disable cache"</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    function showStatus(message, type = 'info') {
+      const status = document.getElementById('status');
+      status.innerHTML = `<span class="${type}">${message}</span>`;
+      status.style.display = 'block';
+    }
+
+    async function clearAllCaches() {
+      try {
+        showStatus('Clearing all caches...', 'info');
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+        showStatus(`✓ Successfully cleared ${cacheNames.length} cache(s): ${cacheNames.join(', ')}`, 'success');
+      } catch (error) {
+        showStatus(`✗ Error clearing caches: ${error.message}`, 'error');
+      }
+    }
+
+    async function unregisterServiceWorker() {
+      try {
+        showStatus('Unregistering service workers...', 'info');
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(reg => reg.unregister()));
+        showStatus(`✓ Successfully unregistered ${registrations.length} service worker(s)`, 'success');
+      } catch (error) {
+        showStatus(`✗ Error unregistering service workers: ${error.message}`, 'error');
+      }
+    }
+
+    function hardReload() {
+      showStatus('Performing hard reload...', 'info');
+      setTimeout(() => {
+        window.location.reload(true);
+      }, 500);
+    }
+
+    async function clearEverything() {
+      try {
+        showStatus('Clearing everything...', 'info');
+        
+        // Clear caches
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+        
+        // Unregister service workers
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(reg => reg.unregister()));
+        
+        // Clear localStorage
+        localStorage.clear();
+        
+        // Clear sessionStorage
+        sessionStorage.clear();
+        
+        showStatus('✓ Everything cleared! Reloading in 2 seconds...', 'success');
+        
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+      } catch (error) {
+        showStatus(`✗ Error: ${error.message}`, 'error');
+      }
+    }
+
+    // Show current cache status on load
+    window.addEventListener('load', async () => {
+      try {
+        const cacheNames = await caches.keys();
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        showStatus(`
+          Current status:<br>
+          • Caches: ${cacheNames.length} (${cacheNames.join(', ') || 'none'})<br>
+          • Service Workers: ${registrations.length}
+        `, 'info');
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -21,6 +21,8 @@ interface Team {
   score: number
   currentRoundScore: number
   color: string
+  theme: string
+  strikes: number
 }
 
 interface GameState {
@@ -40,6 +42,8 @@ const DEFAULT_STATE: GameState = {
       score: 0,
       currentRoundScore: 0,
       color: "#3B82F6",
+      theme: "default",
+      strikes: 0,
     },
     {
       id: "B",
@@ -47,6 +51,8 @@ const DEFAULT_STATE: GameState = {
       score: 0,
       currentRoundScore: 0,
       color: "#EF4444",
+      theme: "default",
+      strikes: 0,
     },
     {
       id: "C",
@@ -54,6 +60,8 @@ const DEFAULT_STATE: GameState = {
       score: 0,
       currentRoundScore: 0,
       color: "#10B981",
+      theme: "default",
+      strikes: 0,
     },
     {
       id: "D",
@@ -61,6 +69,8 @@ const DEFAULT_STATE: GameState = {
       score: 0,
       currentRoundScore: 0,
       color: "#F59E0B",
+      theme: "default",
+      strikes: 0,
     },
   ],
   strikes: 0,
@@ -117,6 +127,8 @@ function migrateOldState(savedState: any): GameState {
         score: savedState.teamA?.score || 0,
         currentRoundScore: savedState.teamA?.currentRoundScore || 0,
         color: savedState.teamA?.color || "#3B82F6",
+        theme: savedState.teamA?.theme || "default",
+        strikes: savedState.teamA?.strikes || 0,
       },
       {
         id: "B",
@@ -124,6 +136,8 @@ function migrateOldState(savedState: any): GameState {
         score: savedState.teamB?.score || 0,
         currentRoundScore: savedState.teamB?.currentRoundScore || 0,
         color: savedState.teamB?.color || "#EF4444",
+        theme: savedState.teamB?.theme || "default",
+        strikes: savedState.teamB?.strikes || 0,
       },
       {
         id: "C",
@@ -131,6 +145,8 @@ function migrateOldState(savedState: any): GameState {
         score: 0,
         currentRoundScore: 0,
         color: "#10B981",
+        theme: "default",
+        strikes: 0,
       },
       {
         id: "D",
@@ -138,6 +154,8 @@ function migrateOldState(savedState: any): GameState {
         score: 0,
         currentRoundScore: 0,
         color: "#F59E0B",
+        theme: "default",
+        strikes: 0,
       },
     ],
     strikes: savedState.strikes ?? 0,
@@ -153,27 +171,44 @@ function migrateOldState(savedState: any): GameState {
 export function useGameState() {
   const [state, setState] = useState<GameState>(DEFAULT_STATE)
   const channelRef = useRef<BroadcastChannel | null>(null)
-  const updateTimeoutRef = useRef<number>()
+  const updateTimeoutRef = useRef<number | undefined>(undefined)
+  const [roomCode, setRoomCode] = useState<string | null>(null)
+
+  // Get room code from localStorage
+  useEffect(() => {
+    const savedRoomCode = localStorage.getItem("gameshow-room-code")
+    setRoomCode(savedRoomCode)
+    console.log("[GameState] Room code loaded:", savedRoomCode)
+  }, [])
 
   useEffect(() => {
-    const savedState = localStorage.getItem("gameshow-state")
+    const storageKey = roomCode ? `gameshow-state-${roomCode}` : "gameshow-state"
+    const savedState = localStorage.getItem(storageKey)
+    
     if (savedState) {
       try {
         const parsed = JSON.parse(savedState)
         const migratedState = migrateOldState(parsed)
         setState(migratedState)
-        // Save migrated state back to localStorage
-        localStorage.setItem("gameshow-state", JSON.stringify(migratedState))
+        console.log("[GameState] Loaded state for room:", roomCode || "default")
       } catch (error) {
-        console.error("[v0] Failed to parse saved state:", error)
+        console.error("[GameState] Failed to parse saved state:", error)
         setState(DEFAULT_STATE)
       }
+    } else {
+      // No saved state, use default
+      setState(DEFAULT_STATE)
+      localStorage.setItem(storageKey, JSON.stringify(DEFAULT_STATE))
+      console.log("[GameState] Initialized default state for room:", roomCode || "default")
     }
 
     try {
-      channelRef.current = new BroadcastChannel("gameshow-sync")
+      const channelName = roomCode ? `gameshow-sync-${roomCode}` : "gameshow-sync"
+      channelRef.current = new BroadcastChannel(channelName)
+      console.log("[GameState] BroadcastChannel created:", channelName)
 
       channelRef.current.onmessage = (event) => {
+        console.log("[GameState] Received broadcast update")
         clearTimeout(updateTimeoutRef.current)
         updateTimeoutRef.current = window.setTimeout(() => {
           const migratedState = migrateOldState(event.data)
@@ -181,33 +216,39 @@ export function useGameState() {
         }, 10)
       }
     } catch (error) {
-      console.error("[v0] BroadcastChannel not supported:", error)
+      console.error("[GameState] BroadcastChannel not supported:", error)
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === storageKey && e.newValue) {
+          try {
+            const parsed = JSON.parse(e.newValue)
+            const migratedState = migrateOldState(parsed)
+            setState(migratedState)
+          } catch (error) {
+            console.error("[GameState] Failed to parse storage event:", error)
+          }
+        }
+      }
       window.addEventListener("storage", handleStorageChange)
+      
+      return () => {
+        window.removeEventListener("storage", handleStorageChange)
+        channelRef.current?.close()
+        clearTimeout(updateTimeoutRef.current)
+      }
     }
 
     return () => {
       channelRef.current?.close()
-      window.removeEventListener("storage", handleStorageChange)
       clearTimeout(updateTimeoutRef.current)
     }
-  }, [])
-
-  const handleStorageChange = (e: StorageEvent) => {
-    if (e.key === "gameshow-state" && e.newValue) {
-      try {
-        const parsed = JSON.parse(e.newValue)
-        const migratedState = migrateOldState(parsed)
-        setState(migratedState)
-      } catch (error) {
-        console.error("[v0] Failed to parse storage event:", error)
-      }
-    }
-  }
+  }, [roomCode])
 
   const broadcastState = useCallback((newState: GameState) => {
-    localStorage.setItem("gameshow-state", JSON.stringify(newState))
+    const storageKey = roomCode ? `gameshow-state-${roomCode}` : "gameshow-state"
+    localStorage.setItem(storageKey, JSON.stringify(newState))
+    console.log("[GameState] Broadcasting state update for room:", roomCode || "default", "key:", storageKey)
     channelRef.current?.postMessage(newState)
-  }, [])
+  }, [roomCode])
 
   const updateState = useCallback(
     (updates: Partial<GameState>) => {
@@ -440,6 +481,50 @@ export function useGameState() {
     })
   }, [updateState, state.teams])
 
+  const updateTeamTheme = useCallback(
+    (teamId: string, theme: string) => {
+      setState((prev) => {
+        const newState = {
+          ...prev,
+          teams: prev.teams.map((team) => (team.id === teamId ? { ...team, theme } : team)),
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
+  const addTeamStrike = useCallback(
+    (teamId: string) => {
+      setState((prev) => {
+        const newState = {
+          ...prev,
+          teams: prev.teams.map((team) =>
+            team.id === teamId ? { ...team, strikes: Math.min(3, team.strikes + 1) } : team,
+          ),
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
+  const resetTeamStrikes = useCallback(
+    (teamId: string) => {
+      setState((prev) => {
+        const newState = {
+          ...prev,
+          teams: prev.teams.map((team) => (team.id === teamId ? { ...team, strikes: 0 } : team)),
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
   return {
     state,
     updateScore,
@@ -453,6 +538,9 @@ export function useGameState() {
     previousQuestion,
     updateTeamName,
     updateTeamColor,
+    updateTeamTheme,
+    addTeamStrike,
+    resetTeamStrikes,
     awardRoundPoints,
     resetGame,
     clearQuestion,

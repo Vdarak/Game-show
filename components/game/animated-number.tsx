@@ -114,8 +114,6 @@ function DigitColumn({ digit, isChanged, isIncreasing, color, size }: DigitColum
     }
   }, [digit, isChanged, displayDigit])
 
-  const pulseColor = isIncreasing ? "rgba(34, 197, 94, 0.4)" : "rgba(239, 68, 68, 0.4)"
-
   return (
     <div className="relative overflow-hidden px-1">
       {/* Hidden placeholder to maintain height */}
@@ -137,23 +135,16 @@ function DigitColumn({ digit, isChanged, isIncreasing, color, size }: DigitColum
         }}
       >
         {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-          <motion.div
+          <div
             key={num}
             className={`flex h-full items-center justify-center ${size} font-bold tabular-nums`}
             style={{
               color: color || "currentColor",
               textShadow: color ? `0 0 20px ${color}40` : undefined,
             }}
-            animate={{
-              backgroundColor: isChanged && num === digit ? [pulseColor, "transparent"] : "transparent",
-            }}
-            transition={{
-              duration: 0.6,
-              ease: "easeOut",
-            }}
           >
             {num}
-          </motion.div>
+          </div>
         ))}
       </motion.div>
     </div>

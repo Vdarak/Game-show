@@ -4,8 +4,6 @@ import { useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useGameState } from "@/hooks/use-game-state"
 import { AnswerCard } from "@/components/game/answer-card"
-import { StrikeIndicator } from "@/components/game/strike-indicator"
-import { AnimatedNumber } from "@/components/game/animated-number"
 
 export default function GameBoardPage() {
   const { state } = useGameState()
@@ -38,7 +36,7 @@ export default function GameBoardPage() {
     }
   }, [])
 
-  const { currentQuestion, teams, strikes } = state
+  const { currentQuestion } = state
 
   // Determine grid layout based on number of answers
   const getGridLayout = (answerCount: number) => {
@@ -115,56 +113,6 @@ export default function GameBoardPage() {
         ) : (
           <div className="text-center text-lg text-gray-600 sm:text-xl md:text-2xl">No question loaded</div>
         )}
-      </div>
-
-      {/* Bottom Section - Scores and Strikes */}
-      <div className="relative z-10 flex h-auto min-h-[15vh] flex-col items-center justify-between gap-4 bg-gradient-to-t from-gray-900 to-transparent px-4 py-4 sm:h-[20vh] sm:flex-row sm:px-8 sm:py-0 md:px-12">
-        <div className="flex flex-wrap justify-center gap-3 sm:gap-4 md:gap-6">
-          {teams.slice(0, 2).map((team) => (
-            <motion.div
-              key={team.id}
-              className="flex items-center gap-2 rounded-lg px-4 py-2 sm:gap-4 sm:px-6 sm:py-3 md:px-8 md:py-4"
-              style={{
-                backgroundColor: team.color,
-                boxShadow: `0 0 30px ${team.color}60`,
-              }}
-              animate={{
-                boxShadow: [`0 0 30px ${team.color}60`, `0 0 50px ${team.color}80`, `0 0 30px ${team.color}60`],
-              }}
-              transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-            >
-              <span className="text-sm font-bold sm:text-base md:text-xl">{team.name}:</span>
-              <AnimatedNumber value={team.score} color="#FFFFFF" size="massive" />
-            </motion.div>
-          ))}
-        </div>
-
-        <div className="flex flex-col items-center gap-2 sm:gap-4">
-          <div className="text-base font-bold uppercase tracking-wider text-red-500 sm:text-xl md:text-2xl">
-            Strikes
-          </div>
-          <StrikeIndicator count={strikes} animated size="large" />
-        </div>
-
-        <div className="flex flex-wrap justify-center gap-3 sm:gap-4 md:gap-6">
-          {teams.slice(2, 4).map((team) => (
-            <motion.div
-              key={team.id}
-              className="flex items-center gap-2 rounded-lg px-4 py-2 sm:gap-4 sm:px-6 sm:py-3 md:px-8 md:py-4"
-              style={{
-                backgroundColor: team.color,
-                boxShadow: `0 0 30px ${team.color}60`,
-              }}
-              animate={{
-                boxShadow: [`0 0 30px ${team.color}60`, `0 0 50px ${team.color}80`, `0 0 30px ${team.color}60`],
-              }}
-              transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-            >
-              <span className="text-sm font-bold sm:text-base md:text-xl">{team.name}:</span>
-              <AnimatedNumber value={team.score} color="#FFFFFF" size="massive" />
-            </motion.div>
-          ))}
-        </div>
       </div>
 
       {/* Victory animation overlay */}
