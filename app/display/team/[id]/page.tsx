@@ -25,6 +25,34 @@ export default function TeamDisplayPage() {
     return () => clearTimeout(timer)
   }, [])
 
+  // Handle F key for fullscreen toggle
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === "f" || event.key.toLowerCase() === "F") {
+        event.preventDefault()
+        
+        if (!document.fullscreenElement) {
+          // Enter fullscreen
+          if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch((err) => {
+              console.warn("[Team Display] Fullscreen request failed:", err)
+            })
+          }
+        } else {
+          // Exit fullscreen
+          if (document.exitFullscreen) {
+            document.exitFullscreen().catch((err) => {
+              console.warn("[Team Display] Exit fullscreen failed:", err)
+            })
+          }
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
   if (!team) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">

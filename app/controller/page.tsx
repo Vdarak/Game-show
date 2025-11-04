@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useGameState } from "@/hooks/use-game-state"
-import { useRoomSync } from "@/hooks/use-room-sync"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -26,8 +25,6 @@ import {
   Volume2,
   AlertCircle,
   Monitor,
-  Copy,
-  Check,
 } from "lucide-react"
 
 type DisplayWindow = {
@@ -59,7 +56,6 @@ export default function ControllerPage() {
     clearQuestion,
   } = useGameState()
 
-  const { roomState } = useRoomSync()
   const [copied, setCopied] = useState(false)
 
   const [showResetConfirm, setShowResetConfirm] = useState(false)
@@ -233,24 +229,7 @@ export default function ControllerPage() {
   }
 
   const handleCopyRoomCode = () => {
-    if (roomState.roomCode) {
-      const code = roomState.roomCode
-      // Try modern clipboard API first, fallback to older method
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(code)
-          .then(() => {
-            setCopied(true)
-            setTimeout(() => setCopied(false), 2000)
-          })
-          .catch(() => {
-            // Fallback if clipboard API fails
-            fallbackCopyToClipboard(code)
-          })
-      } else {
-        // Fallback for browsers without clipboard API
-        fallbackCopyToClipboard(code)
-      }
-    }
+    // Room code feature removed - single instance mode
   }
 
   const fallbackCopyToClipboard = (text: string) => {
@@ -286,28 +265,6 @@ export default function ControllerPage() {
             <div className="flex items-center gap-3 sm:gap-6">
               <InstallPWA />
               <NetworkIndicator />
-              {roomState.roomCode && (
-                <div className="flex items-center gap-2">
-                  <div className="text-right">
-                    <div className="text-xs text-gray-400">Room Code</div>
-                    <div className="font-display text-sm font-bold tracking-widest text-blue-400">
-                      {roomState.roomCode}
-                    </div>
-                  </div>
-                  <Button
-                    onClick={handleCopyRoomCode}
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                  >
-                    {copied ? (
-                      <Check className="h-4 w-4 text-green-400" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              )}
             </div>
           </div>
         </Card>

@@ -172,25 +172,17 @@ export function useGameState() {
   const [state, setState] = useState<GameState>(DEFAULT_STATE)
   const channelRef = useRef<BroadcastChannel | null>(null)
   const updateTimeoutRef = useRef<number | undefined>(undefined)
-  const [roomCode, setRoomCode] = useState<string | null>(null)
-
-  // Get room code from localStorage
-  useEffect(() => {
-    const savedRoomCode = localStorage.getItem("gameshow-room-code")
-    setRoomCode(savedRoomCode)
-    console.log("[GameState] Room code loaded:", savedRoomCode)
-  }, [])
+  const STORAGE_KEY = "gameshow-state"
 
   useEffect(() => {
-    const storageKey = roomCode ? `gameshow-state-${roomCode}` : "gameshow-state"
-    const savedState = localStorage.getItem(storageKey)
+    const savedState = localStorage.getItem(STORAGE_KEY)
     
     if (savedState) {
       try {
         const parsed = JSON.parse(savedState)
         const migratedState = migrateOldState(parsed)
         setState(migratedState)
-        console.log("[GameState] Loaded state for room:", roomCode || "default")
+        console.log("[GameState] Loaded saved state")
       } catch (error) {
         console.error("[GameState] Failed to parse saved state:", error)
         setState(DEFAULT_STATE)
@@ -198,14 +190,13 @@ export function useGameState() {
     } else {
       // No saved state, use default
       setState(DEFAULT_STATE)
-      localStorage.setItem(storageKey, JSON.stringify(DEFAULT_STATE))
-      console.log("[GameState] Initialized default state for room:", roomCode || "default")
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_STATE))
+      console.log("[GameState] Initialized default state")
     }
 
     try {
-      const channelName = roomCode ? `gameshow-sync-${roomCode}` : "gameshow-sync"
-      channelRef.current = new BroadcastChannel(channelName)
-      console.log("[GameState] BroadcastChannel created:", channelName)
+      channelRef.current = new BroadcastChannel("gameshow-sync")
+      console.log("[GameState] BroadcastChannel created")
 
       channelRef.current.onmessage = (event) => {
         console.log("[GameState] Received broadcast update")
@@ -218,7 +209,7 @@ export function useGameState() {
     } catch (error) {
       console.error("[GameState] BroadcastChannel not supported:", error)
       const handleStorageChange = (e: StorageEvent) => {
-        if (e.key === storageKey && e.newValue) {
+        if (e.key === STORAGE_KEY && e.newValue) {
           try {
             const parsed = JSON.parse(e.newValue)
             const migratedState = migrateOldState(parsed)
@@ -241,14 +232,13 @@ export function useGameState() {
       channelRef.current?.close()
       clearTimeout(updateTimeoutRef.current)
     }
-  }, [roomCode])
+  }, [])
 
   const broadcastState = useCallback((newState: GameState) => {
-    const storageKey = roomCode ? `gameshow-state-${roomCode}` : "gameshow-state"
-    localStorage.setItem(storageKey, JSON.stringify(newState))
-    console.log("[GameState] Broadcasting state update for room:", roomCode || "default", "key:", storageKey)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newState))
+    console.log("[GameState] Broadcasting state update")
     channelRef.current?.postMessage(newState)
-  }, [roomCode])
+  }, [])
 
   const updateState = useCallback(
     (updates: Partial<GameState>) => {
