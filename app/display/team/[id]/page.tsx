@@ -1,56 +1,56 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useGameState } from "@/hooks/use-game-state"
 import { AnimatedNumber } from "@/components/game/animated-number"
 import { formatScore } from "@/lib/game-utils"
 import { useParams } from "next/navigation"
+import { Maximize2 } from "lucide-react"
 
 export default function TeamDisplayPage() {
   const params = useParams()
   const teamId = params.id as string
   const { state } = useGameState()
   const { strikes, currentQuestion } = state
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const team = state.teams.find((t) => t.id === teamId)
 
-  // Auto-fullscreen on load
+  // Keyboard handlers for fullscreen toggle (F to toggle, Escape to exit)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (document.documentElement.requestFullscreen) {
+    const toggleFullscreen = () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {})
+      } else {
         document.documentElement.requestFullscreen().catch(() => {})
-      }
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Handle F key for fullscreen toggle
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === "f" || event.key.toLowerCase() === "F") {
-        event.preventDefault()
-        
-        if (!document.fullscreenElement) {
-          // Enter fullscreen
-          if (document.documentElement.requestFullscreen) {
-            document.documentElement.requestFullscreen().catch((err) => {
-              console.warn("[Team Display] Fullscreen request failed:", err)
-            })
-          }
-        } else {
-          // Exit fullscreen
-          if (document.exitFullscreen) {
-            document.exitFullscreen().catch((err) => {
-              console.warn("[Team Display] Exit fullscreen failed:", err)
-            })
-          }
-        }
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
+    // Keyboard handler
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {})
+      }
+
+      if (e.key === "f" || e.key === "F") {
+        e.preventDefault()
+        toggleFullscreen()
+      }
+    }
+
+    // Listen for fullscreen changes
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+    document.addEventListener("fullscreenchange", handleFullscreenChange)
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown)
+      document.removeEventListener("fullscreenchange", handleFullscreenChange)
+    }
   }, [])
 
   if (!team) {
@@ -68,6 +68,25 @@ export default function TeamDisplayPage() {
         background: `linear-gradient(to bottom, ${team.color}dd, ${team.color}88)`,
       }}
     >
+      {/* Fullscreen toggle button - only visible in windowed mode */}
+      <AnimatePresence>
+        {!isFullscreen && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            onClick={() => {
+              document.documentElement.requestFullscreen().catch(() => {})
+            }}
+            aria-label="Enter Fullscreen"
+            className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-white/20"
+          >
+            <Maximize2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Fullscreen</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* Background decorative patterns */}
       <div className="pointer-events-none absolute inset-0 opacity-10">
         <motion.div

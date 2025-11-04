@@ -8,30 +8,31 @@ import { AnswerCard } from "@/components/game/answer-card"
 export default function GameBoardPage() {
   const { state } = useGameState()
 
-  // Auto-fullscreen on load
+  // Keyboard handlers for fullscreen toggle (F to toggle, Escape to exit)
   useEffect(() => {
-    const enterFullscreen = () => {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch((err) => {
-          console.log("[v0] Fullscreen request failed:", err)
-        })
+    const toggleFullscreen = () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {})
+      } else {
+        document.documentElement.requestFullscreen().catch(() => {})
       }
     }
 
-    // Delay to allow user interaction
-    const timer = setTimeout(enterFullscreen, 1000)
-
-    // Exit fullscreen on Escape
+    // Keyboard handler
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && document.fullscreenElement) {
-        document.exitFullscreen()
+        document.exitFullscreen().catch(() => {})
+      }
+
+      if (e.key === "f" || e.key === "F") {
+        e.preventDefault()
+        toggleFullscreen()
       }
     }
 
     document.addEventListener("keydown", handleKeyDown)
 
     return () => {
-      clearTimeout(timer)
       document.removeEventListener("keydown", handleKeyDown)
     }
   }, [])
