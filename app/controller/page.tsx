@@ -79,7 +79,7 @@ export default function ControllerPage() {
     }
   }
 
-  const presetValues = scorePreset === "default" ? [10, 20, 50, 100] : [10, 20, 50, 100]
+  const presetValues = scorePreset === "default" ? [10, 20, 50, 100] : [25, 50, 100, 500]
 
   useEffect(() => {
     const checkInterval = setInterval(() => {
@@ -191,6 +191,10 @@ export default function ControllerPage() {
     { name: "Wrong", type: "wrong" as const },
     { name: "Celebration", type: "celebration" as const },
     { name: "Drum Roll", type: "drumroll" as const },
+    { name: "Bell", type: "bell" as const },
+    { name: "Cheer", type: "cheer" as const },
+    { name: "Fanfare", type: "fanfare" as const },
+    { name: "Swoosh", type: "swoosh" as const },
   ]
 
   const getStatusColor = (status: DisplayWindow["status"]) => {
@@ -326,10 +330,12 @@ export default function ControllerPage() {
           </div>
         </Card>
 
-        {/* Team Scores */}
-        <Card className="mb-2 bg-gray-800/50 p-4 sm:mb-4 sm:p-6">
-          <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Team Scores</h2>
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 lg:gap-4">
+        {/* Team Scores - Full Width */}
+        <div className="mb-2 grid grid-cols-1 gap-2 sm:mb-4 sm:gap-4 lg:grid-cols-12">
+          <div className="lg:col-span-12">
+            <Card className="bg-gray-800/50 p-4 sm:p-6">
+              <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Team Scores</h2>
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
             {teams.map((team) => (
               <div
                 key={team.id}
@@ -395,12 +401,160 @@ export default function ControllerPage() {
                 />
               </div>
             ))}
+              </div>
+            </Card>
           </div>
-        </Card>
+        </div>
 
-        {/* Question Control and Score Control */}
+        {/* Score Control and Sound Effects - Side by Side */}
+        <div className="mb-2 grid grid-cols-1 gap-2 sm:mb-4 sm:gap-4 lg:grid-cols-2">
+          {/* Score Control */}
+          <div>
+            <Card className="bg-gray-800 p-3 sm:p-4">
+              <div className="mb-3 flex items-center justify-between sm:mb-4">
+                <h2 className="font-display text-xs sm:text-sm">Score Control</h2>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handlePresetChange("alternative")}
+                    className={`rounded-full px-2 py-1 text-xs font-medium transition-all ${
+                      scorePreset === "alternative"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    }`}
+                  >
+                    25/50
+                  </button>
+                  <button
+                    onClick={() => handlePresetChange("default")}
+                    className={`rounded-full px-2 py-1 text-xs font-medium transition-all ${
+                      scorePreset === "default"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    }`}
+                  >
+                    10/20
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2 sm:space-y-3">
+                {/* Team Selection */}
+                <div className="flex gap-1">
+                  <Button
+                    onClick={toggleSelectAll}
+                    variant={selectedTeams.size === 4 ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 text-xs"
+                  >
+                    All
+                  </Button>
+                  {teams.map((team) => (
+                    <Button
+                      key={team.id}
+                      onClick={() => toggleTeamSelection(team.id)}
+                      variant={selectedTeams.has(team.id) ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 text-xs"
+                      style={{
+                        backgroundColor: selectedTeams.has(team.id) ? team.color : undefined,
+                        borderColor: team.color,
+                      }}
+                    >
+                      {team.id}
+                    </Button>
+                  ))}
+                </div>
+
+                {selectedTeams.size > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-2 sm:space-y-3"
+                  >
+                    {/* Score Adjustment Controls */}
+                    <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-2 sm:p-3">
+                      <div className="mb-2 flex items-center justify-center gap-2 sm:gap-3">
+                        <Button
+                          onClick={() => applyScoreToSelected(-scoreChangeValue)}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 text-sm"
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <div className="flex min-w-[80px] items-center justify-center">
+                          <AnimatedNumber value={scoreChangeValue} color="#3B82F6" size="small" />
+                        </div>
+                        <Button
+                          onClick={() => applyScoreToSelected(scoreChangeValue)}
+                          variant="default"
+                          size="sm"
+                          className="h-8 w-8 bg-blue-600 text-sm hover:bg-blue-500"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+
+                      {/* Preset Value Buttons */}
+                      <div className="grid grid-cols-4 gap-1">
+                        {presetValues.map((value) => (
+                          <Button
+                            key={value}
+                            onClick={() => setScoreChangeValue(value)}
+                            variant={scoreChangeValue === value ? "default" : "outline"}
+                            size="sm"
+                            className={`text-xs ${
+                              scoreChangeValue === value ? "bg-blue-600 hover:bg-blue-500" : ""
+                            }`}
+                          >
+                            {value}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Reset Button */}
+                    <Button
+                      onClick={handleResetScores}
+                      variant={showScoreResetConfirm ? "destructive" : "outline"}
+                      className="w-full text-xs"
+                      size="sm"
+                    >
+                      <RotateCcw className="mr-1 h-3 w-3" />
+                      {showScoreResetConfirm ? "Confirm?" : "Reset"}
+                    </Button>
+                  </motion.div>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {/* Sound Effects */}
+          <div>
+            <Card className="bg-gray-800 p-3 sm:p-4">
+              <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Sound Effects</h2>
+              <div className="grid grid-cols-2 gap-2">
+                {soundEffects.map((sound) => (
+                  <Button
+                    key={sound.type}
+                    onClick={() => console.log(`[v0] Playing sound: ${sound.type}`)}
+                    variant="secondary"
+                    size="sm"
+                    className="gap-1 text-xs"
+                  >
+                    <Volume2 className="h-3 w-3" />
+                    {sound.name}
+                  </Button>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Question Control */}
         <div className="mb-2 grid grid-cols-1 gap-2 sm:mb-4 sm:gap-4 lg:grid-cols-12">
-          <div className="lg:col-span-7">
+          <div className="lg:col-span-12">
             <Card className="h-full bg-gray-800 p-3 sm:p-4">
               <div className="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="font-display text-xs sm:text-sm">Question Control</h2>
@@ -450,24 +604,32 @@ export default function ControllerPage() {
                       </Button>
                     </div>
 
-                    {state.currentQuestion.answers.map((answer, index) => (
-                      <motion.div
-                        key={answer.id}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className={`flex cursor-pointer items-center justify-between rounded-lg p-3 transition-colors sm:p-4 ${
-                          answer.revealed ? "bg-green-600" : "bg-gray-700 hover:bg-gray-600"
-                        }`}
-                        onClick={() => revealAnswer(answer.id)}
-                      >
-                        <div className="flex items-center gap-2 sm:gap-4">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 font-display text-xs sm:h-10 sm:w-10">
+                    {/* Answers - 2 Column × 4 Row Grid Layout */}
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                      {state.currentQuestion.answers.map((answer, index) => (
+                        <motion.div
+                          key={answer.id}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg p-2 transition-colors sm:p-3 ${
+                            answer.revealed ? "bg-green-600" : "bg-gray-700 hover:bg-gray-600"
+                          }`}
+                          onClick={() => revealAnswer(answer.id)}
+                        >
+                          {/* Number on left */}
+                          <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-800 font-display text-xs sm:h-7 sm:w-7">
                             {index + 1}
                           </div>
-                          <div className="text-xs font-semibold">{answer.text}</div>
-                        </div>
-                        <div className="flex items-center gap-2 sm:gap-4">
-                          <div className="font-display text-xs text-yellow-400 sm:text-sm">{answer.points}</div>
+                          
+                          {/* Answer text in middle - flex grow */}
+                          <div className="flex-grow min-w-0">
+                            <div className="text-xs font-semibold truncate">{answer.text}</div>
+                          </div>
+                          
+                          {/* Points on right */}
+                          <div className="flex-shrink-0 font-display text-xs text-yellow-400 sm:text-sm">{answer.points}</div>
+                          
+                          {/* Reveal/Hide button on far right */}
                           <Button
                             onClick={(e) => {
                               e.stopPropagation()
@@ -475,13 +637,13 @@ export default function ControllerPage() {
                             }}
                             variant={answer.revealed ? "secondary" : "default"}
                             size="sm"
-                            className="text-xs"
+                            className="text-xs flex-shrink-0"
                           >
                             {answer.revealed ? "Hide" : "Reveal"}
                           </Button>
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -493,152 +655,11 @@ export default function ControllerPage() {
               )}
             </Card>
           </div>
-
-          <div className="lg:col-span-5">
-            <Card className="h-full bg-gray-800 p-3 sm:p-4">
-              <div className="mb-3 flex items-center justify-between sm:mb-4">
-                <h2 className="font-display text-xs sm:text-sm">Score Control</h2>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => handlePresetChange("alternative")}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                      scorePreset === "alternative"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    }`}
-                  >
-                    10/20
-                  </button>
-                  <button
-                    onClick={() => handlePresetChange("default")}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                      scorePreset === "default"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    }`}
-                  >
-                    25/50
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {/* Team Selection - Single Row */}
-                <div className="flex gap-2">
-                  <Button
-                    onClick={toggleSelectAll}
-                    variant={selectedTeams.size === 4 ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1 text-xs"
-                  >
-                    All
-                  </Button>
-                  {teams.map((team) => (
-                    <Button
-                      key={team.id}
-                      onClick={() => toggleTeamSelection(team.id)}
-                      variant={selectedTeams.has(team.id) ? "default" : "outline"}
-                      size="sm"
-                      className="flex-1 text-xs"
-                      style={{
-                        backgroundColor: selectedTeams.has(team.id) ? team.color : undefined,
-                        borderColor: team.color,
-                      }}
-                    >
-                      {team.id}
-                    </Button>
-                  ))}
-                </div>
-
-                {selectedTeams.size > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="space-y-3"
-                  >
-                    {/* Score Adjustment Controls */}
-                    <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
-                      <div className="mb-3 flex items-center justify-center gap-3">
-                        <Button
-                          onClick={() => applyScoreToSelected(-scoreChangeValue)}
-                          variant="outline"
-                          size="lg"
-                          className="h-12 w-12 text-xl"
-                        >
-                          <Minus className="h-5 w-5" />
-                        </Button>
-                        <div className="flex min-w-[120px] items-center justify-center">
-                          <AnimatedNumber value={scoreChangeValue} color="#3B82F6" size="large" />
-                        </div>
-                        <Button
-                          onClick={() => applyScoreToSelected(scoreChangeValue)}
-                          variant="default"
-                          size="lg"
-                          className="h-12 w-12 bg-blue-600 text-xl hover:bg-blue-500"
-                        >
-                          <Plus className="h-5 w-5" />
-                        </Button>
-                      </div>
-
-                      {/* Preset Value Buttons */}
-                      <div className="grid grid-cols-4 gap-2">
-                        {presetValues.map((value) => (
-                          <Button
-                            key={value}
-                            onClick={() => setScoreChangeValue(value)}
-                            variant={scoreChangeValue === value ? "default" : "outline"}
-                            size="sm"
-                            className={`text-xs ${
-                              scoreChangeValue === value ? "bg-blue-600 hover:bg-blue-500" : ""
-                            }`}
-                          >
-                            {value}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Reset Button */}
-                    <Button
-                      onClick={handleResetScores}
-                      variant={showScoreResetConfirm ? "destructive" : "outline"}
-                      className="w-full text-xs"
-                      size="sm"
-                    >
-                      <RotateCcw className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                      {showScoreResetConfirm ? "Confirm Reset?" : "Reset Scores"}
-                    </Button>
-                  </motion.div>
-                )}
-              </div>
-            </Card>
-          </div>
         </div>
 
-        {/* Sound Effects and Game Actions */}
+        {/* Game Actions */}
         <div className="grid grid-cols-1 gap-2 sm:gap-4 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            <Card className="bg-gray-800 p-3 sm:p-4">
-              <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Sound Effects</h2>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {soundEffects.map((sound) => (
-                  <Button
-                    key={sound.type}
-                    onClick={() => console.log(`[v0] Playing sound: ${sound.type}`)}
-                    variant="secondary"
-                    size="sm"
-                    className="gap-1 text-xs"
-                  >
-                    <Volume2 className="h-3 w-3" />
-                    {sound.name}
-                  </Button>
-                ))}
-              </div>
-            </Card>
-          </div>
-
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-12">
             <Card className="bg-gray-800 p-3 sm:p-4">
               <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Game Actions</h2>
               <div className="space-y-2">
@@ -658,3 +679,4 @@ export default function ControllerPage() {
     </div>
   )
 }
+
