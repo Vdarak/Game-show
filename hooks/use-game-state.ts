@@ -124,9 +124,12 @@ const DEFAULT_STATE: GameState = {
 }
 
 function migrateOldState(savedState: any): GameState {
-  // If state already has teams array, return it
+  // If state already has teams array, migrate it and use latest questions
   if (savedState.teams && Array.isArray(savedState.teams)) {
-    return savedState as GameState
+    return {
+      ...savedState,
+      questions: DEFAULT_STATE.questions, // Always use latest questions
+    } as GameState
   }
 
   // Migrate from old teamA/teamB format to new teams array format
