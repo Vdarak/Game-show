@@ -1,5 +1,5 @@
 // Service Worker for offline support
-const CACHE_NAME = 'family-feud-v2'; // Increment version to force cache update
+const CACHE_NAME = 'family-feud-v5'; // Increment version to force cache update
 const OFFLINE_URL = '/offline.html';
 
 const urlsToCache = [
@@ -7,6 +7,11 @@ const urlsToCache = [
   '/controller',
   '/display/game-board',
   '/offline.html',
+  // Sound effects
+  '/sounds/dong.wav',
+  '/sounds/player-buzzer.wav',
+  '/sounds/duplicate-answer.wav',
+  '/sounds/wrong-buzzer.wav',
 ];
 
 // Install event - cache essential resources

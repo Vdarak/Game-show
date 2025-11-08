@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useGameState } from "@/hooks/use-game-state"
+import { useAudio } from "@/hooks/use-audio"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -56,6 +57,8 @@ export default function ControllerPage() {
     clearQuestion,
   } = useGameState()
 
+  const { playSound, preloadSound, playingSound, isReady } = useAudio()
+
   const [copied, setCopied] = useState(false)
 
   const [showResetConfirm, setShowResetConfirm] = useState(false)
@@ -80,6 +83,17 @@ export default function ControllerPage() {
   }
 
   const presetValues = scorePreset === "default" ? [10, 20, 50, 100] : [25, 50, 100, 500]
+
+  // Preload sound effects
+  useEffect(() => {
+    if (isReady) {
+      console.log("[Controller] Preload effect triggered, loading 4 sounds...")
+      soundEffects.forEach((sound) => {
+        console.log(`[Controller] Preloading: ${sound.name} (${sound.type} -> ${sound.filename})`)
+        preloadSound(sound.type, sound.filename)
+      })
+    }
+  }, [isReady, preloadSound])
 
   useEffect(() => {
     const checkInterval = setInterval(() => {
@@ -185,16 +199,10 @@ export default function ControllerPage() {
   }
 
   const soundEffects = [
-    { name: "Buzz", type: "buzz" as const },
-    { name: "Ding", type: "ding" as const },
-    { name: "Applause", type: "applause" as const },
-    { name: "Wrong", type: "wrong" as const },
-    { name: "Celebration", type: "celebration" as const },
-    { name: "Drum Roll", type: "drumroll" as const },
-    { name: "Bell", type: "bell" as const },
-    { name: "Cheer", type: "cheer" as const },
-    { name: "Fanfare", type: "fanfare" as const },
-    { name: "Swoosh", type: "swoosh" as const },
+    { name: "Correct", type: "ding" as const, filename: "dong.wav", color: "border-green-600" },
+    { name: "Buzzer", type: "buzzer" as const, filename: "player-buzzer.wav", color: "border-red-600" },
+    { name: "Duplicate", type: "duplicate" as const, filename: "duplicate-answer.wav", color: "border-yellow-600" },
+    { name: "Wrong", type: "buzz" as const, filename: "wrong-buzzer.wav", color: "border-purple-600" },
   ]
 
   const getStatusColor = (status: DisplayWindow["status"]) => {
@@ -379,6 +387,7 @@ export default function ControllerPage() {
                       variant="ghost"
                       size="sm"
                       className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
+                      style={{ backgroundColor: "#374151" }}
                       disabled={team.strikes >= 3}
                     >
                       <Plus className="h-4 w-4" />
@@ -445,6 +454,9 @@ export default function ControllerPage() {
                     variant={selectedTeams.size === 4 ? "default" : "outline"}
                     size="sm"
                     className="flex-1 text-xs"
+                    style={{
+                      backgroundColor: selectedTeams.size === 4 ? undefined : "#374151",
+                    }}
                   >
                     All
                   </Button>
@@ -456,7 +468,7 @@ export default function ControllerPage() {
                       size="sm"
                       className="flex-1 text-xs"
                       style={{
-                        backgroundColor: selectedTeams.has(team.id) ? team.color : undefined,
+                        backgroundColor: selectedTeams.has(team.id) ? team.color : "#374151",
                         borderColor: team.color,
                       }}
                     >
@@ -480,11 +492,12 @@ export default function ControllerPage() {
                           variant="outline"
                           size="sm"
                           className="h-8 w-8 text-sm"
+                          style={{ backgroundColor: "#374151" }}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
                         <div className="flex min-w-[80px] items-center justify-center">
-                          <AnimatedNumber value={scoreChangeValue} color="#3B82F6" size="small" />
+                          <AnimatedNumber value={scoreChangeValue} color="#ffffffff" size="small" />
                         </div>
                         <Button
                           onClick={() => applyScoreToSelected(scoreChangeValue)}
@@ -504,9 +517,10 @@ export default function ControllerPage() {
                             onClick={() => setScoreChangeValue(value)}
                             variant={scoreChangeValue === value ? "default" : "outline"}
                             size="sm"
-                            className={`text-xs ${
-                              scoreChangeValue === value ? "bg-blue-600 hover:bg-blue-500" : ""
-                            }`}
+                            className="text-xs"
+                            style={{
+                              backgroundColor: scoreChangeValue === value ? "#2563eb" : "#374151",
+                            }}
                           >
                             {value}
                           </Button>
@@ -532,20 +546,25 @@ export default function ControllerPage() {
 
           {/* Sound Effects */}
           <div>
-            <Card className="bg-gray-800 p-3 sm:p-4">
+            <Card className="bg-gray-800 p-3 sm:p-4 h-full">
               <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Sound Effects</h2>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 h-full">
                 {soundEffects.map((sound) => (
-                  <Button
+                  <motion.button
                     key={sound.type}
-                    onClick={() => console.log(`[v0] Playing sound: ${sound.type}`)}
-                    variant="secondary"
-                    size="sm"
-                    className="gap-1 text-xs"
+                    onClick={() => playSound(sound.type)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`relative flex flex-col items-center justify-center rounded-lg font-display font-bold text-white transition-all duration-200 border ${sound.color} border-opacity-70 bg-gray-700 hover:border-opacity-100`}
                   >
-                    <Volume2 className="h-3 w-3" />
-                    {sound.name}
-                  </Button>
+                    <motion.div
+                      animate={playingSound === sound.type ? { scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] } : { scale: 1, rotate: 0 }}
+                      transition={{ duration: 0.3, repeat: playingSound === sound.type ? Infinity : 0 }}
+                    >
+                      <Volume2 className="h-8 w-8 mb-2" />
+                    </motion.div>
+                    <span className="text-sm">{sound.name}</span>
+                  </motion.button>
                 ))}
               </div>
             </Card>
