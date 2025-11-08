@@ -17,25 +17,11 @@ export default function TeamDisplayPage() {
 
   const team = state.teams.find((t) => t.id === teamId)
 
-  // Keyboard handlers for fullscreen toggle (F to toggle, Escape to exit)
+  // Keyboard handler for Escape to exit fullscreen
   useEffect(() => {
-    const toggleFullscreen = () => {
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {})
-      } else {
-        document.documentElement.requestFullscreen().catch(() => {})
-      }
-    }
-
-    // Keyboard handler
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && document.fullscreenElement) {
         document.exitFullscreen().catch(() => {})
-      }
-
-      if (e.key === "f" || e.key === "F") {
-        e.preventDefault()
-        toggleFullscreen()
       }
     }
 
@@ -53,6 +39,14 @@ export default function TeamDisplayPage() {
     }
   }, [])
 
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {})
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {})
+    }
+  }
+
   if (!team) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">
@@ -68,24 +62,18 @@ export default function TeamDisplayPage() {
         background: `linear-gradient(to bottom, ${team.color}dd, ${team.color}88)`,
       }}
     >
-      {/* Fullscreen toggle button - only visible in windowed mode */}
-      <AnimatePresence>
-        {!isFullscreen && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            onClick={() => {
-              document.documentElement.requestFullscreen().catch(() => {})
-            }}
-            aria-label="Enter Fullscreen"
-            className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-white/20"
-          >
-            <Maximize2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Fullscreen</span>
-          </motion.button>
-        )}
-      </AnimatePresence>
+      {/* Fullscreen toggle button */}
+      <motion.button
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        onClick={toggleFullscreen}
+        aria-label={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+        className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-white/20"
+      >
+        <Maximize2 className="h-4 w-4" />
+        <span className="hidden sm:inline">{isFullscreen ? "Exit" : "Fullscreen"}</span>
+      </motion.button>
 
       {/* Background decorative patterns */}
       <div className="pointer-events-none absolute inset-0 opacity-10">

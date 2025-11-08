@@ -1,45 +1,68 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { useGameState } from "@/hooks/use-game-state"
 import { AnimatedNumber } from "@/components/game/animated-number"
 import { StrikeIndicator } from "@/components/game/strike-indicator"
 import { formatScore } from "@/lib/game-utils"
 import { getTheme, applyTheme } from "@/lib/themes"
+import { Maximize2, Minimize2 } from "lucide-react"
 
 export default function UnifiedTeamDisplay() {
   const { state } = useGameState()
   const teams = state.teams || []
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
-  // Auto-fullscreen on load
+  // Handle fullscreen changes
   useEffect(() => {
-    const enterFullscreen = () => {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch((err) => {
-          console.log("[v0] Fullscreen request failed:", err)
-        })
-      }
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
     }
-
-    const timer = setTimeout(enterFullscreen, 1000)
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && document.fullscreenElement) {
         document.exitFullscreen()
       }
+      if (e.key.toLowerCase() === "f") {
+        toggleFullscreen()
+      }
     }
 
+    document.addEventListener("fullscreenchange", handleFullscreenChange)
     document.addEventListener("keydown", handleKeyDown)
 
     return () => {
-      clearTimeout(timer)
+      document.removeEventListener("fullscreenchange", handleFullscreenChange)
       document.removeEventListener("keydown", handleKeyDown)
     }
   }, [])
 
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch((err) => {
+        console.log("Fullscreen request failed:", err)
+      })
+    } else {
+      document.exitFullscreen()
+    }
+  }
+
   return (
     <div className="fixed inset-0 grid grid-cols-2 grid-rows-2 bg-gray-950">
+      {/* Fullscreen Button */}
+      <button
+        onClick={toggleFullscreen}
+        className="absolute top-4 right-4 z-50 p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white transition-colors invisible"
+        title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+      >
+        {isFullscreen ? (
+          <Minimize2 className="w-6 h-6" />
+        ) : (
+          <Maximize2 className="w-6 h-6" />
+        )}
+      </button>
+
       {teams.map((team, index) => {
         const theme = getTheme(team.theme)
         
