@@ -162,4 +162,36 @@
     letter-spacing: 0.02em;
     text-transform: uppercase;
   }
+
+  /* Toast slide animations */
+  @keyframes slideInLeft {
+    from {
+      transform: translate3d(-100%, -50%, 0);
+      opacity: 0;
+    }
+    to {
+      transform: translate3d(0, -50%, 0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideOutLeft {
+    from {
+      transform: translate3d(0, -50%, 0);
+      opacity: 1;
+    }
+    to {
+      transform: translate3d(-100%, -50%, 0);
+      opacity: 0;
+    }
+  }
+
+  .slide-in-left[data-state="open"] {
+    animation: slideInLeft 0.3s ease-out;
+  }
+
+  .slide-in-left[data-state="closed"] {
+    animation: slideOutLeft 0.3s ease-in;
+  }
 }
+

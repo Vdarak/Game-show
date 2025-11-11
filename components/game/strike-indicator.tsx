@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { X } from "lucide-react"
+import { CircleSlash } from "lucide-react"
 
 interface StrikeIndicatorProps {
   count: number
@@ -19,7 +19,7 @@ export function StrikeIndicator({ count, animated = true, size = "medium" }: Str
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-30">
       {strikes.map((index) => {
         const isActive = index < count
         const isThirdStrike = count === 3 && index === 2
@@ -45,7 +45,7 @@ export function StrikeIndicator({ count, animated = true, size = "medium" }: Str
               isActive ? "bg-red-500" : "bg-gray-600"
             }`}
           >
-            <X className={`${size === "small" ? "h-4 w-4" : size === "medium" ? "h-6 w-6" : "h-10 w-10"} text-white`} />
+            <CircleSlash className={`${size === "small" ? "h-4 w-4" : size === "medium" ? "h-6 w-6" : "h-10 w-10"} text-white`} />
           </motion.div>
         )
       })}

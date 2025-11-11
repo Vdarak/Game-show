@@ -87,6 +87,8 @@ const DEFAULT_STATE: GameState = {
         { id: "6", text: "Exercise", points: 5, revealed: false },
         { id: "7", text: "Listen to music", points: 3, revealed: false },
         { id: "8", text: "Meditate", points: 2, revealed: false },
+        { id: "9", text: "Take sleeping pills", points: 1, revealed: false },
+        { id: "10", text: "Toss and turn", points: 1, revealed: false },
       ],
     },
     {
@@ -101,6 +103,8 @@ const DEFAULT_STATE: GameState = {
         { id: "6", text: "Peppers", points: 3, revealed: false },
         { id: "7", text: "Bacon", points: 2, revealed: false },
         { id: "8", text: "Olives", points: 1, revealed: false },
+        { id: "9", text: "Pineapple", points: 1, revealed: false },
+        { id: "10", text: "Anchovies", points: 1, revealed: false },
       ],
     },
     {
@@ -115,6 +119,8 @@ const DEFAULT_STATE: GameState = {
         { id: "6", text: "Boxes", points: 3, revealed: false },
         { id: "7", text: "Shelves", points: 2, revealed: false },
         { id: "8", text: "Paint", points: 1, revealed: false },
+        { id: "9", text: "Sports equipment", points: 1, revealed: false },
+        { id: "10", text: "Christmas decorations", points: 1, revealed: false },
       ],
     },
   ],
@@ -530,6 +536,63 @@ export function useGameState() {
     [broadcastState],
   )
 
+  const addQuestion = useCallback(
+    (question: Omit<Question, "id">) => {
+      setState((prev) => {
+        const newId = String(prev.questions.length + 1)
+        const newQuestion = { ...question, id: newId }
+        const newState = {
+          ...prev,
+          questions: [...prev.questions, newQuestion],
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
+  const updateQuestion = useCallback(
+    (id: string, question: Omit<Question, "id">) => {
+      setState((prev) => {
+        const newState = {
+          ...prev,
+          questions: prev.questions.map((q) =>
+            q.id === id ? { ...question, id } : q
+          ),
+          // If we're updating the current question, update it too
+          currentQuestion:
+            prev.currentQuestion?.id === id
+              ? { ...question, id }
+              : prev.currentQuestion,
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
+  const deleteQuestion = useCallback(
+    (id: string) => {
+      setState((prev) => {
+        const newQuestions = prev.questions.filter((q) => q.id !== id)
+        const newState = {
+          ...prev,
+          questions: newQuestions,
+          // Reset current question if it was deleted
+          currentQuestion:
+            prev.currentQuestion?.id === id ? null : prev.currentQuestion,
+          currentQuestionIndex:
+            prev.currentQuestion?.id === id ? 0 : prev.currentQuestionIndex,
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
   return {
     state,
     updateScore,
@@ -550,6 +613,9 @@ export function useGameState() {
     resetGame,
     clearQuestion,
     updateState,
+    addQuestion,
+    updateQuestion,
+    deleteQuestion,
   }
 }
 

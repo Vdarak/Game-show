@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { motion } from "framer-motion"
+import { useEffect, useState, useRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { useGameState } from "@/hooks/use-game-state"
 import { AnimatedNumber } from "@/components/game/animated-number"
 import { StrikeIndicator } from "@/components/game/strike-indicator"
@@ -9,10 +9,49 @@ import { formatScore } from "@/lib/game-utils"
 import { getTheme, applyTheme } from "@/lib/themes"
 import { Maximize2, Minimize2 } from "lucide-react"
 
+interface ScoreChangeToast {
+  id: string
+  teamId: string
+  amount: number
+  color: string
+}
+
 export default function UnifiedTeamDisplay() {
   const { state } = useGameState()
   const teams = state.teams || []
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [scoreToasts, setScoreToasts] = useState<ScoreChangeToast[]>([])
+  const previousScoresRef = useRef<Map<string, number>>(new Map())
+
+  // Track score changes and show toasts
+  useEffect(() => {
+    teams.forEach((team) => {
+      const previousScore = previousScoresRef.current.get(team.id)
+      
+      if (previousScore !== undefined && previousScore !== team.score) {
+        const difference = team.score - previousScore
+        const theme = getTheme(team.theme)
+        
+        // Create new toast
+        const toastId = `${team.id}-${Date.now()}`
+        const newToast: ScoreChangeToast = {
+          id: toastId,
+          teamId: team.id,
+          amount: difference,
+          color: theme.primaryColor,
+        }
+        
+        setScoreToasts(prev => [...prev, newToast])
+        
+        // Remove toast after 2 seconds
+        setTimeout(() => {
+          setScoreToasts(prev => prev.filter(t => t.id !== toastId))
+        }, 2000)
+      }
+      
+      previousScoresRef.current.set(team.id, team.score)
+    })
+  }, [teams])
 
   // Handle fullscreen changes
   useEffect(() => {
@@ -77,6 +116,26 @@ export default function UnifiedTeamDisplay() {
               fontFamily: theme.fontFamily,
             }}
           >
+            {/* Score Change Toast for this team */}
+            <div className="absolute left-8 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2 pointer-events-none">
+              <AnimatePresence>
+                {scoreToasts
+                  .filter(toast => toast.teamId === team.id)
+                  .map((toast) => (
+                    <motion.div
+                      key={toast.id}
+                      initial={{ opacity: 0, x: -100 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -100 }}
+                      className="px-4 py-2 rounded-full text-white font-bold text-sm shadow-lg whitespace-nowrap"
+                      style={{ backgroundColor: toast.color }}
+                    >
+                      {toast.amount > 0 ? '+' : ''}{toast.amount}
+                    </motion.div>
+                  ))}
+              </AnimatePresence>
+            </div>
+
             {/* Background decorative elements */}
             <div className="pointer-events-none absolute inset-0 opacity-10">
               <motion.div
@@ -107,20 +166,20 @@ export default function UnifiedTeamDisplay() {
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-6"
+                className="mb-6 flex flex-col items-center"
               >
                 <div
-                  className="mb-2 h-2 w-32 rounded-full"
+                  className="mb-2 h-2 w-full rounded-full"
                   style={{ backgroundColor: theme.accentColor }}
                 />
                 <h2
-                  className="text-5xl font-bold tracking-wide"
+                  className="text-5xl font-bold tracking-wide whitespace-nowrap"
                   style={{ color: theme.textColor }}
                 >
                   {team.name}
                 </h2>
                 <div
-                  className="mt-2 h-2 w-32 rounded-full"
+                  className="mt-2 h-2 w-full rounded-full"
                   style={{ backgroundColor: theme.accentColor }}
                 />
               </motion.div>
@@ -141,16 +200,6 @@ export default function UnifiedTeamDisplay() {
                   size="massive"
                   className="font-bold"
                 />
-                {team.currentRoundScore > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-4 text-2xl font-semibold"
-                    style={{ color: theme.accentColor }}
-                  >
-                    Round: +{formatScore(team.currentRoundScore)}
-                  </motion.div>
-                )}
               </motion.div>
 
               {/* Strikes - Always show */}
