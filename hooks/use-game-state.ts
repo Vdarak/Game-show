@@ -32,6 +32,10 @@ interface GameState {
   currentQuestionIndex: number
   currentQuestion: Question | null
   gamePhase: "setup" | "playing" | "stealing" | "roundEnd"
+  sponsorLogo: string | null
+  footerText: string
+  wrongAnswerTriggered: number | null // timestamp when wrong answer was triggered
+  showSurveyTotals: boolean // toggle for survey totals visibility
 }
 
 const DEFAULT_STATE: GameState = {
@@ -127,6 +131,10 @@ const DEFAULT_STATE: GameState = {
   currentQuestionIndex: 0,
   currentQuestion: null,
   gamePhase: "playing",
+  sponsorLogo: null,
+  footerText: "",
+  wrongAnswerTriggered: null,
+  showSurveyTotals: true,
 }
 
 function migrateOldState(savedState: any): GameState {
@@ -135,6 +143,10 @@ function migrateOldState(savedState: any): GameState {
     return {
       ...savedState,
       questions: DEFAULT_STATE.questions, // Always use latest questions
+      sponsorLogo: savedState.sponsorLogo || null, // Preserve sponsor logo
+      footerText: savedState.footerText || "", // Preserve footer text
+      wrongAnswerTriggered: savedState.wrongAnswerTriggered || null, // Preserve wrong answer trigger
+      showSurveyTotals: savedState.showSurveyTotals ?? true, // Preserve survey totals visibility
     } as GameState
   }
 
@@ -593,6 +605,39 @@ export function useGameState() {
     [broadcastState],
   )
 
+  const updateSponsorLogo = useCallback(
+    (logoUrl: string | null) => {
+      updateState({ sponsorLogo: logoUrl })
+    },
+    [updateState],
+  )
+
+  const updateFooterText = useCallback(
+    (text: string) => {
+      updateState({ footerText: text })
+    },
+    [updateState],
+  )
+
+  const triggerWrongAnswer = useCallback(() => {
+    updateState({ wrongAnswerTriggered: Date.now() })
+  }, [updateState])
+
+  const clearWrongAnswerTrigger = useCallback(() => {
+    updateState({ wrongAnswerTriggered: null })
+  }, [updateState])
+
+  const toggleSurveyTotals = useCallback(() => {
+    setState((prev) => {
+      const newState = {
+        ...prev,
+        showSurveyTotals: !prev.showSurveyTotals,
+      }
+      broadcastState(newState)
+      return newState
+    })
+  }, [broadcastState])
+
   return {
     state,
     updateScore,
@@ -616,6 +661,11 @@ export function useGameState() {
     addQuestion,
     updateQuestion,
     deleteQuestion,
+    updateSponsorLogo,
+    updateFooterText,
+    triggerWrongAnswer,
+    clearWrongAnswerTrigger,
+    toggleSurveyTotals,
   }
 }
 

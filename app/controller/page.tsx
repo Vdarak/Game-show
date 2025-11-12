@@ -61,6 +61,10 @@ export default function ControllerPage() {
     addQuestion,
     updateQuestion,
     deleteQuestion,
+    updateSponsorLogo,
+    updateFooterText,
+    triggerWrongAnswer,
+    toggleSurveyTotals,
   } = useGameState()
 
   const { playSound, preloadSound, playingSound, isReady } = useAudio()
@@ -162,6 +166,24 @@ export default function ControllerPage() {
       }
       return newSet
     })
+  }
+
+  const handleSponsorLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64String = reader.result as string
+        updateSponsorLogo(base64String)
+        toast.success("Sponsor logo updated!", { position: "top-center" })
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeSponsorLogo = () => {
+    updateSponsorLogo(null)
+    toast.success("Sponsor logo removed!", { position: "top-center" })
   }
 
   const toggleSelectAll = () => {
@@ -390,6 +412,65 @@ export default function ControllerPage() {
           </div>
         </Card>
 
+        {/* Sponsor Logo Upload */}
+        <Card className="mb-2 bg-gray-800 p-3 sm:mb-4 sm:p-4">
+          <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Sponsor Logo</h2>
+          <div className="space-y-3">
+            {state.sponsorLogo && (
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative h-20 w-40 rounded-lg border-2 border-gray-600 bg-gray-700 p-2">
+                  <img
+                    src={state.sponsorLogo}
+                    alt="Sponsor Logo"
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+                <Button
+                  onClick={removeSponsorLogo}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs text-red-400 hover:text-red-300"
+                >
+                  Remove Logo
+                </Button>
+              </div>
+            )}
+            <div className="flex items-center justify-center">
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleSponsorLogoUpload}
+                  className="hidden"
+                />
+                <div className="rounded-lg border-2 border-dashed border-gray-600 bg-gray-700 px-4 py-3 text-center transition-colors hover:border-gray-500 hover:bg-gray-600">
+                  <Plus className="mx-auto mb-1 h-5 w-5 text-gray-400" />
+                  <div className="text-xs text-gray-300">
+                    {state.sponsorLogo ? "Change Logo" : "Upload Sponsor Logo"}
+                  </div>
+                  <div className="text-xs text-gray-500">PNG, JPG, SVG</div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </Card>
+
+        {/* Footer Text Input */}
+        <Card className="mb-2 bg-gray-800 p-3 sm:mb-4 sm:p-4">
+          <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Footer Text</h2>
+          <div className="space-y-2">
+            <Input
+              value={state.footerText}
+              onChange={(e) => updateFooterText(e.target.value)}
+              placeholder="Enter text to display at bottom of game screen..."
+              className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-400"
+            />
+            <div className="text-xs text-gray-400">
+              This text will appear at the bottom center of the game board screen
+            </div>
+          </div>
+        </Card>
+
         {/* Team Scores - Full Width */}
         <div className="mb-2 grid grid-cols-1 gap-2 sm:mb-4 sm:gap-4 lg:grid-cols-12">
           <div className="lg:col-span-12">
@@ -604,7 +685,14 @@ export default function ControllerPage() {
                 {soundEffects.map((sound) => (
                   <motion.button
                     key={sound.type}
-                    onClick={() => playSound(sound.type)}
+                    onClick={() => {
+                      playSound(sound.type)
+                      if (sound.type === "buzz") {
+                        // Trigger wrong answer animation and add strike
+                        triggerWrongAnswer()
+                        addStrike()
+                      }
+                    }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.95 }}
                     className={`relative flex flex-col items-center justify-center rounded-lg font-display font-bold text-white transition-all duration-200 border ${sound.color} border-opacity-70 bg-gray-700 hover:border-opacity-100`}
@@ -619,6 +707,30 @@ export default function ControllerPage() {
                   </motion.button>
                 ))}
               </div>
+            </Card>
+          </div>
+
+          {/* Survey Totals Toggle */}
+          <div>
+            <Card className="bg-gray-800 p-3 sm:p-4 h-full">
+              <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Survey Totals</h2>
+              <Button
+                onClick={toggleSurveyTotals}
+                variant={state.showSurveyTotals ? "default" : "outline"}
+                className="w-full text-xs sm:text-sm"
+              >
+                {state.showSurveyTotals ? (
+                  <>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Visible
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="h-4 w-4 mr-2" />
+                    Hidden
+                  </>
+                )}
+              </Button>
             </Card>
           </div>
         </div>
@@ -681,16 +793,16 @@ export default function ControllerPage() {
                       </Button>
                     </div>
 
-                    {/* Answers - 2 Column × 5 Row Grid Layout */}
-                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                      {/* First Column: Answers 1-5 */}
+                    {/* Answers - Conditional Layout */}
+                    {state.currentQuestion.answers.length < 6 ? (
+                      /* Single Column for < 6 answers */
                       <div className="flex flex-col gap-2 sm:gap-3">
-                        {state.currentQuestion.answers.slice(0, 5).map((answer, index) => (
+                        {state.currentQuestion.answers.map((answer, index) => (
                           <motion.div
                             key={answer.id}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
-                            className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg p-2 transition-colors sm:p-3 ${
+                            className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg p-2 transition-colors sm:p-3 ${
                               answer.revealed ? "bg-green-600" : "bg-gray-700 hover:bg-gray-600"
                             }`}
                             onClick={() => {
@@ -705,15 +817,15 @@ export default function ControllerPage() {
                               {index + 1}
                             </div>
                             
-                            {/* Answer text in middle - flex grow */}
-                            <div className="flex-grow min-w-0">
-                              <div className="text-xs font-semibold truncate">{answer.text}</div>
+                            {/* Answer text in middle - centered */}
+                            <div className="flex-grow text-center">
+                              <div className="text-xs font-semibold sm:text-sm">{answer.text}</div>
                             </div>
                             
-                            {/* Points on right */}
+                            {/* Points */}
                             <div className="flex-shrink-0 font-display text-xs text-yellow-400 sm:text-sm">{answer.points}</div>
                             
-                            {/* Reveal/Hide button on far right */}
+                            {/* Reveal/Hide button */}
                             <Button
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -731,56 +843,108 @@ export default function ControllerPage() {
                           </motion.div>
                         ))}
                       </div>
+                    ) : (
+                      /* Two Columns for 6+ answers */
+                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                        {/* First Column: Answers 1-5 */}
+                        <div className="flex flex-col gap-2 sm:gap-3">
+                          {state.currentQuestion.answers.slice(0, 5).map((answer, index) => (
+                            <motion.div
+                              key={answer.id}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg p-2 transition-colors sm:p-3 ${
+                                answer.revealed ? "bg-green-600" : "bg-gray-700 hover:bg-gray-600"
+                              }`}
+                              onClick={() => {
+                                if (!answer.revealed) {
+                                  playSound("ding")
+                                }
+                                revealAnswer(answer.id)
+                              }}
+                            >
+                              {/* Number on left */}
+                              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-800 font-display text-xs sm:h-7 sm:w-7">
+                                {index + 1}
+                              </div>
+                              
+                              {/* Answer text in middle - flex grow */}
+                              <div className="flex-grow min-w-0">
+                                <div className="text-xs font-semibold truncate">{answer.text}</div>
+                              </div>
+                              
+                              {/* Points on right */}
+                              <div className="flex-shrink-0 font-display text-xs text-yellow-400 sm:text-sm">{answer.points}</div>
+                              
+                              {/* Reveal/Hide button on far right */}
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (!answer.revealed) {
+                                    playSound("ding")
+                                  }
+                                  revealAnswer(answer.id)
+                                }}
+                                variant={answer.revealed ? "secondary" : "default"}
+                                size="sm"
+                                className="text-xs flex-shrink-0"
+                              >
+                                {answer.revealed ? "Hide" : "Reveal"}
+                              </Button>
+                            </motion.div>
+                          ))}
+                        </div>
 
-                      {/* Second Column: Answers 6-10 */}
-                      <div className="flex flex-col gap-2 sm:gap-3">
-                        {state.currentQuestion.answers.slice(5, 10).map((answer, index) => (
-                          <motion.div
-                            key={answer.id}
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg p-2 transition-colors sm:p-3 ${
-                              answer.revealed ? "bg-green-600" : "bg-gray-700 hover:bg-gray-600"
-                            }`}
-                            onClick={() => {
-                              if (!answer.revealed) {
-                                playSound("ding")
-                              }
-                              revealAnswer(answer.id)
-                            }}
-                          >
-                            {/* Number on left */}
-                            <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-800 font-display text-xs sm:h-7 sm:w-7">
-                              {index + 6}
-                            </div>
-                            
-                            {/* Answer text in middle - flex grow */}
-                            <div className="flex-grow min-w-0">
-                              <div className="text-xs font-semibold truncate">{answer.text}</div>
-                            </div>
-                            
-                            {/* Points on right */}
-                            <div className="flex-shrink-0 font-display text-xs text-yellow-400 sm:text-sm">{answer.points}</div>
-                            
-                            {/* Reveal/Hide button on far right */}
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation()
+                        {/* Second Column: Answers 6-10 */}
+                        <div className="flex flex-col gap-2 sm:gap-3">
+                          {state.currentQuestion.answers.slice(5, 10).map((answer, index) => (
+                            <motion.div
+                              key={answer.id}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg p-2 transition-colors sm:p-3 ${
+                                answer.revealed ? "bg-green-600" : "bg-gray-700 hover:bg-gray-600"
+                              }`}
+                              onClick={() => {
                                 if (!answer.revealed) {
                                   playSound("ding")
                                 }
                                 revealAnswer(answer.id)
                               }}
-                              variant={answer.revealed ? "secondary" : "default"}
-                              size="sm"
-                              className="text-xs flex-shrink-0"
                             >
-                              {answer.revealed ? "Hide" : "Reveal"}
-                            </Button>
-                          </motion.div>
-                        ))}
+                              {/* Number on left */}
+                              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-800 font-display text-xs sm:h-7 sm:w-7">
+                                {index + 6}
+                              </div>
+                              
+                              {/* Answer text in middle - flex grow */}
+                              <div className="flex-grow min-w-0">
+                                <div className="text-xs font-semibold truncate">{answer.text}</div>
+                              </div>
+                              
+                              {/* Points on right */}
+                              <div className="flex-shrink-0 font-display text-xs text-yellow-400 sm:text-sm">{answer.points}</div>
+                              
+                              {/* Reveal/Hide button on far right */}
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (!answer.revealed) {
+                                    playSound("ding")
+                                  }
+                                  revealAnswer(answer.id)
+                                }}
+                                variant={answer.revealed ? "secondary" : "default"}
+                                size="sm"
+                                className="text-xs flex-shrink-0"
+                              >
+                                {answer.revealed ? "Hide" : "Reveal"}
+                              </Button>
+                            </motion.div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               ) : (

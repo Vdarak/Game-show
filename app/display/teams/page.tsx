@@ -160,6 +160,52 @@ export default function UnifiedTeamDisplay() {
               />
             </div>
 
+            {/* YOU'RE OUT Overlay for 3 strikes */}
+            <AnimatePresence>
+              {team.strikes === 3 && (
+                <>
+                  {/* Dark overlay - fades out */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: [0, 1, 1, 0] }}
+                    exit={{ opacity: 0 }}
+                    transition={{
+                      duration: 3,
+                      times: [0, 0.2, 0.6, 1],
+                      ease: "easeInOut",
+                    }}
+                    className="absolute inset-0 z-40 bg-black/70 backdrop-blur-md pointer-events-none"
+                  />
+                  
+                  {/* YOU'RE OUT text - positioned below score */}
+                  <motion.div
+                    initial={{ 
+                      scale: 0.5, 
+                      rotate: -15, 
+                      opacity: 0,
+                      y: -80,
+                    }}
+                    animate={{
+                      scale: [0.5, 1.15, 0.75, 0.5],
+                      rotate: [-15, 5, 0, 0],
+                      opacity: [0, 1, 1, 1],
+                      y: [-80, -80, 0, 0],
+                    }}
+                    transition={{
+                      duration: 3,
+                      times: [0, 0.2, 0.6, 1],
+                      ease: "easeOut",
+                    }}
+                    className="absolute z-50 left-1/2 top-2/3 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                  >
+                    <h1 className="font-display text-2xl sm:text-3xl font-bold text-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.8)] whitespace-nowrap">
+                      YOU'RE OUT!
+                    </h1>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
             {/* Team Content */}
             <div className="relative z-10 flex flex-col items-center justify-center text-center">
               {/* Team Name */}
