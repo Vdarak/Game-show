@@ -27,9 +27,9 @@ export default function Home() {
         className="mb-16 text-center"
       >
         <h1 className="mb-4 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text font-display text-6xl font-bold text-transparent">
-          Family Feud
+          Popular Consensus
         </h1>
-        <p className="font-display text-xl text-gray-400">Game Show Experience</p>
+        <p className="font-display text-xl text-gray-400">Game Show Controller</p>
       </motion.div>
 
       {/* Main Game Card */}
@@ -46,9 +46,9 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 opacity-0 transition-opacity group-hover:opacity-100" />
           <div className="relative z-10 text-center">
             <Play className="mx-auto mb-4 h-12 w-12 text-blue-400 transition-transform group-hover:scale-110" />
-            <h2 className="mb-2 font-display text-2xl font-bold text-white">Start Family Feud</h2>
+            <h2 className="mb-2 font-display text-2xl font-bold text-white">Start Popular Consensus</h2>
             <p className="font-display text-sm text-gray-400">
-              Begin the game now
+              Open the controller to set up the screens, logos, videos and questions.
             </p>
           </div>
         </Card>
@@ -59,17 +59,8 @@ export default function Home() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="mt-12 grid w-full max-w-2xl grid-cols-1 gap-6 sm:grid-cols-2"
+        className="mt-12 w-full max-w-2xl sm:grid-cols-2"
       >
-        {/* Ghost Card 1 */}
-        <Card className="relative overflow-hidden border-2 border-gray-700/50 bg-gray-800/30 p-6 backdrop-blur opacity-60">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-500/5" />
-          <div className="relative z-10 text-center">
-            <Zap className="mx-auto mb-3 h-10 w-10 text-gray-500" />
-            <h3 className="mb-2 font-display text-lg font-semibold text-gray-300">Lightning Round</h3>
-            <p className="font-display text-xs text-gray-500">Coming Soon</p>
-          </div>
-        </Card>
 
         {/* Ghost Card 2 */}
         <Card className="relative overflow-hidden border-2 border-gray-700/50 bg-gray-800/30 p-6 backdrop-blur opacity-60">

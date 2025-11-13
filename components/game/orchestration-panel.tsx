@@ -25,9 +25,11 @@ import {
   Trash2,
   Edit2,
   Save,
-  X
+  X,
+  BookOpen
 } from "lucide-react"
-import type { MacroState, MicroState, OrchestrationState, Question } from "@/hooks/use-game-state"
+import type { MacroState, MicroState, OrchestrationState, Question, LightningRoundState } from "@/hooks/use-game-state"
+import { LightningRoundController } from "./lightning-round-controller"
 
 interface OrchestrationPanelProps {
   orchestration: OrchestrationState
@@ -40,6 +42,7 @@ interface OrchestrationPanelProps {
   onRevealQuestion: () => void
   onPlaySponsorVideo: (url: string) => void
   onGoToLightningRound: () => void
+  onGoToLightningRoundRules: () => void
   currentQuestionIndex: number
   onRevealAnswer: (answerId: string) => void
   onRevealAllAnswers: () => void
@@ -47,7 +50,7 @@ interface OrchestrationPanelProps {
   onAddQuestion: (question: any) => void
   onUpdateQuestion: (id: string, question: any) => void
   onDeleteQuestion: (id: string) => void
-  onPlaySound: (type: "ding" | "buzz" | "buzzer" | "duplicate") => void
+  onPlaySound: (type: "ding" | "buzz" | "buzzer" | "duplicate" | "whoosh") => void
   sponsorLogo: string | null
   onSponsorLogoUpload: (event: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveSponsorLogo: () => void
@@ -58,9 +61,28 @@ interface OrchestrationPanelProps {
   onFooterTextChange: (text: string) => void
   showSurveyTotals: boolean
   onToggleSurveyTotals: () => void
+  lightningRound: LightningRoundState
+  onUpdateLightningQuestion: (index: number, text: string) => void
+  onUpdateLightningContestantName: (contestant: 1 | 2, name: string) => void
+  onUpdateLightningAnswer: (contestant: 1 | 2, answerIndex: number, text: string, points: number) => void
+  onRevealLightningAnswer: (contestant: 1 | 2, answerIndex: number) => void
+  onRevealAllLightningAnswers: (contestant: 1 | 2) => void
+  onHideAllLightningAnswers: (contestant: 1 | 2) => void
+  onStartLightningTimer: (seconds: number) => void
+  onStopLightningTimer: () => void
+  onToggleLightningTimerVisibility: () => void
+  chibiImage: string
+  onChibiImageChange: (imageUrl: string) => void
+  sponsorName: string
+  onSponsorNameChange: (name: string) => void
+  lightningRulesSponsorLogo1: string | null
+  lightningRulesSponsorLogo2: string | null
+  onLightningRulesSponsorLogoUpload: (logoNumber: 1 | 2, event: React.ChangeEvent<HTMLInputElement>) => void
+  onRemoveLightningRulesSponsorLogo: (logoNumber: 1 | 2) => void
+  onGoToEnding: () => void
 }
 
-type TimelineState = "welcome" | "rules" | "question" | "lightning" | "ending"
+type TimelineState = "welcome" | "rules" | "question" | "lightning-rules" | "lightning" | "ending"
 
 export function OrchestrationPanel({
   orchestration,
@@ -73,6 +95,7 @@ export function OrchestrationPanel({
   onRevealQuestion,
   onPlaySponsorVideo,
   onGoToLightningRound,
+  onGoToLightningRoundRules,
   currentQuestionIndex,
   onRevealAnswer,
   onRevealAllAnswers,
@@ -91,6 +114,25 @@ export function OrchestrationPanel({
   onFooterTextChange,
   showSurveyTotals,
   onToggleSurveyTotals,
+  lightningRound,
+  onUpdateLightningQuestion,
+  onUpdateLightningContestantName,
+  onUpdateLightningAnswer,
+  onRevealLightningAnswer,
+  onRevealAllLightningAnswers,
+  onHideAllLightningAnswers,
+  onStartLightningTimer,
+  onStopLightningTimer,
+  onToggleLightningTimerVisibility,
+  chibiImage,
+  onChibiImageChange,
+  sponsorName,
+  onSponsorNameChange,
+  lightningRulesSponsorLogo1,
+  lightningRulesSponsorLogo2,
+  onLightningRulesSponsorLogoUpload,
+  onRemoveLightningRulesSponsorLogo,
+  onGoToEnding,
 }: OrchestrationPanelProps) {
   const [selectedTimeline, setSelectedTimeline] = useState<TimelineState | null>(null)
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState<number | null>(null)
@@ -107,8 +149,11 @@ export function OrchestrationPanel({
     }
   }, [hasSponsorVideo])
   
-  // Question manager state
+  // Question manager state (Survey Questions)
   const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false)
+  
+  // Lightning Questions manager state
+  const [isLightningQuestionsDialogOpen, setIsLightningQuestionsDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [questionText, setQuestionText] = useState("")
   const [answers, setAnswers] = useState<Array<{ text: string; points: number }>>([
@@ -209,6 +254,7 @@ export function OrchestrationPanel({
     }
     
     states.push(
+      { id: "lightning-rules", label: "Lightning Rules", icon: BookOpen },
       { id: "lightning", label: "Lightning Round", icon: Zap },
       { id: "ending", label: "Ending", icon: Flag }
     )
@@ -219,6 +265,7 @@ export function OrchestrationPanel({
   const getStateStatus = (stateId: string) => {
     if (stateId === "welcome" && orchestration.macroState === "welcome") return "active"
     if (stateId === "rules" && orchestration.macroState === "rules") return "active"
+    if (stateId === "lightning-rules" && orchestration.macroState === "lightning-round-rules") return "active"
     if (stateId === "lightning" && orchestration.macroState === "lightning-round") return "active"
     if (stateId === "ending" && orchestration.macroState === "final") return "active"
     if (stateId.startsWith("question-")) {
@@ -240,11 +287,16 @@ export function OrchestrationPanel({
       onGoToRules()
       setSelectedTimeline("rules")
       setSelectedQuestionIndex(null)
+    } else if (stateId === "lightning-rules") {
+      onGoToLightningRoundRules()
+      setSelectedTimeline("lightning-rules")
+      setSelectedQuestionIndex(null)
     } else if (stateId === "lightning") {
       onGoToLightningRound()
       setSelectedTimeline("lightning")
       setSelectedQuestionIndex(null)
     } else if (stateId === "ending") {
+      onGoToEnding()
       setSelectedTimeline("ending")
       setSelectedQuestionIndex(null)
     } else if (stateId.startsWith("question-")) {
@@ -279,17 +331,19 @@ export function OrchestrationPanel({
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-bold">Game Orchestration</h2>
           
-          <Dialog open={isQuestionDialogOpen} onOpenChange={setIsQuestionDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="default" size="sm">
-                <Settings className="mr-2 h-4 w-4" />
-                Manage Questions
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-gray-800 text-white border-gray-700">
-              <DialogHeader>
-                <DialogTitle className="text-2xl font-display">Question Manager</DialogTitle>
-              </DialogHeader>
+          <div className="flex gap-2">
+            {/* Survey Questions Manager */}
+            <Dialog open={isQuestionDialogOpen} onOpenChange={setIsQuestionDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="default" size="sm">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Survey Questions
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-gray-800 text-white border-gray-700">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-display">Survey Question Manager</DialogTitle>
+                </DialogHeader>
 
               <div className="space-y-6">
                 {/* Question List */}
@@ -397,6 +451,54 @@ export function OrchestrationPanel({
               </div>
             </DialogContent>
           </Dialog>
+
+          {/* Lightning Questions Manager */}
+          <Dialog open={isLightningQuestionsDialogOpen} onOpenChange={setIsLightningQuestionsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="default" size="sm">
+                <Zap className="mr-2 h-4 w-4" />
+                Lightning Questions
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-gray-800 text-white border-gray-700">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-display">Lightning Round Questions</DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <p className="text-sm text-gray-400">
+                  Edit the 6 questions asked during the Lightning Round.
+                </p>
+                
+                <div className="space-y-3">
+                  {lightningRound.questions.map((question, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-yellow-600 text-sm font-bold">
+                        {index + 1}
+                      </span>
+                      <Input
+                        value={question}
+                        onChange={(e) => onUpdateLightningQuestion(index, e.target.value)}
+                        placeholder={`Question ${index + 1}`}
+                        className="bg-gray-700 border-gray-600 text-white"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-4 border-t border-gray-700">
+                  <Button
+                    onClick={() => setIsLightningQuestionsDialogOpen(false)}
+                    variant="default"
+                    className="w-full"
+                  >
+                    Done
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+          </div>
         </div>
 
         {/* Sponsor Logo Section */}
@@ -737,7 +839,7 @@ export function OrchestrationPanel({
           </motion.div>
         )}
 
-        {(selectedTimeline === "welcome" || selectedTimeline === "rules" || selectedTimeline === "ending") && (
+        {(selectedTimeline === "welcome" || selectedTimeline === "rules") && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -753,16 +855,193 @@ export function OrchestrationPanel({
           </motion.div>
         )}
 
+        {selectedTimeline === "lightning-rules" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="space-y-4"
+          >
+            <Card className="bg-gray-700/50 border-gray-600 p-4">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <BookOpen className="h-5 w-5" />
+                Lightning Rules Sponsor Logos
+              </h3>
+
+              {/* Sponsor Logo 1 */}
+              <div className="mb-4">
+                <label className="text-sm font-medium text-gray-300 mb-2 block">Sponsor Logo 1</label>
+                {lightningRulesSponsorLogo1 ? (
+                  <div className="space-y-2">
+                    <div className="bg-white rounded-lg p-4 flex items-center justify-center h-24">
+                      <img src={lightningRulesSponsorLogo1} alt="Sponsor 1" className="max-h-full max-w-full object-contain" />
+                    </div>
+                    <Button
+                      onClick={() => onRemoveLightningRulesSponsorLogo(1)}
+                      variant="destructive"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Remove Logo 1
+                    </Button>
+                  </div>
+                ) : (
+                  <div>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => onLightningRulesSponsorLogoUpload(1, e)}
+                      className="bg-gray-800 border-gray-600 text-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">First sponsor logo (defaults to GATE)</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Sponsor Logo 2 */}
+              <div>
+                <label className="text-sm font-medium text-gray-300 mb-2 block">Sponsor Logo 2</label>
+                {lightningRulesSponsorLogo2 ? (
+                  <div className="space-y-2">
+                    <div className="bg-white rounded-lg p-4 flex items-center justify-center h-24">
+                      <img src={lightningRulesSponsorLogo2} alt="Sponsor 2" className="max-h-full max-w-full object-contain" />
+                    </div>
+                    <Button
+                      onClick={() => onRemoveLightningRulesSponsorLogo(2)}
+                      variant="destructive"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Remove Logo 2
+                    </Button>
+                  </div>
+                ) : (
+                  <div>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => onLightningRulesSponsorLogoUpload(2, e)}
+                      className="bg-gray-800 border-gray-600 text-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Second sponsor logo (defaults to GATE)</p>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-400 mt-4 p-2 bg-blue-900/30 rounded">
+                <strong>Note:</strong> The third logo will always be GATE
+              </p>
+            </Card>
+          </motion.div>
+        )}
+
+        {selectedTimeline === "ending" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="space-y-4"
+          >
+            <Card className="bg-gray-700/50 border-gray-600 p-4">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Asset Management
+              </h3>
+
+              {/* Chibi Character Selection */}
+              <div className="mb-4">
+                <label className="text-sm font-medium text-gray-300 mb-2 block">Chibi Character</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { name: "Blue", path: "/chibi-blue.png" },
+                    { name: "Green", path: "/chibi-green.png" },
+                    { name: "Smile", path: "/chibi-smile.png" },
+                    { name: "Swag", path: "/chibi-swag.png" },
+                  ].map((chibi) => (
+                    <button
+                      key={chibi.path}
+                      onClick={() => onChibiImageChange(chibi.path)}
+                      className={`p-2 rounded-lg border-2 transition-all ${
+                        chibiImage === chibi.path
+                          ? "border-yellow-400 bg-yellow-400/20"
+                          : "border-gray-600 hover:border-gray-500 bg-gray-800"
+                      }`}
+                    >
+                      <div className="text-xs font-semibold text-center mb-1">{chibi.name}</div>
+                      <div className="aspect-square relative">
+                        <img src={chibi.path} alt={chibi.name} className="object-contain w-full h-full" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sponsor Name */}
+              <div className="mb-4">
+                <label className="text-sm font-medium text-gray-300 mb-2 block">Sponsor Name</label>
+                <Input
+                  value={sponsorName}
+                  onChange={(e) => onSponsorNameChange(e.target.value)}
+                  placeholder="Enter sponsor name..."
+                  className="bg-gray-800 border-gray-600 text-white"
+                />
+              </div>
+
+              {/* Ending Screen Sponsor Logo */}
+              <div>
+                <label className="text-sm font-medium text-gray-300 mb-2 block">Ending Screen Sponsor Logo</label>
+                {sponsorLogo ? (
+                  <div className="space-y-2">
+                    <div className="bg-white rounded-lg p-4 flex items-center justify-center h-24">
+                      <img src={sponsorLogo} alt="Sponsor" className="max-h-full max-w-full object-contain" />
+                    </div>
+                    <Button
+                      onClick={onRemoveSponsorLogo}
+                      variant="destructive"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Remove Logo
+                    </Button>
+                  </div>
+                ) : (
+                  <div>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={onSponsorLogoUpload}
+                      className="bg-gray-800 border-gray-600 text-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Upload sponsor logo for ending screen</p>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
         {selectedTimeline === "lightning" && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="rounded-lg bg-gray-700/50 border border-gray-600 p-6 text-center"
           >
-            <Zap className="h-8 w-8 mx-auto mb-2 text-yellow-400" />
-            <p className="text-sm text-gray-300 font-semibold">Lightning Round Coming Soon!</p>
-            <p className="text-xs text-gray-400 mt-2">Controls for Lightning Round will be added here.</p>
+            <LightningRoundController
+              lightningRound={lightningRound}
+              onUpdateQuestion={onUpdateLightningQuestion}
+              onUpdateContestantName={onUpdateLightningContestantName}
+              onUpdateAnswer={onUpdateLightningAnswer}
+              onRevealAnswer={onRevealLightningAnswer}
+              onRevealAllAnswers={onRevealAllLightningAnswers}
+              onHideAllAnswers={onHideAllLightningAnswers}
+              onPlaySound={onPlaySound}
+              onStartTimer={onStartLightningTimer}
+              onStopTimer={onStopLightningTimer}
+              onToggleTimerVisibility={onToggleLightningTimerVisibility}
+            />
           </motion.div>
         )}
       </AnimatePresence>

@@ -9,6 +9,8 @@ import { WelcomeScreen } from "@/components/game/welcome-screen"
 import { RulesScreen } from "@/components/game/rules-screen"
 import { SponsorVideoScreen } from "@/components/game/sponsor-video-screen"
 import { LightningRoundScreen } from "@/components/game/lightning-round-screen"
+import { LightningRoundRulesScreen } from "@/components/game/lightning-round-rules-screen"
+import { EndingScreen } from "@/components/game/ending-screen"
 
 export default function GameBoardPage() {
   const { state, clearWrongAnswerTrigger, goToQuestionPreview } = useGameState()
@@ -194,8 +196,34 @@ export default function GameBoardPage() {
     return <RulesScreen />
   }
 
+  if (orchestration.macroState === "lightning-round-rules") {
+    return <LightningRoundRulesScreen sponsorLogo1={state.lightningRulesSponsorLogo1} sponsorLogo2={state.lightningRulesSponsorLogo2} />
+  }
+
   if (orchestration.macroState === "lightning-round") {
-    return <LightningRoundScreen />
+    return (
+      <LightningRoundScreen 
+        contestant1={state.lightningRound.contestant1}
+        contestant2={state.lightningRound.contestant2}
+        revealTrigger={state.lightningRound.revealTrigger}
+        currentRevealingContestant={state.lightningRound.currentContestant}
+        currentRevealingAnswerIndex={state.lightningRound.currentRevealingAnswerIndex}
+        timerActive={state.lightningRound.timerActive}
+        timerSeconds={state.lightningRound.timerSeconds}
+        timerStartTime={state.lightningRound.timerStartTime}
+        showTimer={state.lightningRound.showTimer}
+      />
+    )
+  }
+
+  if (orchestration.macroState === "final") {
+    return (
+      <EndingScreen
+        sponsorName={state.sponsorName}
+        sponsorLogo={state.sponsorLogo || undefined}
+        chibiImage={state.chibiImage}
+      />
+    )
   }
 
   // Show sponsor video when triggered

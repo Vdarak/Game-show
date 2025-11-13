@@ -74,6 +74,22 @@ export default function ControllerPage() {
     revealQuestionPrompt,
     playSponsorVideo,
     goToLightningRound,
+    goToLightningRoundRules,
+    goToEnding,
+    // Lightning Round functions
+    updateLightningRoundQuestion,
+    updateLightningContestantName,
+    updateLightningAnswer,
+    revealLightningAnswer,
+    revealAllLightningAnswers,
+    hideAllLightningAnswers,
+    startLightningTimer,
+    stopLightningTimer,
+    toggleLightningTimerVisibility,
+    // Ending screen functions
+    updateChibiImage,
+    updateSponsorName,
+    updateLightningRulesSponsorLogo,
   } = useGameState()
 
   const { playSound, preloadSound, playingSound, isReady } = useAudio()
@@ -122,6 +138,34 @@ export default function ControllerPage() {
       })
     }
   }, [isReady, preloadSound])
+
+  // Lightning Round Timer - Play buzzer when time is up
+  useEffect(() => {
+    if (!state.lightningRound.timerActive || !state.lightningRound.timerStartTime) {
+      return
+    }
+
+    const checkTimer = () => {
+      const elapsed = (Date.now() - state.lightningRound.timerStartTime!) / 1000
+      const remaining = state.lightningRound.timerSeconds - elapsed
+      
+      if (remaining <= 0) {
+        // Play wrong buzzer sound when time is up
+        console.log('[Controller] Timer ended, playing buzz sound')
+        playSound("buzz")
+        // Auto stop the timer
+        stopLightningTimer()
+      }
+    }
+
+    // Check immediately
+    checkTimer()
+
+    // Then check every 100ms
+    const interval = setInterval(checkTimer, 100)
+    
+    return () => clearInterval(interval)
+  }, [state.lightningRound.timerActive, state.lightningRound.timerStartTime, state.lightningRound.timerSeconds, playSound, stopLightningTimer])
 
   useEffect(() => {
     const checkInterval = setInterval(() => {
@@ -232,6 +276,24 @@ export default function ControllerPage() {
       console.error("Failed to remove video:", error)
       toast.error("Failed to remove video.", { position: "top-center" })
     }
+  }
+
+  const handleLightningRulesSponsorLogoUpload = (logoNumber: 1 | 2, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64String = reader.result as string
+        updateLightningRulesSponsorLogo(logoNumber, base64String)
+        toast.success(`Lightning rules sponsor logo ${logoNumber} updated!`, { position: "top-center" })
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeLightningRulesSponsorLogo = (logoNumber: 1 | 2) => {
+    updateLightningRulesSponsorLogo(logoNumber, null)
+    toast.success(`Lightning rules sponsor logo ${logoNumber} removed!`, { position: "top-center" })
   }
 
   // Play whoosh sound sequentially for answer boxes
@@ -487,6 +549,7 @@ export default function ControllerPage() {
             onRevealQuestion={revealQuestionPrompt}
             onPlaySponsorVideo={playSponsorVideo}
             onGoToLightningRound={goToLightningRound}
+            onGoToLightningRoundRules={goToLightningRoundRules}
             currentQuestionIndex={state.currentQuestionIndex}
             onRevealAnswer={revealAnswer}
             onRevealAllAnswers={revealAllAnswers}
@@ -505,6 +568,25 @@ export default function ControllerPage() {
             onFooterTextChange={updateFooterText}
             showSurveyTotals={state.showSurveyTotals}
             onToggleSurveyTotals={toggleSurveyTotals}
+            lightningRound={state.lightningRound}
+            onUpdateLightningQuestion={updateLightningRoundQuestion}
+            onUpdateLightningContestantName={updateLightningContestantName}
+            onUpdateLightningAnswer={updateLightningAnswer}
+            onRevealLightningAnswer={revealLightningAnswer}
+            onRevealAllLightningAnswers={revealAllLightningAnswers}
+            onHideAllLightningAnswers={hideAllLightningAnswers}
+            onStartLightningTimer={startLightningTimer}
+            onStopLightningTimer={stopLightningTimer}
+            onToggleLightningTimerVisibility={toggleLightningTimerVisibility}
+            chibiImage={state.chibiImage}
+            onChibiImageChange={updateChibiImage}
+            sponsorName={state.sponsorName}
+            onSponsorNameChange={updateSponsorName}
+            lightningRulesSponsorLogo1={state.lightningRulesSponsorLogo1}
+            lightningRulesSponsorLogo2={state.lightningRulesSponsorLogo2}
+            onLightningRulesSponsorLogoUpload={handleLightningRulesSponsorLogoUpload}
+            onRemoveLightningRulesSponsorLogo={removeLightningRulesSponsorLogo}
+            onGoToEnding={goToEnding}
           />
         </div>
 
