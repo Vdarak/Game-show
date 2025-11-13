@@ -20,23 +20,34 @@ export function useAudio() {
       if (!audioContextRef.current) {
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
         audioContextRef.current = audioContext
+        console.log("[Audio] AudioContext initialized")
       }
       setIsReady(true)
     }
 
-    // Initialize on first user interaction (required by browsers)
+    // Try to initialize immediately
+    try {
+      initAudio()
+    } catch (error) {
+      console.warn("[Audio] Could not initialize immediately, waiting for user interaction:", error)
+    }
+
+    // Also initialize on first user interaction (required by some browsers)
     const handleFirstInteraction = () => {
       initAudio()
       document.removeEventListener("click", handleFirstInteraction)
       document.removeEventListener("keydown", handleFirstInteraction)
+      document.removeEventListener("touchstart", handleFirstInteraction)
     }
 
     document.addEventListener("click", handleFirstInteraction)
     document.addEventListener("keydown", handleFirstInteraction)
+    document.addEventListener("touchstart", handleFirstInteraction)
 
     return () => {
       document.removeEventListener("click", handleFirstInteraction)
       document.removeEventListener("keydown", handleFirstInteraction)
+      document.removeEventListener("touchstart", handleFirstInteraction)
     }
   }, [])
 

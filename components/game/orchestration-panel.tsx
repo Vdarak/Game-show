@@ -5,7 +5,9 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
+import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { getVideoFromIndexedDB } from "@/lib/video-storage"
 import { 
   Play, 
   Eye,
@@ -49,6 +51,9 @@ interface OrchestrationPanelProps {
   sponsorLogo: string | null
   onSponsorLogoUpload: (event: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveSponsorLogo: () => void
+  hasSponsorVideo: boolean
+  onSponsorVideoUpload: (event: React.ChangeEvent<HTMLInputElement>) => void
+  onRemoveSponsorVideo: () => void
   footerText: string
   onFooterTextChange: (text: string) => void
   showSurveyTotals: boolean
@@ -79,6 +84,9 @@ export function OrchestrationPanel({
   sponsorLogo,
   onSponsorLogoUpload,
   onRemoveSponsorLogo,
+  hasSponsorVideo,
+  onSponsorVideoUpload,
+  onRemoveSponsorVideo,
   footerText,
   onFooterTextChange,
   showSurveyTotals,
@@ -86,7 +94,18 @@ export function OrchestrationPanel({
 }: OrchestrationPanelProps) {
   const [selectedTimeline, setSelectedTimeline] = useState<TimelineState | null>(null)
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState<number | null>(null)
-  const [sponsorVideoUrl, setSponsorVideoUrl] = useState("")
+  const [sponsorVideoData, setSponsorVideoData] = useState<string | null>(null)
+  
+  // Load video from IndexedDB when component mounts or flag changes
+  useEffect(() => {
+    if (hasSponsorVideo) {
+      getVideoFromIndexedDB().then(video => {
+        setSponsorVideoData(video)
+      })
+    } else {
+      setSponsorVideoData(null)
+    }
+  }, [hasSponsorVideo])
   
   // Question manager state
   const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false)
@@ -244,11 +263,10 @@ export function OrchestrationPanel({
   }
 
   const handlePlaySponsorVideoAndNext = () => {
-    if (sponsorVideoUrl) {
-      onPlaySponsorVideo(sponsorVideoUrl)
-      setTimeout(() => {
-        handleNextQuestion()
-      }, 500)
+    if (sponsorVideoData) {
+      onPlaySponsorVideo(sponsorVideoData)
+      // Note: Video will play in game board, then auto-advance to next question
+      // after the video ends (handled by video onEnded event)
     }
   }
 
@@ -433,6 +451,42 @@ export function OrchestrationPanel({
             </label>
           </div>
         )}
+
+        {/* Sponsor Video Upload */}
+        {sponsorVideoData && (
+          <div className="relative rounded-lg overflow-hidden bg-gray-700/50 border border-gray-600">
+            <video
+              src={sponsorVideoData}
+              className="w-full h-24 object-cover"
+              muted
+            />
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={onRemoveSponsorVideo}
+              >
+                Remove
+              </Button>
+            </div>
+          </div>
+        )}
+        {!sponsorVideoData && (
+          <div className="flex items-center justify-center p-3 rounded-lg bg-gray-700/50 border border-gray-600">
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept="video/*"
+                onChange={onSponsorVideoUpload}
+                className="hidden"
+              />
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Plus className="h-4 w-4" />
+                <span>Upload Sponsor Video</span>
+              </div>
+            </label>
+          </div>
+        )}
       </div>
 
       {/* Horizontal Timeline */}
@@ -502,59 +556,62 @@ export function OrchestrationPanel({
             className="space-y-4"
           >
             {/* Current Question Display */}
-            {currentQuestion && (
+            {currentQuestion && (() => {
+              // Check if all answers are revealed
+              const allAnswersRevealed = currentQuestion.answers.every(a => a.revealed)
+              
+              return (
               <div className="rounded-lg bg-gray-700/50 border border-gray-600 p-4">
-                <div className="flex flex-col gap-3 mb-3">
-                  <div>
+                <div className="flex gap-3 mb-3">
+                  {/* Left - Question Text */}
+                  <div className="flex-1">
                     <div className="text-xs text-gray-400">Survey Question {selectedQuestionIndex + 1}</div>
                     <div className="font-display text-sm font-semibold mt-1">{currentQuestion.text}</div>
                   </div>
                   
-                  {/* Control Buttons Row */}
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={onRevealQuestion}
-                      size="sm"
-                      variant={orchestration.microState === "reveal-question" || orchestration.microState === "playing" ? "default" : "default"}
-                      className="text-xs"
-                      disabled={orchestration.microState === "reveal-question" || orchestration.microState === "playing"}
-                    >
-                      <Eye className="h-3 w-3 mr-1" />
-                      {orchestration.microState === "reveal-question" || orchestration.microState === "playing" ? "Question Revealed" : "Reveal Question"}
-                    </Button>
-                    
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 rounded-md border border-gray-600">
-                      <span className="text-xs text-gray-400">Survey Totals:</span>
-                      <Button 
-                        onClick={onToggleSurveyTotals} 
-                        variant={showSurveyTotals ? "default" : "outline"} 
-                        size="sm" 
-                        className="h-7 px-2 text-xs"
+                  {/* Right - Control Buttons - Responsive Grid */}
+                  <div className="flex-shrink-0 p-3 bg-gray-800/50 rounded-lg border border-gray-600 w-fit">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {/* Reveal Question Button */}
+                      <Button
+                        onClick={onRevealQuestion}
+                        size="sm"
+                        variant="default"
+                        className="text-xs h-9 whitespace-nowrap"
+                        disabled={orchestration.microState === "reveal-question" || orchestration.microState === "playing"}
                       >
-                        {showSurveyTotals ? <><Eye className="h-3 w-3 mr-1" />On</> : <><EyeOff className="h-3 w-3 mr-1" />Off</>}
+                        <Eye className="h-3 w-3 mr-1" />
+                        {orchestration.microState === "reveal-question" || orchestration.microState === "playing" ? "Question Revealed" : "Reveal Question"}
                       </Button>
-                    </div>
+                      
+                      {/* Survey Totals Toggle */}
+                      <div className="flex items-center justify-between gap-2 px-3 h-9 bg-gray-700/50 rounded-md border border-gray-600">
+                        <span className="text-xs text-gray-300 whitespace-nowrap">Survey Totals</span>
+                        <Switch
+                          checked={showSurveyTotals}
+                          onCheckedChange={onToggleSurveyTotals}
+                        />
+                      </div>
 
-                    <div className="flex gap-2 ml-auto">
+                      {/* Reveal/Hide All Button */}
                       <Button 
-                        onClick={onRevealAllAnswers} 
-                        variant="secondary" 
+                        onClick={allAnswersRevealed ? onHideAllAnswers : onRevealAllAnswers} 
+                        variant="outline" 
                         size="sm" 
-                        className="text-xs"
+                        className="text-xs h-9 whitespace-nowrap sm:col-span-2 lg:col-span-1"
                         disabled={orchestration.microState === "preview"}
                       >
-                        <Eye className="mr-1 h-3 w-3" />
-                        Reveal All
-                      </Button>
-                      <Button 
-                        onClick={onHideAllAnswers} 
-                        variant="secondary" 
-                        size="sm" 
-                        className="text-xs"
-                        disabled={orchestration.microState === "preview"}
-                      >
-                        <EyeOff className="mr-1 h-3 w-3" />
-                        Hide All
+                        {allAnswersRevealed ? (
+                          <>
+                            <EyeOff className="mr-1 h-3 w-3" />
+                            Hide All Answers
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="mr-1 h-3 w-3" />
+                            Reveal All Answers
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
@@ -652,31 +709,24 @@ export function OrchestrationPanel({
                   )}
                 </div>
               </div>
-            )}
+              )
+            })()}
 
             {/* Navigation Controls */}
             <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-2">
-                <Input
-                  value={sponsorVideoUrl}
-                  onChange={(e) => setSponsorVideoUrl(e.target.value)}
-                  placeholder="/videos/sponsor.mp4"
-                  className="h-8 text-xs bg-gray-700"
-                />
-                <Button
-                  onClick={handlePlaySponsorVideoAndNext}
-                  variant="outline"
-                  className="w-full text-xs h-8"
-                  disabled={!sponsorVideoUrl || currentQuestionIndex >= questionCount - 1}
-                >
-                  <Video className="mr-1 h-3 w-3" />
-                  Play Video & Next
-                </Button>
-              </div>
+              <Button
+                onClick={handlePlaySponsorVideoAndNext}
+                variant="outline"
+                className="w-full text-xs h-full"
+                disabled={!sponsorVideoData || currentQuestionIndex >= questionCount - 1}
+              >
+                <Video className="mr-1 h-3 w-3" />
+                Play Video & Next
+              </Button>
 
               <Button
                 onClick={handleNextQuestion}
-                variant="default"
+                variant="outline"
                 className="text-xs h-full"
                 disabled={currentQuestionIndex >= questionCount - 1}
               >

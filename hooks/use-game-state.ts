@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { saveVideoToIndexedDB, getVideoFromIndexedDB, deleteVideoFromIndexedDB } from "@/lib/video-storage"
 
 interface Answer {
   id: string
@@ -33,7 +34,7 @@ interface OrchestrationState {
   macroState: MacroState
   microState: MicroState
   currentQuestionInFlow: number // which question in the flow (0-indexed)
-  sponsorVideoUrl: string | null // URL for sponsor video to play
+  sponsorVideoTrigger: number | null // timestamp to trigger video playback (video data in IndexedDB)
   showWelcome: boolean // show welcome screen elements
   showRules: boolean // show rules screen
   showFooter: boolean // show footer text
@@ -47,6 +48,7 @@ interface GameState {
   currentQuestion: Question | null
   gamePhase: "setup" | "playing" | "stealing" | "roundEnd"
   sponsorLogo: string | null
+  hasSponsorVideo: boolean // Just a flag, actual video stored in IndexedDB
   footerText: string
   wrongAnswerTriggered: number | null // timestamp when wrong answer was triggered
   showSurveyTotals: boolean // toggle for survey totals visibility
@@ -147,6 +149,7 @@ const DEFAULT_STATE: GameState = {
   currentQuestion: null,
   gamePhase: "playing",
   sponsorLogo: null,
+  hasSponsorVideo: false,
   footerText: "",
   wrongAnswerTriggered: null,
   showSurveyTotals: true,
@@ -154,7 +157,7 @@ const DEFAULT_STATE: GameState = {
     macroState: "welcome",
     microState: "preview",
     currentQuestionInFlow: 0,
-    sponsorVideoUrl: null,
+    sponsorVideoTrigger: null,
     showWelcome: true,
     showRules: false,
     showFooter: false,
@@ -168,6 +171,7 @@ function migrateOldState(savedState: any): GameState {
       ...savedState,
       questions: DEFAULT_STATE.questions, // Always use latest questions
       sponsorLogo: savedState.sponsorLogo || null, // Preserve sponsor logo
+      hasSponsorVideo: savedState.hasSponsorVideo || false, // Preserve flag
       footerText: savedState.footerText || "", // Preserve footer text
       wrongAnswerTriggered: savedState.wrongAnswerTriggered || null, // Preserve wrong answer trigger
       showSurveyTotals: savedState.showSurveyTotals ?? true, // Preserve survey totals visibility
@@ -637,6 +641,21 @@ export function useGameState() {
     [updateState],
   )
 
+  const updateSponsorVideo = useCallback(
+    async (videoUrl: string | null) => {
+      if (videoUrl) {
+        // Save video to IndexedDB
+        await saveVideoToIndexedDB(videoUrl)
+        updateState({ hasSponsorVideo: true })
+      } else {
+        // Remove video from IndexedDB
+        await deleteVideoFromIndexedDB()
+        updateState({ hasSponsorVideo: false })
+      }
+    },
+    [updateState],
+  )
+
   const updateFooterText = useCallback(
     (text: string) => {
       updateState({ footerText: text })
@@ -782,13 +801,14 @@ export function useGameState() {
 
   const playSponsorVideo = useCallback(
     (videoUrl: string) => {
+      // Don't store the video URL, just trigger playback with a timestamp
       setState((prev) => {
         const newState: GameState = {
           ...prev,
           orchestration: {
             ...prev.orchestration,
             microState: "sponsor-video" as MicroState,
-            sponsorVideoUrl: videoUrl,
+            sponsorVideoTrigger: Date.now(), // Use timestamp as trigger
           },
         }
         broadcastState(newState)
@@ -844,6 +864,7 @@ export function useGameState() {
     updateQuestion,
     deleteQuestion,
     updateSponsorLogo,
+    updateSponsorVideo,
     updateFooterText,
     triggerWrongAnswer,
     clearWrongAnswerTrigger,

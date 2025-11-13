@@ -62,6 +62,7 @@ export default function ControllerPage() {
     updateQuestion,
     deleteQuestion,
     updateSponsorLogo,
+    updateSponsorVideo,
     updateFooterText,
     triggerWrongAnswer,
     toggleSurveyTotals,
@@ -102,10 +103,19 @@ export default function ControllerPage() {
 
   const presetValues = scorePreset === "default" ? [10, 20, 50, 100] : [25, 50, 100, 500]
 
-  // Preload sound effects
+  // Define sound effects before using them
+  const soundEffects = [
+    { name: "Correct", type: "ding" as const, filename: "dong.wav", color: "border-green-600" },
+    { name: "Buzzer", type: "buzzer" as const, filename: "player-buzzer.wav", color: "border-red-600" },
+    { name: "Duplicate", type: "duplicate" as const, filename: "duplicate-answer.wav", color: "border-yellow-600" },
+    { name: "Wrong", type: "buzz" as const, filename: "wrong-buzzer.wav", color: "border-purple-600" },
+    { name: "Whoosh", type: "whoosh" as const, filename: "answer-box-fly-whoosh.wav", color: "border-blue-600" },
+  ]
+
+  // Preload sound effects immediately when audio is ready
   useEffect(() => {
     if (isReady) {
-      console.log("[Controller] Preload effect triggered, loading 4 sounds...")
+      console.log("[Controller] Audio ready, preloading all sounds...")
       soundEffects.forEach((sound) => {
         console.log(`[Controller] Preloading: ${sound.name} (${sound.type} -> ${sound.filename})`)
         preloadSound(sound.type, sound.filename)
@@ -192,6 +202,36 @@ export default function ControllerPage() {
   const removeSponsorLogo = () => {
     updateSponsorLogo(null)
     toast.success("Sponsor logo removed!", { position: "top-center" })
+  }
+
+  const handleSponsorVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file && file.type.startsWith('video/')) {
+      const reader = new FileReader()
+      reader.onloadend = async () => {
+        const base64String = reader.result as string
+        try {
+          await updateSponsorVideo(base64String)
+          toast.success("Sponsor video updated!", { position: "top-center" })
+        } catch (error) {
+          console.error("Failed to save video:", error)
+          toast.error("Failed to save video. File may be too large.", { position: "top-center" })
+        }
+      }
+      reader.readAsDataURL(file)
+    } else {
+      toast.error("Please select a valid video file!", { position: "top-center" })
+    }
+  }
+
+  const removeSponsorVideo = async () => {
+    try {
+      await updateSponsorVideo(null)
+      toast.success("Sponsor video removed!", { position: "top-center" })
+    } catch (error) {
+      console.error("Failed to remove video:", error)
+      toast.error("Failed to remove video.", { position: "top-center" })
+    }
   }
 
   // Play whoosh sound sequentially for answer boxes
@@ -300,14 +340,6 @@ export default function ControllerPage() {
     }
   }
 
-  const soundEffects = [
-    { name: "Correct", type: "ding" as const, filename: "dong.wav", color: "border-green-600" },
-    { name: "Buzzer", type: "buzzer" as const, filename: "player-buzzer.wav", color: "border-red-600" },
-    { name: "Duplicate", type: "duplicate" as const, filename: "duplicate-answer.wav", color: "border-yellow-600" },
-    { name: "Wrong", type: "buzz" as const, filename: "wrong-buzzer.wav", color: "border-purple-600" },
-    { name: "Whoosh", type: "whoosh" as const, filename: "answer-box-fly-whoosh.wav", color: "border-blue-600" },
-  ]
-
   const getStatusColor = (status: DisplayWindow["status"]) => {
     switch (status) {
       case "active":
@@ -375,8 +407,8 @@ export default function ControllerPage() {
         <Card className="mb-2 bg-gray-800 p-3 sm:mb-4 sm:p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
-              <img src="/logo.svg" alt="Family Feud logo" className="h-10 w-10" />
-              <h1 className="font-display text-base sm:text-lg">Family Feud Controller</h1>
+              <img src="/logo.svg" alt="Popular Consensus logo" className="h-10 w-10" />
+              <h1 className="font-display text-base sm:text-lg">GATE: Popular Consensus Controller</h1>
             </div>
             <div className="flex items-center gap-3 sm:gap-6">
               <InstallPWA />
@@ -466,6 +498,9 @@ export default function ControllerPage() {
             sponsorLogo={state.sponsorLogo}
             onSponsorLogoUpload={handleSponsorLogoUpload}
             onRemoveSponsorLogo={removeSponsorLogo}
+            hasSponsorVideo={state.hasSponsorVideo}
+            onSponsorVideoUpload={handleSponsorVideoUpload}
+            onRemoveSponsorVideo={removeSponsorVideo}
             footerText={state.footerText}
             onFooterTextChange={updateFooterText}
             showSurveyTotals={state.showSurveyTotals}

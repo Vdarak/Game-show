@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useGameState } from "@/hooks/use-game-state"
+import { getVideoFromIndexedDB } from "@/lib/video-storage"
 import { WrongAnswerAnimation } from "@/components/game/wrong-answer-animation"
 import { WelcomeScreen } from "@/components/game/welcome-screen"
 import { RulesScreen } from "@/components/game/rules-screen"
@@ -10,8 +11,20 @@ import { SponsorVideoScreen } from "@/components/game/sponsor-video-screen"
 import { LightningRoundScreen } from "@/components/game/lightning-round-screen"
 
 export default function GameBoardPage() {
-  const { state, clearWrongAnswerTrigger } = useGameState()
+  const { state, clearWrongAnswerTrigger, goToQuestionPreview } = useGameState()
   const [animatingBoxIndex, setAnimatingBoxIndex] = useState<number>(-1)
+  const [sponsorVideoData, setSponsorVideoData] = useState<string | null>(null)
+
+  // Load sponsor video from IndexedDB when available
+  useEffect(() => {
+    if (state.hasSponsorVideo) {
+      getVideoFromIndexedDB().then(video => {
+        setSponsorVideoData(video)
+      })
+    } else {
+      setSponsorVideoData(null)
+    }
+  }, [state.hasSponsorVideo])
 
   // Keyboard handlers for fullscreen toggle (F to toggle, Escape to exit)
   useEffect(() => {
@@ -185,10 +198,26 @@ export default function GameBoardPage() {
     return <LightningRoundScreen />
   }
 
-  if (orchestration.microState === "sponsor-video" && orchestration.sponsorVideoUrl) {
-    return <SponsorVideoScreen videoUrl={orchestration.sponsorVideoUrl} />
+  // Show sponsor video when triggered
+  if (orchestration.microState === "sponsor-video" && sponsorVideoData) {
+    const handleVideoEnd = () => {
+      // Move to next question when video ends
+      const nextIndex = state.currentQuestionIndex + 1
+      if (nextIndex < state.questions.length) {
+        goToQuestionPreview(nextIndex)
+      }
+    }
+    
+    return (
+      <SponsorVideoScreen 
+        videoUrl={sponsorVideoData} 
+        sponsorLogo={state.sponsorLogo} 
+        footerText={state.footerText}
+        onVideoEnd={handleVideoEnd}
+      />
+    )
   }
-
+  
   const isPreviewMode = orchestration.microState === "preview"
   const showQuestion = orchestration.microState === "reveal-question" || orchestration.microState === "playing"
   
