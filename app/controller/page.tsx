@@ -479,6 +479,105 @@ export default function ControllerPage() {
           </div>
         </Card>
 
+        {/* Tutorial Section */}
+        <Card className="mb-2 bg-gradient-to-r from-blue-900/50 to-purple-900/50 border-blue-500 p-3 sm:mb-4 sm:p-4">
+          <details className="group">
+            <summary className="cursor-pointer flex items-center gap-2 mb-3">
+              <AlertCircle className="h-5 w-5 text-blue-400" />
+              <h2 className="font-display text-sm sm:text-base font-bold text-blue-300">Setup Tutorial</h2>
+              <span className="ml-auto text-blue-400 text-xs group-open:rotate-90 transition-transform">▶</span>
+            </summary>
+            <div className="space-y-2">
+            <details className="group">
+              <summary className="cursor-pointer rounded-lg bg-gray-800/50 p-3 hover:bg-gray-700/50 transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-semibold text-yellow-300">Step 1: Initial Setup</span>
+                </div>
+              </summary>
+              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300">
+                <p className="flex items-start gap-2">
+                  <span className="text-blue-400 mt-1">•</span>
+                  <span><strong className="text-white">Check Internet Connection:</strong> Verify stable internet. If connection is poor, switch to offline mode by installing the PWA (use Install PWA button above) and turning off internet.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-blue-400 mt-1">•</span>
+                  <span><strong className="text-white">Upload Assets:</strong> Go to Orchestration Panel → Select relevant timeline section → Upload sponsor logos, videos, and banners → Update footer text (Survey Sample)</span>
+                </p>
+              </div>
+            </details>
+
+            <details className="group">
+              <summary className="cursor-pointer rounded-lg bg-gray-800/50 p-3 hover:bg-gray-700/50 transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-semibold text-yellow-300">Step 2: Content Verification</span>
+                </div>
+              </summary>
+              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300">
+                <p className="flex items-start gap-2">
+                  <span className="text-blue-400 mt-1">•</span>
+                  <span><strong className="text-white">Review Questions:</strong> Click "Survey Questions" or "Lightning Questions" to add/edit questions and answers.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-blue-400 mt-1">•</span>
+                  <span><strong className="text-white">Test Sound Effects:</strong> Click each sound button (Ding, Buzz, Buzzer, Duplicate, Whoosh) to verify audio is working.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-blue-400 mt-1">•</span>
+                  <span><strong className="text-white">Preview Locally:</strong> Navigate through timeline sections (Welcome, Rules, Questions, Lightning) on this laptop before sharing to external displays.</span>
+                </p>
+              </div>
+            </details>
+
+            <details className="group">
+              <summary className="cursor-pointer rounded-lg bg-gray-800/50 p-3 hover:bg-gray-700/50 transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-semibold text-yellow-300">Step 3: Display Testing</span>
+                </div>
+              </summary>
+              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300">
+                <p className="flex items-start gap-2">
+                  <span className="text-blue-400 mt-1">•</span>
+                  <span><strong className="text-white">Open Displays:</strong> Click "Open All Displays" below to launch Game Board and Teams screens in new windows.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-blue-400 mt-1">•</span>
+                  <span><strong className="text-white">Verify Screens:</strong> Check that logos appear correctly on Welcome, Rules, Lightning Rules, and Ending screens.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-blue-400 mt-1">•</span>
+                  <span><strong className="text-white">Test Gameplay:</strong> Navigate through timeline, reveal answers, test strikes, and verify team scores update on both Game Board and Teams displays.</span>
+                </p>
+              </div>
+            </details>
+
+            <details className="group">
+              <summary className="cursor-pointer rounded-lg bg-gray-800/50 p-3 hover:bg-gray-700/50 transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-semibold text-yellow-300">Step 4: Go Live</span>
+                </div>
+              </summary>
+              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300">
+                <p className="flex items-start gap-2">
+                  <span className="text-blue-400 mt-1">•</span>
+                  <span><strong className="text-white">Position Displays:</strong> Drag display windows to external monitors/projectors and press F for fullscreen.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-blue-400 mt-1">•</span>
+                  <span><strong className="text-white">Start Game:</strong> Begin with Welcome screen, then navigate through timeline using Orchestration Panel.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-blue-400 mt-1">•</span>
+                  <span><strong className="text-white">Control Gameplay:</strong> Use buttons to reveal answers, manage strikes, play sounds, and control the lightning round timer.</span>
+                </p>
+              </div>
+            </details>
+          </div>
+          <div className="mt-3 p-2 bg-yellow-900/30 border border-yellow-600/50 rounded text-xs text-yellow-200">
+            <strong>💡 Pro Tip:</strong> Always test everything locally before displaying to audience. Use the eye icons below to hide/show displays during setup.
+          </div>
+          </details>
+        </Card>
+
         {/* Display Status */}
         <Card className="mb-2 bg-gray-800 p-3 sm:mb-4 sm:p-4">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
