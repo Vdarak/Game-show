@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 
-type SoundType = "buzz" | "ding" | "duplicate" | "buzzer"
+type SoundType = "buzz" | "ding" | "duplicate" | "buzzer" | "whoosh"
 
 interface AudioCache {
   [key: string]: AudioBuffer

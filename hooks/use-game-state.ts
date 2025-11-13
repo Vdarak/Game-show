@@ -25,6 +25,20 @@ interface Team {
   strikes: number
 }
 
+// Orchestration state types
+type MacroState = "welcome" | "rules" | "questions" | "lightning-round" | "final"
+type MicroState = "preview" | "reveal-question" | "playing" | "sponsor-video"
+
+interface OrchestrationState {
+  macroState: MacroState
+  microState: MicroState
+  currentQuestionInFlow: number // which question in the flow (0-indexed)
+  sponsorVideoUrl: string | null // URL for sponsor video to play
+  showWelcome: boolean // show welcome screen elements
+  showRules: boolean // show rules screen
+  showFooter: boolean // show footer text
+}
+
 interface GameState {
   teams: Team[]
   strikes: number
@@ -36,6 +50,7 @@ interface GameState {
   footerText: string
   wrongAnswerTriggered: number | null // timestamp when wrong answer was triggered
   showSurveyTotals: boolean // toggle for survey totals visibility
+  orchestration: OrchestrationState // new orchestration state
 }
 
 const DEFAULT_STATE: GameState = {
@@ -135,6 +150,15 @@ const DEFAULT_STATE: GameState = {
   footerText: "",
   wrongAnswerTriggered: null,
   showSurveyTotals: true,
+  orchestration: {
+    macroState: "welcome",
+    microState: "preview",
+    currentQuestionInFlow: 0,
+    sponsorVideoUrl: null,
+    showWelcome: true,
+    showRules: false,
+    showFooter: false,
+  },
 }
 
 function migrateOldState(savedState: any): GameState {
@@ -147,6 +171,7 @@ function migrateOldState(savedState: any): GameState {
       footerText: savedState.footerText || "", // Preserve footer text
       wrongAnswerTriggered: savedState.wrongAnswerTriggered || null, // Preserve wrong answer trigger
       showSurveyTotals: savedState.showSurveyTotals ?? true, // Preserve survey totals visibility
+      orchestration: savedState.orchestration || DEFAULT_STATE.orchestration, // Preserve or use default orchestration
     } as GameState
   }
 
@@ -638,6 +663,163 @@ export function useGameState() {
     })
   }, [broadcastState])
 
+  // Orchestration controls
+  const setMacroState = useCallback(
+    (macroState: MacroState) => {
+      setState((prev) => {
+        const newState = {
+          ...prev,
+          orchestration: {
+            ...prev.orchestration,
+            macroState,
+          },
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
+  const setMicroState = useCallback(
+    (microState: MicroState) => {
+      setState((prev) => {
+        const newState = {
+          ...prev,
+          orchestration: {
+            ...prev.orchestration,
+            microState,
+          },
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
+  const setSponsorVideoUrl = useCallback(
+    (url: string | null) => {
+      setState((prev) => {
+        const newState = {
+          ...prev,
+          orchestration: {
+            ...prev.orchestration,
+            sponsorVideoUrl: url,
+          },
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
+  const goToWelcome = useCallback(() => {
+    setMacroState("welcome")
+    setMicroState("preview")
+  }, [setMacroState, setMicroState])
+
+  const goToRules = useCallback(() => {
+    setMacroState("rules")
+    setMicroState("preview")
+  }, [setMacroState, setMicroState])
+
+  const goToQuestions = useCallback(() => {
+    setMacroState("questions")
+    setMicroState("preview")
+  }, [setMacroState, setMicroState])
+
+  const goToQuestionPreview = useCallback(
+    (questionIndex: number) => {
+      setState((prev) => {
+        const question = prev.questions[questionIndex]
+        const newState: GameState = {
+          ...prev,
+          currentQuestionIndex: questionIndex,
+          currentQuestion: question
+            ? {
+                ...question,
+                answers: question.answers.map((ans) => ({ ...ans, revealed: false })),
+              }
+            : null,
+          orchestration: {
+            ...prev.orchestration,
+            macroState: "questions" as MacroState,
+            microState: "preview" as MicroState,
+            currentQuestionInFlow: questionIndex,
+            showFooter: true,
+          },
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
+  const revealQuestionPrompt = useCallback(() => {
+    setState((prev) => {
+      const question = prev.questions[prev.currentQuestionIndex]
+      const newState: GameState = {
+        ...prev,
+        currentQuestion: question
+          ? {
+              ...question,
+              answers: question.answers.map((ans) => ({ ...ans, revealed: false })),
+            }
+          : null,
+        orchestration: {
+          ...prev.orchestration,
+          microState: "reveal-question" as MicroState,
+          showFooter: false,
+        },
+      }
+      broadcastState(newState)
+      return newState
+    })
+  }, [broadcastState])
+
+  const playSponsorVideo = useCallback(
+    (videoUrl: string) => {
+      setState((prev) => {
+        const newState: GameState = {
+          ...prev,
+          orchestration: {
+            ...prev.orchestration,
+            microState: "sponsor-video" as MicroState,
+            sponsorVideoUrl: videoUrl,
+          },
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
+  const goToLightningRound = useCallback(() => {
+    setMacroState("lightning-round")
+    setMicroState("preview")
+  }, [setMacroState, setMicroState])
+
+  const updateOrchestrationState = useCallback(
+    (updates: Partial<OrchestrationState>) => {
+      setState((prev) => {
+        const newState = {
+          ...prev,
+          orchestration: {
+            ...prev.orchestration,
+            ...updates,
+          },
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
   return {
     state,
     updateScore,
@@ -666,7 +848,19 @@ export function useGameState() {
     triggerWrongAnswer,
     clearWrongAnswerTrigger,
     toggleSurveyTotals,
+    // Orchestration controls
+    setMacroState,
+    setMicroState,
+    setSponsorVideoUrl,
+    goToWelcome,
+    goToRules,
+    goToQuestions,
+    goToQuestionPreview,
+    revealQuestionPrompt,
+    playSponsorVideo,
+    goToLightningRound,
+    updateOrchestrationState,
   }
 }
 
-export type { GameState, Team, Question, Answer }
+export type { GameState, Team, Question, Answer, MacroState, MicroState, OrchestrationState }
