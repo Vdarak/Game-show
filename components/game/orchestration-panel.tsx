@@ -791,38 +791,76 @@ export function OrchestrationPanel({
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
-                      {currentQuestion.answers.map((answer, index) => (
-                        <motion.button
-                          key={answer.id}
-                          whileHover={orchestration.microState !== "preview" ? { scale: 1.02 } : {}}
-                          whileTap={orchestration.microState !== "preview" ? { scale: 0.98 } : {}}
-                          disabled={orchestration.microState === "preview"}
-                          className={`flex items-center justify-between gap-2 rounded-lg p-2 transition-colors text-left ${
-                            orchestration.microState === "preview" 
-                              ? "bg-gray-800 opacity-50 cursor-not-allowed"
-                              : answer.revealed 
-                                ? "bg-green-600" 
-                                : "bg-gray-700 hover:bg-gray-600"
-                          }`}
-                          onClick={() => {
-                            if (orchestration.microState === "preview") return
-                            if (!answer.revealed) {
-                              onPlaySound("ding")
-                            }
-                            onRevealAnswer(answer.id)
-                          }}
-                        >
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-800 font-display text-xs">
-                              {index + 1}
+                      {/* Left Column: Answers 1-5 */}
+                      <div className="flex flex-col gap-2">
+                        {currentQuestion.answers.slice(0, 5).map((answer, index) => (
+                          <motion.button
+                            key={answer.id}
+                            whileHover={orchestration.microState !== "preview" ? { scale: 1.02 } : {}}
+                            whileTap={orchestration.microState !== "preview" ? { scale: 0.98 } : {}}
+                            disabled={orchestration.microState === "preview"}
+                            className={`flex items-center justify-between gap-2 rounded-lg p-2 transition-colors text-left ${
+                              orchestration.microState === "preview" 
+                                ? "bg-gray-800 opacity-50 cursor-not-allowed"
+                                : answer.revealed 
+                                  ? "bg-green-600" 
+                                  : "bg-gray-700 hover:bg-gray-600"
+                            }`}
+                            onClick={() => {
+                              if (orchestration.microState === "preview") return
+                              if (!answer.revealed) {
+                                onPlaySound("ding")
+                              }
+                              onRevealAnswer(answer.id)
+                            }}
+                          >
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-800 font-display text-xs">
+                                {index + 1}
+                              </div>
+                              <div className="text-xs font-semibold truncate">{answer.text}</div>
                             </div>
-                            <div className="text-xs font-semibold truncate">{answer.text}</div>
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <div className="font-display text-xs text-yellow-400">{answer.points}</div>
-                          </div>
-                        </motion.button>
-                      ))}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <div className="font-display text-xs text-yellow-400">{answer.points}</div>
+                            </div>
+                          </motion.button>
+                        ))}
+                      </div>
+                      {/* Right Column: Answers 6-10 */}
+                      <div className="flex flex-col gap-2">
+                        {currentQuestion.answers.slice(5, 10).map((answer, index) => (
+                          <motion.button
+                            key={answer.id}
+                            whileHover={orchestration.microState !== "preview" ? { scale: 1.02 } : {}}
+                            whileTap={orchestration.microState !== "preview" ? { scale: 0.98 } : {}}
+                            disabled={orchestration.microState === "preview"}
+                            className={`flex items-center justify-between gap-2 rounded-lg p-2 transition-colors text-left ${
+                              orchestration.microState === "preview" 
+                                ? "bg-gray-800 opacity-50 cursor-not-allowed"
+                                : answer.revealed 
+                                  ? "bg-green-600" 
+                                  : "bg-gray-700 hover:bg-gray-600"
+                            }`}
+                            onClick={() => {
+                              if (orchestration.microState === "preview") return
+                              if (!answer.revealed) {
+                                onPlaySound("ding")
+                              }
+                              onRevealAnswer(answer.id)
+                            }}
+                          >
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-800 font-display text-xs">
+                                {index + 6}
+                              </div>
+                              <div className="text-xs font-semibold truncate">{answer.text}</div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <div className="font-display text-xs text-yellow-400">{answer.points}</div>
+                            </div>
+                          </motion.button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
