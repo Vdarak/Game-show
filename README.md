@@ -205,14 +205,14 @@ public/
 
 ### State Management
 - **BroadcastChannel**: Real-time sync across tabs/windows
-- **localStorage**: Persistent storage for offline use
+- **IndexedDB**: Persistent storage for offline use with large quota
 - **Game State**: Centralized in `use-game-state` hook
 - **Room State**: Managed by `use-room-sync` hook
 
 ### Offline Strategy
 1. **Service Worker**: Caches essential resources
 2. **BroadcastChannel**: Local sync without internet
-3. **localStorage**: Persistent data storage
+3. **IndexedDB**: Persistent data storage (large quota, no size limits like localStorage)
 4. **Graceful Degradation**: Full functionality offline
 
 ## 🔧 Configuration
@@ -283,7 +283,7 @@ vercel
 
 **Display windows not syncing:**
 - Check that all windows are in the same room
-- Verify localStorage is enabled
+- Verify IndexedDB is enabled (localStorage fallback for room codes)
 - Try refreshing all windows
 
 **PWA not installing:**

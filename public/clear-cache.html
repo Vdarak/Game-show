@@ -140,6 +140,10 @@
         // Clear sessionStorage
         sessionStorage.clear();
         
+        // Clear IndexedDB databases
+        const databases = await indexedDB.databases ? indexedDB.databases() : [];
+        await Promise.all(databases.map(db => indexedDB.deleteDatabase(db.name)));
+        
         showStatus('✓ Everything cleared! Reloading in 2 seconds...', 'success');
         
         setTimeout(() => {

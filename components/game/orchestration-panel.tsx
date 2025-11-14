@@ -140,14 +140,27 @@ export function OrchestrationPanel({
   
   // Load video from IndexedDB when component mounts or flag changes
   useEffect(() => {
+    console.log("[OrchestrationPanel] hasSponsorVideo changed to:", hasSponsorVideo)
     if (hasSponsorVideo) {
+      console.log("[OrchestrationPanel] Fetching video from IndexedDB...")
       getVideoFromIndexedDB().then(video => {
+        console.log("[OrchestrationPanel] Video fetched, length:", video?.length || 0)
+        console.log("[OrchestrationPanel] Setting sponsorVideoData state...")
         setSponsorVideoData(video)
+        console.log("[OrchestrationPanel] State setter called, will re-render with video")
+      }).catch(error => {
+        console.error("[OrchestrationPanel] Failed to fetch video:", error)
       })
     } else {
+      console.log("[OrchestrationPanel] Clearing video data")
       setSponsorVideoData(null)
     }
   }, [hasSponsorVideo])
+
+  // Debug effect to track sponsorVideoData state
+  useEffect(() => {
+    console.log("[OrchestrationPanel] sponsorVideoData state updated:", sponsorVideoData ? `${sponsorVideoData.length} bytes` : "null")
+  }, [sponsorVideoData])
   
   // Question manager state (Survey Questions)
   const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false)
@@ -558,9 +571,12 @@ export function OrchestrationPanel({
         {sponsorVideoData && (
           <div className="relative rounded-lg overflow-hidden bg-gray-700/50 border border-gray-600">
             <video
+              key={`video-${sponsorVideoData.length}`}
               src={sponsorVideoData}
               className="w-full h-24 object-cover"
               muted
+              onLoadedMetadata={() => console.log("[OrchestrationPanel] Video loaded successfully")}
+              onError={(e) => console.error("[OrchestrationPanel] Video error:", e)}
             />
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-2">
               <Button

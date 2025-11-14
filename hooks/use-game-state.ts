@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { saveVideoToIndexedDB, getVideoFromIndexedDB, deleteVideoFromIndexedDB } from "@/lib/video-storage"
+import { saveGameStateToIndexedDB, getGameStateFromIndexedDB } from "@/lib/indexed-db-storage"
 
 interface Answer {
   id: string
@@ -317,24 +318,28 @@ export function useGameState() {
   const STORAGE_KEY = "gameshow-state"
 
   useEffect(() => {
-    const savedState = localStorage.getItem(STORAGE_KEY)
-    
-    if (savedState) {
-      try {
-        const parsed = JSON.parse(savedState)
-        const migratedState = migrateOldState(parsed)
-        setState(migratedState)
-        console.log("[GameState] Loaded saved state")
-      } catch (error) {
-        console.error("[GameState] Failed to parse saved state:", error)
+    const initializeState = async () => {
+      const savedState = await getGameStateFromIndexedDB<GameState>()
+      
+      if (savedState) {
+        try {
+          const migratedState = migrateOldState(savedState)
+          setState(migratedState)
+          console.log("[GameState] Loaded saved state from IndexedDB")
+        } catch (error) {
+          console.error("[GameState] Failed to parse saved state:", error)
+          setState(DEFAULT_STATE)
+          await saveGameStateToIndexedDB(DEFAULT_STATE)
+        }
+      } else {
+        // No saved state, use default
         setState(DEFAULT_STATE)
+        await saveGameStateToIndexedDB(DEFAULT_STATE)
+        console.log("[GameState] Initialized default state")
       }
-    } else {
-      // No saved state, use default
-      setState(DEFAULT_STATE)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_STATE))
-      console.log("[GameState] Initialized default state")
     }
+
+    initializeState()
 
     try {
       channelRef.current = new BroadcastChannel("gameshow-sync")
@@ -350,24 +355,6 @@ export function useGameState() {
       }
     } catch (error) {
       console.error("[GameState] BroadcastChannel not supported:", error)
-      const handleStorageChange = (e: StorageEvent) => {
-        if (e.key === STORAGE_KEY && e.newValue) {
-          try {
-            const parsed = JSON.parse(e.newValue)
-            const migratedState = migrateOldState(parsed)
-            setState(migratedState)
-          } catch (error) {
-            console.error("[GameState] Failed to parse storage event:", error)
-          }
-        }
-      }
-      window.addEventListener("storage", handleStorageChange)
-      
-      return () => {
-        window.removeEventListener("storage", handleStorageChange)
-        channelRef.current?.close()
-        clearTimeout(updateTimeoutRef.current)
-      }
     }
 
     return () => {
@@ -377,7 +364,10 @@ export function useGameState() {
   }, [])
 
   const broadcastState = useCallback((newState: GameState) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newState))
+    saveGameStateToIndexedDB(newState)
+      .catch((error) => {
+        console.error("[GameState] Failed to save state to IndexedDB:", error)
+      })
     console.log("[GameState] Broadcasting state update")
     channelRef.current?.postMessage(newState)
   }, [])
@@ -723,14 +713,26 @@ export function useGameState() {
 
   const updateSponsorVideo = useCallback(
     async (videoUrl: string | null) => {
-      if (videoUrl) {
-        // Save video to IndexedDB
-        await saveVideoToIndexedDB(videoUrl)
-        updateState({ hasSponsorVideo: true })
-      } else {
-        // Remove video from IndexedDB
-        await deleteVideoFromIndexedDB()
-        updateState({ hasSponsorVideo: false })
+      try {
+        console.log("[GameState] updateSponsorVideo called with:", videoUrl ? `${(videoUrl as string).length} bytes` : "null")
+        if (videoUrl) {
+          // Save video to IndexedDB
+          console.log("[GameState] Saving video to IndexedDB...")
+          await saveVideoToIndexedDB(videoUrl)
+          console.log("[GameState] Video saved to IndexedDB successfully")
+          updateState({ hasSponsorVideo: true })
+          console.log("[GameState] State updated: hasSponsorVideo = true")
+        } else {
+          // Remove video from IndexedDB
+          console.log("[GameState] Deleting video from IndexedDB...")
+          await deleteVideoFromIndexedDB()
+          console.log("[GameState] Video deleted from IndexedDB successfully")
+          updateState({ hasSponsorVideo: false })
+          console.log("[GameState] State updated: hasSponsorVideo = false")
+        }
+      } catch (error) {
+        console.error("[GameState] updateSponsorVideo error:", error)
+        throw error
       }
     },
     [updateState],

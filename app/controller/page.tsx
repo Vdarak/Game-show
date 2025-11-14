@@ -249,22 +249,42 @@ export default function ControllerPage() {
   }
 
   const handleSponsorVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("[Controller] handleSponsorVideoUpload triggered")
     const file = event.target.files?.[0]
+    console.log("[Controller] File selected:", file?.name, "Type:", file?.type, "Size:", file?.size)
     if (file && file.type.startsWith('video/')) {
       const reader = new FileReader()
+      reader.onloadstart = () => {
+        console.log("[Controller] FileReader onloadstart")
+      }
+      reader.onprogress = (e) => {
+        console.log("[Controller] FileReader progress:", e.loaded, "/", e.total)
+      }
       reader.onloadend = async () => {
         const base64String = reader.result as string
+        console.log("[Controller] FileReader onloadend, base64 length:", base64String.length)
         try {
+          console.log("[Controller] Calling updateSponsorVideo...")
           await updateSponsorVideo(base64String)
+          console.log("[Controller] updateSponsorVideo completed successfully")
           toast.success("Sponsor video updated!", { position: "top-center" })
         } catch (error) {
-          console.error("Failed to save video:", error)
+          console.error("[Controller] Failed to save video:", error)
           toast.error("Failed to save video. File may be too large.", { position: "top-center" })
         }
+        // Reset the input
+        event.target.value = ""
       }
+      reader.onerror = (error) => {
+        console.error("[Controller] FileReader error:", error)
+      }
+      console.log("[Controller] Starting FileReader.readAsDataURL")
       reader.readAsDataURL(file)
     } else {
+      console.log("[Controller] Invalid file type or no file selected")
       toast.error("Please select a valid video file!", { position: "top-center" })
+      // Reset the input
+      event.target.value = ""
     }
   }
 
