@@ -7,7 +7,7 @@ export function RulesScreen() {
   const { state } = useGameState()
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center p-4 sm:p-6 overflow-hidden">
+    <div className="relative flex h-screen flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden overflow-y-hidden">
       {/* Video Background */}
       <video
         autoPlay
@@ -24,11 +24,11 @@ export function RulesScreen() {
 
       {/* Header - GATE Logo, Popular Consensus Title, Sponsor Logo */}
       <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 sm:px-8 sm:py-4">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-[80vw]">
           <div className="flex items-center justify-between gap-4 rounded-2xl border-4 border-orange-500 bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 px-4 py-2 shadow-2xl sm:px-6 sm:py-3">
             {/* Left - GATE Logo */}
             <div className="flex-shrink-0">
-              <div className="h-12 w-24 sm:h-16 sm:w-32">
+              <div className="h-16 w-32 sm:h-24 sm:w-48">
                 <img
                   src="/gate-logo.png"
                   alt="GATE"
@@ -54,7 +54,7 @@ export function RulesScreen() {
             {/* Right - Sponsor Logo */}
             <div className="flex-shrink-0">
               {state.sponsorLogo ? (
-                <div className="h-12 w-24 rounded-lg bg-white/90 p-1 sm:h-16 sm:w-32">
+                <div className="h-16 w-32 rounded-lg bg-white/90 p-1 sm:h-24 sm:w-48">
                   <img
                     src={state.sponsorLogo}
                     alt="Sponsor"
@@ -62,7 +62,7 @@ export function RulesScreen() {
                   />
                 </div>
               ) : (
-                <div className="h-12 w-24 rounded-lg border-2 border-dashed border-white/30 bg-white/10 sm:h-16 sm:w-32" />
+                <div className="h-16 w-32 rounded-lg border-2 border-dashed border-white/30 bg-white/10 sm:h-24 sm:w-48" />
               )}
             </div>
           </div>
@@ -76,7 +76,7 @@ export function RulesScreen() {
       </div>
 
       {/* Bento Grid Layout */}
-      <div className="relative z-10 w-full max-w-7xl h-[calc(100vh-180px)] mt-24 grid grid-cols-12 gap-3">
+      <div className="relative z-10 w-[85vw] max-w-[80vw] h-[70vh] mt-24 grid grid-cols-12 gap-3">
         {/* OBJECTIVE - Top Left */}
         <motion.div
           initial={{ x: -100, opacity: 0 }}

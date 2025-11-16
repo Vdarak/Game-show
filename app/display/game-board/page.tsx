@@ -137,7 +137,7 @@ export default function GameBoardPage() {
           duration: 0.4
         }}
       >
-        <div className="relative overflow-hidden rounded-lg border-4 border-teal-500 bg-gradient-to-r from-cyan-700 to-teal-700 p-4 shadow-lg">
+        <div className="relative overflow-hidden rounded-lg border-4 border-orange-500 bg-gradient-to-r from-cyan-700 to-teal-700 p-4 shadow-lg">
           {/* Rank number on left */}
           <div className="absolute left-0 top-0 bottom-0 flex items-center justify-center w-16 bg-cyan-900/50 border-r-4 border-teal-500 font-display text-3xl font-bold text-teal-200 sm:w-20 sm:text-4xl">
             {index + 1}
@@ -254,7 +254,7 @@ export default function GameBoardPage() {
 
   // Main game board (questions macro state)
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center p-4 text-white sm:p-8 overflow-hidden">
+    <div className="relative h-screen w-screen flex flex-col items-center justify-center p-4 text-white sm:p-8 overflow-x-hidden overflow-y-hidden">
       {/* Video Background */}
       <video
         autoPlay
@@ -271,11 +271,11 @@ export default function GameBoardPage() {
 
       {/* Header - GATE Logo, Popular Consensus Title, Sponsor Logo */}
       <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 sm:px-8 sm:py-4">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-[80vw]">
           <div className="flex items-center justify-between gap-4 rounded-2xl border-4 border-orange-500 bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 px-4 py-2 shadow-2xl sm:px-6 sm:py-3">
             {/* Left - GATE Logo */}
             <div className="flex-shrink-0">
-              <div className="h-12 w-24 sm:h-16 sm:w-32">
+              <div className="h-16 w-32 sm:h-24 sm:w-48">
                 <img
                   src="/gate-logo.png"
                   alt="GATE"
@@ -301,7 +301,7 @@ export default function GameBoardPage() {
             {/* Right - Sponsor Logo */}
             <div className="flex-shrink-0">
               {state.sponsorLogo ? (
-                <div className="h-12 w-24 rounded-lg bg-white/90 p-1 sm:h-16 sm:w-32">
+                <div className="h-16 w-32 rounded-lg bg-white/90 p-1 sm:h-24 sm:w-48">
                   <img
                     src={state.sponsorLogo}
                     alt="Sponsor"
@@ -309,7 +309,7 @@ export default function GameBoardPage() {
                   />
                 </div>
               ) : (
-                <div className="h-12 w-24 rounded-lg border-2 border-dashed border-white/30 bg-white/10 sm:h-16 sm:w-32" />
+                <div className="h-16 w-32 rounded-lg border-2 border-dashed border-white/30 bg-white/10 sm:h-24 sm:w-48" />
               )}
             </div>
           </div>
@@ -323,7 +323,7 @@ export default function GameBoardPage() {
       </div>
 
       {/* Top Section - Question */}
-      <div className="relative z-10 mb-8 mt-24 w-full max-w-5xl sm:mt-28">
+      <div className="relative z-10 mb-8 mt-24 w-full max-w-[80vw] sm:mt-28">
         <AnimatePresence mode="wait">
           {orchestration.microState === "reveal-question" && currentQuestion ? (
             <motion.div
@@ -343,7 +343,7 @@ export default function GameBoardPage() {
       </div>
 
       {/* Answers Board - Family Feud Style */}
-      <div className="relative z-10 w-full max-w-5xl">
+      <div className="relative z-10 w-full max-w-[80vw]">
         {displayQuestion ? (
           displayQuestion.answers.length < 6 ? (
             /* Single Column for < 6 answers */
@@ -374,9 +374,9 @@ export default function GameBoardPage() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             transition={{ type: "spring", stiffness: 100, damping: 20 }}
-            className="absolute bottom-4 left-0 right-0 z-20 px-4"
+            className="absolute bottom-0 z-20 px-4"
           >
-            <div className="text-center text-sm text-white/80 sm:text-base">
+            <div className="max-w-[80vw] min-w-[40vw] rounded-2xl border-4 border-orange-500 bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 px-6 py-4 shadow-2xl text-center text-lg font-bold text-white sm:text-2xl tracking-wide">
               {state.footerText}
             </div>
           </motion.div>

@@ -134,7 +134,7 @@ export function LightningRoundScreen({
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden">
+    <div className="relative h-screen w-screen flex flex-col overflow-x-hidden overflow-y-hidden">
       {/* Video Background */}
       <video
         autoPlay
@@ -155,7 +155,7 @@ export function LightningRoundScreen({
           <div className="flex items-center justify-between gap-4 rounded-2xl border-4 border-orange-500 bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 px-4 py-2 shadow-2xl sm:px-6 sm:py-3">
             {/* Left - GATE Logo */}
             <div className="flex-shrink-0">
-              <div className="h-12 w-24 sm:h-16 sm:w-32">
+              <div className="h-16 w-32 sm:h-24 sm:w-48">
                 <img
                   src="/gate-logo.png"
                   alt="GATE"
@@ -199,7 +199,7 @@ export function LightningRoundScreen({
 
             {/* Right - GATE Logo */}
             <div className="flex-shrink-0">
-              <div className="h-12 w-24 sm:h-16 sm:w-32">
+              <div className="h-16 w-32 sm:h-24 sm:w-48">
                 <img
                   src="/gate-logo.png"
                   alt="GATE"

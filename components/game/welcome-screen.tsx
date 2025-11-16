@@ -24,7 +24,7 @@ export function WelcomeScreen() {
   }, [])
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden">
+    <div className="relative h-screen w-screen flex flex-col items-center justify-center overflow-x-hidden overflow-y-hidden">
       {/* Video Background */}
       <video
         autoPlay

@@ -219,7 +219,7 @@ export default function UnifiedTeamDisplay() {
                   style={{ backgroundColor: theme.accentColor }}
                 />
                 <h2
-                  className="text-5xl font-bold tracking-wide whitespace-nowrap"
+                  className="text-6xl sm:text-7xl font-bold tracking-wide whitespace-nowrap"
                   style={{ color: theme.textColor }}
                 >
                   {team.name}

@@ -9,7 +9,7 @@ interface LightningRoundRulesScreenProps {
 
 export function LightningRoundRulesScreen({ sponsorLogo1, sponsorLogo2 }: LightningRoundRulesScreenProps) {
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center p-4 sm:p-6 overflow-hidden">
+    <div className="relative h-screen w-screen flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden overflow-y-hidden">
       {/* Video Background */}
       <video
         autoPlay

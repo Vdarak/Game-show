@@ -11,7 +11,7 @@ interface SponsorVideoScreenProps {
 
 export function SponsorVideoScreen({ videoUrl, sponsorLogo, footerText, onVideoEnd }: SponsorVideoScreenProps) {
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center p-4 sm:p-6 overflow-hidden">
+    <div className="relative h-screen w-screen flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden overflow-y-hidden">
       {/* Video Background */}
       <video
         autoPlay
@@ -32,7 +32,7 @@ export function SponsorVideoScreen({ videoUrl, sponsorLogo, footerText, onVideoE
           <div className="flex items-center justify-between gap-4 rounded-2xl border-4 border-orange-500 bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 px-4 py-2 shadow-2xl sm:px-6 sm:py-3">
             {/* Left - GATE Logo */}
             <div className="flex-shrink-0">
-              <div className="h-12 w-24 sm:h-16 sm:w-32">
+              <div className="h-16 w-32 sm:h-24 sm:w-48">
                 <img
                   src="/gate-logo.png"
                   alt="GATE"
@@ -58,7 +58,7 @@ export function SponsorVideoScreen({ videoUrl, sponsorLogo, footerText, onVideoE
             {/* Right - Sponsor Logo */}
             <div className="flex-shrink-0">
               {sponsorLogo ? (
-                <div className="h-12 w-24 rounded-lg bg-white/90 p-1 sm:h-16 sm:w-32">
+                <div className="h-16 w-32 rounded-lg bg-white/90 p-1 sm:h-24 sm:w-48">
                   <img
                     src={sponsorLogo}
                     alt="Sponsor"
@@ -66,7 +66,7 @@ export function SponsorVideoScreen({ videoUrl, sponsorLogo, footerText, onVideoE
                   />
                 </div>
               ) : (
-                <div className="h-12 w-24 rounded-lg border-2 border-dashed border-white/30 bg-white/10 sm:h-16 sm:w-32" />
+                <div className="h-16 w-32 rounded-lg border-2 border-dashed border-white/30 bg-white/10 sm:h-24 sm:w-48" />
               )}
             </div>
           </div>

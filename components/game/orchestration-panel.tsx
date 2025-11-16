@@ -1041,6 +1041,7 @@ export function OrchestrationPanel({
                   placeholder="Enter sponsor name..."
                   className="bg-gray-800 border-gray-600 text-white"
                 />
+                <p className="text-xs text-gray-400 mt-1">This will display in the Sponsorship box on the ending screen</p>
               </div>
 
               {/* Ending Screen Sponsor Logo */}
