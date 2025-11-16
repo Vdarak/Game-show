@@ -28,7 +28,7 @@ export function SponsorVideoScreen({ videoUrl, sponsorLogo, footerText, onVideoE
 
       {/* Header - GATE Logo, Popular Consensus Title, Sponsor Logo */}
       <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 sm:px-8 sm:py-4">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-[80vw]">
           <div className="flex items-center justify-between gap-4 rounded-2xl border-4 border-orange-500 bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 px-4 py-2 shadow-2xl sm:px-6 sm:py-3">
             {/* Left - GATE Logo */}
             <div className="flex-shrink-0">
