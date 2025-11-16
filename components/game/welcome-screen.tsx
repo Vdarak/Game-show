@@ -56,7 +56,7 @@ export function WelcomeScreen() {
           <img
             src="/gate-logo.png"
             alt="GATE Logo"
-            className="h-12 w-auto sm:h-14 md:h-16 drop-shadow-2xl"
+            className="h-9 w-auto sm:h-10 md:h-11 drop-shadow-2xl"
           />
         </motion.div>
 
@@ -70,22 +70,42 @@ export function WelcomeScreen() {
             textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)',
           }}
         >
-          presents
+          Presents
         </motion.div>
 
         {/* Oval Container for Title */}
-        <div className="relative w-full max-w-4xl aspect-[2.5/1] mb-12 -mt-16">
-          {/* Popular Consensus Title - Spins into place */}
+        <div className="relative w-full max-w-5xl aspect-[2.7/1] mb-16 mt-8 overflow-visible">
+          {/* Animated Oval Background */}
           <motion.div
             initial={{ scale: 0, rotate: 720, opacity: 0 }}
-            animate={stage !== "logo" ? { scale: 1, rotate: 0, opacity: 1 } : {}}
+            animate={stage !== "logo" ? { scale: 1.2, rotate: 0, opacity: 1 } : {}}
             transition={{
               type: "spring",
               stiffness: 60,
               damping: 15,
               duration: 1.5,
             }}
-            className="absolute inset-0 flex items-center justify-center px-12"
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <img
+              src="/oval.png"
+              alt="Title Frame"
+              className="w-[120%] h-[120%] object-contain drop-shadow-[0_0_30px_rgba(0,0,0,0.8)]"
+            />
+          </motion.div>
+
+          {/* Popular Consensus Title - Spins into place */}
+          <motion.div
+            initial={{ scale: 0, rotate: 720, opacity: 0 }}
+            animate={stage !== "logo" ? { scale: 0.96, rotate: 0, opacity: 1 } : {}}
+            transition={{
+              type: "spring",
+              stiffness: 60,
+              damping: 15,
+              duration: 1.5,
+              delay: 0.05,
+            }}
+            className="absolute inset-0 flex items-center justify-center px-10"
           >
             <h1
               className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black uppercase tracking-wider text-orange-500 text-center leading-tight"
@@ -110,9 +130,9 @@ export function WelcomeScreen() {
             type: "spring",
             stiffness: 80,
             damping: 20,
-            delay: 0.3,
+            delay: 0.4,
           }}
-          className="text-center text-white"
+          className="mt-2 text-center text-white"
         >
           <h2 className="text-3xl sm:text-4xl font-bold mb-4 tracking-wide">
             A Head-To-Head Party Game
