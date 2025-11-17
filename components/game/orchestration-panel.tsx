@@ -57,8 +57,8 @@ interface OrchestrationPanelProps {
   hasSponsorVideo: boolean
   onSponsorVideoUpload: (event: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveSponsorVideo: () => void
-  footerText: string
-  onFooterTextChange: (text: string) => void
+  surveyFooterTexts: string[]
+  onFooterTextChange: (surveyIndex: number, text: string) => void
   showSurveyTotals: boolean
   onToggleSurveyTotals: () => void
   lightningRound: LightningRoundState
@@ -111,7 +111,7 @@ export function OrchestrationPanel({
   hasSponsorVideo,
   onSponsorVideoUpload,
   onRemoveSponsorVideo,
-  footerText,
+  surveyFooterTexts,
   onFooterTextChange,
   showSurveyTotals,
   onToggleSurveyTotals,
@@ -1106,13 +1106,20 @@ export function OrchestrationPanel({
 
       {/* Footer Text Input Section */}
       <div className="mt-4 pt-4 border-t border-gray-700">
-        <label className="text-sm font-medium text-gray-400 mb-2 block">Footer Text</label>
-        <Input
-          value={footerText}
-          onChange={(e) => onFooterTextChange(e.target.value)}
-          placeholder="Enter text to display at bottom of game screen..."
-          className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-400"
-        />
+        <label className="text-sm font-medium text-gray-400 mb-3 block">Survey Footer Text</label>
+        <div className="space-y-2">
+          {surveyFooterTexts.map((text, index) => (
+            <div key={index} className="flex gap-2 items-start">
+              <span className="text-xs font-medium text-gray-400 whitespace-nowrap pt-2 w-12">Survey {index + 1}:</span>
+              <Input
+                value={text}
+                onChange={(e) => onFooterTextChange(index, e.target.value)}
+                placeholder={`Enter footer text for survey ${index + 1}...`}
+                className="bg-gray-700 border-gray-600 text-white placeholder:text-gray-400 flex-1"
+              />
+            </div>
+          ))}
+        </div>
       </div>
     </Card>
   )

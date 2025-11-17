@@ -80,7 +80,7 @@ interface GameState {
   sponsorLogo: string | null
   sponsorName: string
   hasSponsorVideo: boolean // Just a flag, actual video stored in IndexedDB
-  footerText: string
+  surveyFooterTexts: string[] // Footer text for each survey (5 surveys)
   wrongAnswerTriggered: number | null // timestamp when wrong answer was triggered
   showSurveyTotals: boolean // toggle for survey totals visibility
   orchestration: OrchestrationState // new orchestration state
@@ -218,7 +218,7 @@ const DEFAULT_STATE: GameState = {
   sponsorLogo: null,
   sponsorName: "Our Amazing Sponsors",
   hasSponsorVideo: false,
-  footerText: "",
+  surveyFooterTexts: ["", "", "", "", ""],
   wrongAnswerTriggered: null,
   showSurveyTotals: true,
   chibiImage: "/chibi-swag.png",
@@ -285,7 +285,7 @@ function migrateOldState(savedState: any): GameState {
       questions: DEFAULT_STATE.questions, // Always use latest questions
       sponsorLogo: savedState.sponsorLogo || null, // Preserve sponsor logo
       hasSponsorVideo: savedState.hasSponsorVideo || false, // Preserve flag
-      footerText: savedState.footerText || "", // Preserve footer text
+      surveyFooterTexts: savedState.surveyFooterTexts || ["", "", "", "", ""], // Preserve per-survey footer texts
       wrongAnswerTriggered: savedState.wrongAnswerTriggered || null, // Preserve wrong answer trigger
       showSurveyTotals: savedState.showSurveyTotals ?? true, // Preserve survey totals visibility
       orchestration: savedState.orchestration || DEFAULT_STATE.orchestration, // Preserve or use default orchestration
@@ -772,10 +772,21 @@ export function useGameState() {
   )
 
   const updateFooterText = useCallback(
-    (text: string) => {
-      updateState({ footerText: text })
+    (surveyIndex: number, text: string) => {
+      setState((prev) => {
+        const newFooterTexts = [...prev.surveyFooterTexts]
+        if (surveyIndex >= 0 && surveyIndex < 5) {
+          newFooterTexts[surveyIndex] = text
+        }
+        const newState = {
+          ...prev,
+          surveyFooterTexts: newFooterTexts,
+        }
+        broadcastState(newState)
+        return newState
+      })
     },
-    [updateState],
+    [broadcastState],
   )
 
   const triggerWrongAnswer = useCallback(() => {

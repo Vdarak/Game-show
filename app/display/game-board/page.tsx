@@ -16,6 +16,9 @@ export default function GameBoardPage() {
   const { state, clearWrongAnswerTrigger, goToQuestionPreview } = useGameState()
   const [animatingBoxIndex, setAnimatingBoxIndex] = useState<number>(-1)
   const [sponsorVideoData, setSponsorVideoData] = useState<string | null>(null)
+  
+  // Get current survey footer text
+  const currentFooterText = state.surveyFooterTexts[state.currentQuestionIndex] || ""
 
   // Load sponsor video from IndexedDB when available
   useEffect(() => {
@@ -240,7 +243,7 @@ export default function GameBoardPage() {
       <SponsorVideoScreen 
         videoUrl={sponsorVideoData} 
         sponsorLogo={state.sponsorLogo} 
-        footerText={state.footerText}
+        footerText={currentFooterText}
         onVideoEnd={handleVideoEnd}
       />
     )
@@ -368,7 +371,7 @@ export default function GameBoardPage() {
 
       {/* Footer Text */}
       <AnimatePresence>
-        {orchestration.showFooter && state.footerText && (
+        {orchestration.showFooter && currentFooterText && (
           <motion.div
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -377,7 +380,7 @@ export default function GameBoardPage() {
             className="absolute bottom-0 z-20 px-4"
           >
             <div className="max-w-[80vw] min-w-[40vw] rounded-2xl border-4 border-orange-500 bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 px-6 py-4 shadow-2xl text-center text-lg font-bold text-white sm:text-2xl tracking-wide">
-              {state.footerText}
+              {currentFooterText}
             </div>
           </motion.div>
         )}

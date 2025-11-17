@@ -688,7 +688,7 @@ export default function ControllerPage() {
             hasSponsorVideo={state.hasSponsorVideo}
             onSponsorVideoUpload={handleSponsorVideoUpload}
             onRemoveSponsorVideo={removeSponsorVideo}
-            footerText={state.footerText}
+            surveyFooterTexts={state.surveyFooterTexts}
             onFooterTextChange={updateFooterText}
             showSurveyTotals={state.showSurveyTotals}
             onToggleSurveyTotals={toggleSurveyTotals}
