@@ -9,6 +9,7 @@ export interface Theme {
   fontFamily: string
   backgroundImage?: string
   backgroundPattern?: string
+  backgroundVideo?: string
 }
 
 export const themes: Record<string, Theme> = {
@@ -43,7 +44,18 @@ export const themes: Record<string, Theme> = {
     textColor: "#FFDAB9",
     accentColor: "#FF8C00",
     fontFamily: "'Lobster', 'Pacifico', cursive",
-    backgroundPattern: "radial-gradient(circle at 25% 60%, rgba(210, 105, 30, 0.12) 0%, transparent 50%), radial-gradient(circle at 75% 30%, rgba(139, 69, 19, 0.12) 0%, transparent 50%)",
+    backgroundVideo: "/videos/thanksgiving-background.mp4",
+  },
+  valentine: {
+    name: "Valentine",
+    id: "valentine",
+    primaryColor: "#C1121F",
+    secondaryColor: "#F4A6C1",
+    backgroundColor: "#FFF5F7",
+    textColor: "#C1121F",
+    accentColor: "#F77F88",
+    fontFamily: "'Dancing Script', 'Pacifico', cursive",
+    backgroundVideo: "/videos/valentine-background.mp4",
   },
   default: {
     name: "Default",

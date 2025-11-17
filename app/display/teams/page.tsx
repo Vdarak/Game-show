@@ -107,7 +107,7 @@ export default function UnifiedTeamDisplay() {
         
         return (
           <div
-            key={team.id}
+            key={`${team.id}-${team.theme}`}
             className="relative flex flex-col items-center justify-center overflow-hidden border border-gray-800 p-8"
             style={{
               background: theme.backgroundPattern
@@ -116,6 +116,25 @@ export default function UnifiedTeamDisplay() {
               fontFamily: theme.fontFamily,
             }}
           >
+            {/* Video Background */}
+            {theme.backgroundVideo && (
+              <video
+                key={`video-${team.id}-${team.theme}`}
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="absolute inset-0 w-full h-full object-cover z-0"
+              >
+                <source src={theme.backgroundVideo} type="video/mp4" />
+              </video>
+            )}
+
+            {/* Overlay for video backgrounds to ensure content is readable */}
+            {theme.backgroundVideo && (
+              <div className="absolute inset-0 bg-black/20 z-[1]" />
+            )}
+
             {/* Score Change Toast for this team */}
             <div className="absolute left-8 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2 pointer-events-none">
               <AnimatePresence>
@@ -139,6 +158,7 @@ export default function UnifiedTeamDisplay() {
             {/* Background decorative elements */}
             <div className="pointer-events-none absolute inset-0 opacity-10">
               <motion.div
+                key={`deco-1-${team.id}-${team.theme}`}
                 className="absolute left-0 top-0 h-64 w-64 rounded-full blur-3xl"
                 style={{ backgroundColor: theme.primaryColor }}
                 animate={{
@@ -149,6 +169,7 @@ export default function UnifiedTeamDisplay() {
                 transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
               />
               <motion.div
+                key={`deco-2-${team.id}-${team.theme}`}
                 className="absolute bottom-0 right-0 h-64 w-64 rounded-full blur-3xl"
                 style={{ backgroundColor: theme.secondaryColor }}
                 animate={{
@@ -245,6 +266,7 @@ export default function UnifiedTeamDisplay() {
                   color={theme.primaryColor}
                   size="massive"
                   className="font-bold"
+                  theme={team.theme}
                 />
               </motion.div>
 

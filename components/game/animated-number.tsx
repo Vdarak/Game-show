@@ -8,9 +8,10 @@ interface AnimatedNumberProps {
   className?: string
   color?: string
   size?: "small" | "medium" | "large" | "massive"
+  theme?: string
 }
 
-export function AnimatedNumber({ value, className = "", color, size = "large" }: AnimatedNumberProps) {
+export function AnimatedNumber({ value, className = "", color, size = "large", theme = "" }: AnimatedNumberProps) {
   const [prevValue, setPrevValue] = useState(value)
   const [digits, setDigits] = useState<string[]>([])
   const [changedIndices, setChangedIndices] = useState<Set<number>>(new Set())
@@ -72,6 +73,7 @@ export function AnimatedNumber({ value, className = "", color, size = "large" }:
               isIncreasing={isIncreasing}
               color={color}
               size={sizeClass}
+              theme={theme}
             />
           )
         })}
@@ -85,11 +87,15 @@ interface DigitColumnProps {
   isIncreasing: boolean
   color?: string
   size: string
+  theme?: string
 }
 
-function DigitColumn({ digit, isChanged, isIncreasing, color, size }: DigitColumnProps) {
+function DigitColumn({ digit, isChanged, isIncreasing, color, size, theme = "" }: DigitColumnProps) {
   const [displayDigit, setDisplayDigit] = useState(digit)
   const columnRef = useRef<HTMLDivElement>(null)
+
+  // Determine padding based on theme
+  const digitPadding = theme === "thanksgiving" ? "px-2" : "px-1"
 
   useEffect(() => {
     if (isChanged) {
@@ -115,9 +121,9 @@ function DigitColumn({ digit, isChanged, isIncreasing, color, size }: DigitColum
   }, [digit, isChanged, displayDigit])
 
   return (
-    <div className="relative overflow-hidden px-1">
+    <div className={`relative overflow-hidden ${digitPadding}`}>
       {/* Hidden placeholder to maintain height */}
-      <div className={`invisible ${size} font-bold tabular-nums`} style={{ color }}>
+      <div className={`invisible ${size} font-bold tabular-nums leading-none`} style={{ color }}>
         8
       </div>
 
@@ -137,8 +143,9 @@ function DigitColumn({ digit, isChanged, isIncreasing, color, size }: DigitColum
         {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
           <div
             key={num}
-            className={`flex h-full items-center justify-center ${size} font-bold tabular-nums`}
+            className={`flex w-full items-center justify-center ${size} font-bold tabular-nums leading-none`}
             style={{
+              height: "100%",
               color: color || "currentColor",
               textShadow: color ? `0 0 20px ${color}40` : undefined,
             }}
