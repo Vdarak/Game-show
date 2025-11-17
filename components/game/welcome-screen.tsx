@@ -88,7 +88,7 @@ export function WelcomeScreen() {
             className="absolute inset-0 flex items-center justify-center"
           >
             <img
-              src="/oval.png"
+              src="/Oval.png"
               alt="Title Frame"
               className="w-[120%] h-[120%] object-contain drop-shadow-[0_0_30px_rgba(0,0,0,0.8)]"
             />
