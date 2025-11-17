@@ -66,6 +66,7 @@ interface OrchestrationPanelProps {
   onUpdateLightningContestantName: (contestant: 1 | 2, name: string) => void
   onUpdateLightningAnswer: (contestant: 1 | 2, answerIndex: number, text: string, points: number) => void
   onRevealLightningAnswer: (contestant: 1 | 2, answerIndex: number) => void
+  onToggleLightningPoints: (contestant: 1 | 2, answerIndex: number) => void
   onRevealAllLightningAnswers: (contestant: 1 | 2) => void
   onHideAllLightningAnswers: (contestant: 1 | 2) => void
   onStartLightningTimer: (seconds: number) => void
@@ -119,6 +120,7 @@ export function OrchestrationPanel({
   onUpdateLightningContestantName,
   onUpdateLightningAnswer,
   onRevealLightningAnswer,
+  onToggleLightningPoints,
   onRevealAllLightningAnswers,
   onHideAllLightningAnswers,
   onStartLightningTimer,
@@ -1090,6 +1092,7 @@ export function OrchestrationPanel({
               onUpdateContestantName={onUpdateLightningContestantName}
               onUpdateAnswer={onUpdateLightningAnswer}
               onRevealAnswer={onRevealLightningAnswer}
+              onTogglePoints={onToggleLightningPoints}
               onRevealAllAnswers={onRevealAllLightningAnswers}
               onHideAllAnswers={onHideAllLightningAnswers}
               onPlaySound={onPlaySound}

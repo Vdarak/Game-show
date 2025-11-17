@@ -33,6 +33,7 @@ interface LightningAnswer {
   text: string
   points: number
   revealed: boolean
+  pointsRevealed: boolean
 }
 
 interface LightningContestant {
@@ -178,6 +179,38 @@ const DEFAULT_STATE: GameState = {
         { id: "10", text: "Christmas decorations", points: 1, revealed: false },
       ],
     },
+    {
+      id: "4",
+      text: "Name a job that requires a uniform",
+      answers: [
+        { id: "1", text: "Police officer", points: 60, revealed: false },
+        { id: "2", text: "Nurse", points: 35, revealed: false },
+        { id: "3", text: "Firefighter", points: 20, revealed: false },
+        { id: "4", text: "Soldier", points: 15, revealed: false },
+        { id: "5", text: "Chef", points: 10, revealed: false },
+        { id: "6", text: "Pilot", points: 8, revealed: false },
+        { id: "7", text: "Security guard", points: 5, revealed: false },
+        { id: "8", text: "Fast food worker", points: 3, revealed: false },
+        { id: "9", text: "Mailman", points: 1, revealed: false },
+        { id: "10", text: "Doctor", points: 1, revealed: false },
+      ],
+    },
+    {
+      id: "5",
+      text: "Name a movie genre",
+      answers: [
+        { id: "1", text: "Action", points: 50, revealed: false },
+        { id: "2", text: "Comedy", points: 40, revealed: false },
+        { id: "3", text: "Drama", points: 30, revealed: false },
+        { id: "4", text: "Horror", points: 20, revealed: false },
+        { id: "5", text: "Romance", points: 15, revealed: false },
+        { id: "6", text: "Thriller", points: 10, revealed: false },
+        { id: "7", text: "Sci-Fi", points: 8, revealed: false },
+        { id: "8", text: "Animation", points: 4, revealed: false },
+        { id: "9", text: "Fantasy", points: 2, revealed: false },
+        { id: "10", text: "Western", points: 1, revealed: false },
+      ],
+    },
   ],
   currentQuestionIndex: 0,
   currentQuestion: null,
@@ -212,24 +245,24 @@ const DEFAULT_STATE: GameState = {
     contestant1: {
       name: "Contestant 1",
       answers: [
-        { id: "c1-1", text: "", points: 0, revealed: false },
-        { id: "c1-2", text: "", points: 0, revealed: false },
-        { id: "c1-3", text: "", points: 0, revealed: false },
-        { id: "c1-4", text: "", points: 0, revealed: false },
-        { id: "c1-5", text: "", points: 0, revealed: false },
-        { id: "c1-6", text: "", points: 0, revealed: false },
+        { id: "c1-1", text: "", points: 0, revealed: false, pointsRevealed: false },
+        { id: "c1-2", text: "", points: 0, revealed: false, pointsRevealed: false },
+        { id: "c1-3", text: "", points: 0, revealed: false, pointsRevealed: false },
+        { id: "c1-4", text: "", points: 0, revealed: false, pointsRevealed: false },
+        { id: "c1-5", text: "", points: 0, revealed: false, pointsRevealed: false },
+        { id: "c1-6", text: "", points: 0, revealed: false, pointsRevealed: false },
       ],
       totalPoints: 0,
     },
     contestant2: {
       name: "Contestant 2",
       answers: [
-        { id: "c2-1", text: "", points: 0, revealed: false },
-        { id: "c2-2", text: "", points: 0, revealed: false },
-        { id: "c2-3", text: "", points: 0, revealed: false },
-        { id: "c2-4", text: "", points: 0, revealed: false },
-        { id: "c2-5", text: "", points: 0, revealed: false },
-        { id: "c2-6", text: "", points: 0, revealed: false },
+        { id: "c2-1", text: "", points: 0, revealed: false, pointsRevealed: false },
+        { id: "c2-2", text: "", points: 0, revealed: false, pointsRevealed: false },
+        { id: "c2-3", text: "", points: 0, revealed: false, pointsRevealed: false },
+        { id: "c2-4", text: "", points: 0, revealed: false, pointsRevealed: false },
+        { id: "c2-5", text: "", points: 0, revealed: false, pointsRevealed: false },
+        { id: "c2-6", text: "", points: 0, revealed: false, pointsRevealed: false },
       ],
       totalPoints: 0,
     },
@@ -1073,6 +1106,34 @@ export function useGameState() {
     [broadcastState],
   )
 
+  const toggleLightningPoints = useCallback(
+    (contestant: 1 | 2, answerIndex: number) => {
+      setState((prev) => {
+        const contestantKey = contestant === 1 ? "contestant1" : "contestant2"
+        const currentContestant = prev.lightningRound[contestantKey]
+        const newAnswers = [...currentContestant.answers]
+        newAnswers[answerIndex] = {
+          ...newAnswers[answerIndex],
+          pointsRevealed: !newAnswers[answerIndex].pointsRevealed,
+        }
+        
+        const newState = {
+          ...prev,
+          lightningRound: {
+            ...prev.lightningRound,
+            [contestantKey]: {
+              ...currentContestant,
+              answers: newAnswers,
+            },
+          },
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
   const resetLightningRound = useCallback(() => {
     setState((prev) => {
       const newState = {
@@ -1243,6 +1304,7 @@ export function useGameState() {
     revealLightningAnswer,
     revealAllLightningAnswers,
     hideAllLightningAnswers,
+    toggleLightningPoints,
     resetLightningRound,
     startLightningTimer,
     stopLightningTimer,

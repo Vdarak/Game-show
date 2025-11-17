@@ -14,6 +14,7 @@ interface LightningRoundControllerProps {
   onUpdateContestantName: (contestant: 1 | 2, name: string) => void
   onUpdateAnswer: (contestant: 1 | 2, answerIndex: number, text: string, points: number) => void
   onRevealAnswer: (contestant: 1 | 2, answerIndex: number) => void
+  onTogglePoints: (contestant: 1 | 2, answerIndex: number) => void
   onRevealAllAnswers: (contestant: 1 | 2) => void
   onHideAllAnswers: (contestant: 1 | 2) => void
   onPlaySound: (type: "ding" | "buzz" | "buzzer" | "duplicate" | "whoosh") => void
@@ -53,6 +54,7 @@ export function LightningRoundController({
   onUpdateContestantName,
   onUpdateAnswer,
   onRevealAnswer,
+  onTogglePoints,
   onRevealAllAnswers,
   onHideAllAnswers,
   onPlaySound,
@@ -246,7 +248,7 @@ export function LightningRoundController({
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-[1fr,auto] gap-2">
+                <div className="grid grid-cols-[1fr,auto] gap-2 mb-2">
                   <Input
                     value={answer.text}
                     onChange={(e) => onUpdateAnswer(1, index, e.target.value, answer.points)}
@@ -262,6 +264,31 @@ export function LightningRoundController({
                     max="5"
                     className="w-16 bg-gray-900 border-gray-700 text-yellow-400 font-bold text-xs h-8"
                   />
+                </div>
+                
+                {/* Control Buttons */}
+                <div className="flex gap-1">
+                  <Button
+                    onClick={() => {
+                      onRevealAnswer(1, index)
+                      onPlaySound("whoosh")
+                    }}
+                    variant={answer.revealed ? "secondary" : "default"}
+                    size="sm"
+                    className="flex-1 h-7 text-xs"
+                  >
+                    <Eye className="mr-1 h-3 w-3" />
+                    {answer.revealed ? "Revealed" : "Reveal"}
+                  </Button>
+                  <Button
+                    onClick={() => onTogglePoints(1, index)}
+                    variant={answer.pointsRevealed ? "secondary" : "outline"}
+                    size="sm"
+                    className="flex-1 h-7 text-xs"
+                    disabled={!answer.revealed}
+                  >
+                    {answer.pointsRevealed ? "Hide Pts" : "Show Pts"}
+                  </Button>
                 </div>
               </div>
             ))}
@@ -323,7 +350,7 @@ export function LightningRoundController({
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-[1fr,auto] gap-2">
+                <div className="grid grid-cols-[1fr,auto] gap-2 mb-2">
                   <Input
                     value={answer.text}
                     onChange={(e) => onUpdateAnswer(2, index, e.target.value, answer.points)}
@@ -339,6 +366,31 @@ export function LightningRoundController({
                     max="5"
                     className="w-16 bg-gray-900 border-gray-700 text-yellow-400 font-bold text-xs h-8"
                   />
+                </div>
+                
+                {/* Control Buttons */}
+                <div className="flex gap-1">
+                  <Button
+                    onClick={() => {
+                      onRevealAnswer(2, index)
+                      onPlaySound("whoosh")
+                    }}
+                    variant={answer.revealed ? "secondary" : "default"}
+                    size="sm"
+                    className="flex-1 h-7 text-xs"
+                  >
+                    <Eye className="mr-1 h-3 w-3" />
+                    {answer.revealed ? "Revealed" : "Reveal"}
+                  </Button>
+                  <Button
+                    onClick={() => onTogglePoints(2, index)}
+                    variant={answer.pointsRevealed ? "secondary" : "outline"}
+                    size="sm"
+                    className="flex-1 h-7 text-xs"
+                    disabled={!answer.revealed}
+                  >
+                    {answer.pointsRevealed ? "Hide Pts" : "Show Pts"}
+                  </Button>
                 </div>
               </div>
             ))}

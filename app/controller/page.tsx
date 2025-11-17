@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { motion } from "framer-motion"
 import { useGameState } from "@/hooks/use-game-state"
 import { useAudio } from "@/hooks/use-audio"
@@ -29,6 +29,8 @@ import {
   Volume2,
   AlertCircle,
   Monitor,
+  Play,
+  Square,
 } from "lucide-react"
 
 type DisplayWindow = {
@@ -81,6 +83,7 @@ export default function ControllerPage() {
     updateLightningContestantName,
     updateLightningAnswer,
     revealLightningAnswer,
+    toggleLightningPoints,
     revealAllLightningAnswers,
     hideAllLightningAnswers,
     startLightningTimer,
@@ -98,6 +101,8 @@ export default function ControllerPage() {
 
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showScoreResetConfirm, setShowScoreResetConfirm] = useState(false)
+  const [introMusicPlaying, setIntroMusicPlaying] = useState(false)
+  const introMusicRef = useRef<HTMLAudioElement | null>(null)
 
   const [displays, setDisplays] = useState<DisplayWindow[]>([
     { name: "Game Board", url: "/display/game-board", windowRef: null, status: "hidden" },
@@ -122,9 +127,9 @@ export default function ControllerPage() {
   // Define sound effects before using them
   const soundEffects = [
     { name: "Correct", type: "ding" as const, filename: "dong.wav", color: "border-green-600" },
-    { name: "Buzzer", type: "buzzer" as const, filename: "player-buzzer.wav", color: "border-red-600" },
+    { name: "Ring In", type: "buzzer" as const, filename: "player-buzzer.wav", color: "border-purple-600" },
     { name: "Duplicate", type: "duplicate" as const, filename: "duplicate-answer.wav", color: "border-yellow-600" },
-    { name: "Wrong", type: "buzz" as const, filename: "wrong-buzzer.wav", color: "border-purple-600" },
+    { name: "Wrong", type: "buzz" as const, filename: "wrong-buzzer.wav", color: "border-red-600" },
     { name: "Whoosh", type: "whoosh" as const, filename: "answer-box-fly-whoosh.wav", color: "border-blue-600" },
   ]
 
@@ -539,7 +544,7 @@ export default function ControllerPage() {
                 </p>
                 <p className="flex items-start gap-2">
                   <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Test Sound Effects:</strong> Click each sound button (Ding, Buzz, Buzzer, Duplicate, Whoosh) to verify audio is working.</span>
+                  <span><strong className="text-white">Test Sound Effects:</strong> Click each sound button (Ding, Ring In, Duplicate, Wrong, Whoosh) to verify audio is working. Use Play/Stop for background music.</span>
                 </p>
                 <p className="flex items-start gap-2">
                   <span className="text-blue-400 mt-1">•</span>
@@ -692,6 +697,7 @@ export default function ControllerPage() {
             onUpdateLightningContestantName={updateLightningContestantName}
             onUpdateLightningAnswer={updateLightningAnswer}
             onRevealLightningAnswer={revealLightningAnswer}
+            onToggleLightningPoints={toggleLightningPoints}
             onRevealAllLightningAnswers={revealAllLightningAnswers}
             onHideAllLightningAnswers={hideAllLightningAnswers}
             onStartLightningTimer={startLightningTimer}
@@ -790,7 +796,7 @@ export default function ControllerPage() {
         <div className="mb-2 grid grid-cols-1 gap-2 sm:mb-4 sm:gap-4 lg:grid-cols-2">
           {/* Score Control */}
           <div>
-            <Card className="bg-gray-800 p-3 sm:p-4">
+            <Card className="h-full justify-between bg-gray-800 p-3 sm:p-4">
               <div className="mb-3 flex items-center justify-between sm:mb-4">
                 <h2 className="font-display text-xs sm:text-sm">Score Control</h2>
                 <div className="flex gap-1">
@@ -817,7 +823,7 @@ export default function ControllerPage() {
                 </div>
               </div>
 
-              <div className="space-y-2 sm:space-y-3">
+              <div className="h-full space-y-2 sm:space-y-3">
                 {/* Team Selection */}
                 <div className="flex gap-1">
                   <Button
@@ -868,7 +874,7 @@ export default function ControllerPage() {
                           <Minus className="h-3 w-3" />
                         </Button>
                         <div className="flex min-w-[80px] items-center justify-center">
-                          <AnimatedNumber value={scoreChangeValue} color="#ffffffff" size="small" />
+                          <AnimatedNumber value={scoreChangeValue} color="#ffffffff" size="massive" />
                         </div>
                         <Button
                           onClick={() => applyScoreToSelected(scoreChangeValue)}
@@ -915,11 +921,13 @@ export default function ControllerPage() {
             </Card>
           </div>
 
-          {/* Sound Effects */}
+          {/* Sound Effects & Background Music */}
           <div>
             <Card className="bg-gray-800 p-3 sm:p-4 h-full">
               <h2 className="mb-3 font-display text-xs sm:mb-4 sm:text-sm">Sound Effects</h2>
-              <div className="grid grid-cols-2 gap-2 h-full">
+              
+              {/* Sound Effect Buttons - 5 columns on large screens */}
+              <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                 {soundEffects.map((sound) => (
                   <motion.button
                     key={sound.type}
@@ -933,17 +941,61 @@ export default function ControllerPage() {
                     }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.95 }}
-                    className={`relative flex flex-col items-center justify-center rounded-lg font-display font-bold text-white transition-all duration-200 border ${sound.color} border-opacity-70 bg-gray-700 hover:border-opacity-100`}
+                    className={`relative aspect-square flex flex-col items-center justify-center rounded-lg font-display font-bold text-white transition-all duration-200 border ${sound.color} border-opacity-70 bg-gray-700 hover:border-opacity-100`}
                   >
                     <motion.div
                       animate={playingSound === sound.type ? { scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] } : { scale: 1, rotate: 0 }}
                       transition={{ duration: 0.3, repeat: playingSound === sound.type ? Infinity : 0 }}
+                      className="flex flex-col items-center"
                     >
-                      <Volume2 className="h-8 w-8 mb-2" />
+                      <Volume2 className="h-6 w-6 sm:h-8 sm:w-8 mb-1" />
                     </motion.div>
-                    <span className="text-sm">{sound.name}</span>
+                    <span className="text-xs sm:text-sm text-center px-1">{sound.name}</span>
                   </motion.button>
                 ))}
+              </div>
+
+              {/* Background Music Section */}
+              <div className="border-t border-gray-600 pt-4">
+                <h3 className="mb-2 font-display text-xs sm:text-sm text-gray-300">Background Music</h3>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => {
+                      if (!introMusicPlaying) {
+                        // Play intro music
+                        const audio = new Audio("/sounds/intro-music.wav")
+                        introMusicRef.current = audio
+                        audio.play()
+                        setIntroMusicPlaying(true)
+                        audio.onended = () => setIntroMusicPlaying(false)
+                      }
+                    }}
+                    disabled={introMusicPlaying}
+                    variant="default"
+                    size="sm"
+                    className="flex-1 text-xs"
+                  >
+                    <Play className="mr-2 h-3 w-3" />
+                    Play
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      // Stop intro music
+                      if (introMusicRef.current) {
+                        introMusicRef.current.pause()
+                        introMusicRef.current.currentTime = 0
+                      }
+                      setIntroMusicPlaying(false)
+                    }}
+                    disabled={!introMusicPlaying}
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-xs"
+                  >
+                    <Square className="mr-2 h-3 w-3" />
+                    Stop
+                  </Button>
+                </div>
               </div>
             </Card>
           </div>
