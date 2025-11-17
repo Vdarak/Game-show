@@ -6,12 +6,18 @@ const urlsToCache = [
   '/',
   '/controller',
   '/display/game-board',
+  '/display/teams',
+  '/display/ending',
   '/offline.html',
+  '/manifest.json',
+  '/clear-cache.html',
   // Sound effects
   '/sounds/dong.wav',
   '/sounds/player-buzzer.wav',
   '/sounds/duplicate-answer.wav',
   '/sounds/wrong-buzzer.wav',
+  '/sounds/answer-box-fly-whoosh.wav',
+  '/sounds/intro-music.wav',
 ];
 
 // Install event - cache essential resources
