@@ -1,6 +1,8 @@
 "use client"
 
 import { motion } from "framer-motion"
+import { useEffect, useRef } from "react"
+import { useGameState } from "@/hooks/use-game-state"
 
 interface SponsorVideoScreenProps {
   videoUrl: string
@@ -10,6 +12,32 @@ interface SponsorVideoScreenProps {
 }
 
 export function SponsorVideoScreen({ videoUrl, sponsorLogo, footerText, onVideoEnd }: SponsorVideoScreenProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const { state } = useGameState()
+
+  // Handle playback commands
+  useEffect(() => {
+    if (!videoRef.current) return
+
+    const video = videoRef.current
+
+    if (state.orchestration.videoPlaybackStatus === "playing") {
+      video.play().catch((error) => {
+        console.error("Error playing video:", error)
+      })
+    } else if (state.orchestration.videoPlaybackStatus === "paused") {
+      video.pause()
+    } else if (state.orchestration.videoPlaybackStatus === "stopped") {
+      video.pause()
+      video.currentTime = 0
+    }
+  }, [state.orchestration.videoPlaybackStatus])
+
+  // Handle video end - just notify, don't auto-advance
+  const handleVideoEnded = () => {
+    onVideoEnd()
+  }
+
   return (
     <div className="relative h-screen w-screen flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden overflow-y-hidden">
       {/* Video Background */}
@@ -89,9 +117,9 @@ export function SponsorVideoScreen({ videoUrl, sponsorLogo, footerText, onVideoE
           className="relative w-full max-w-6xl aspect-video rounded-3xl overflow-hidden shadow-2xl border-4 border-orange-500"
         >
           <video
-            autoPlay
+            ref={videoRef}
             controls
-            onEnded={onVideoEnd}
+            onEnded={handleVideoEnded}
             className="w-full h-full object-contain bg-black"
             src={videoUrl}
           >

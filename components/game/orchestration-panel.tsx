@@ -40,7 +40,10 @@ interface OrchestrationPanelProps {
   onGoToRules: () => void
   onGoToQuestionPreview: (index: number) => void
   onRevealQuestion: () => void
-  onPlaySponsorVideo: (url: string) => void
+  onGoToSponsorVideo: () => void
+  onPlaySponsorVideo: () => void
+  onPauseSponsorVideo: () => void
+  onStopSponsorVideo: () => void
   onGoToLightningRound: () => void
   onGoToLightningRoundRules: () => void
   currentQuestionIndex: number
@@ -94,7 +97,10 @@ export function OrchestrationPanel({
   onGoToRules,
   onGoToQuestionPreview,
   onRevealQuestion,
+  onGoToSponsorVideo,
   onPlaySponsorVideo,
+  onPauseSponsorVideo,
+  onStopSponsorVideo,
   onGoToLightningRound,
   onGoToLightningRoundRules,
   currentQuestionIndex,
@@ -326,14 +332,6 @@ export function OrchestrationPanel({
     if (currentQuestionIndex < questionCount - 1) {
       onGoToQuestionPreview(currentQuestionIndex + 1)
       setSelectedQuestionIndex(currentQuestionIndex + 1)
-    }
-  }
-
-  const handlePlaySponsorVideoAndNext = () => {
-    if (sponsorVideoData) {
-      onPlaySponsorVideo(sponsorVideoData)
-      // Note: Video will play in game board, then auto-advance to next question
-      // after the video ends (handled by video onEnded event)
     }
   }
 
@@ -871,26 +869,83 @@ export function OrchestrationPanel({
             })()}
 
             {/* Navigation Controls */}
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                onClick={handlePlaySponsorVideoAndNext}
-                variant="outline"
-                className="w-full text-xs h-full"
-                disabled={!sponsorVideoData || currentQuestionIndex >= questionCount - 1}
-              >
-                <Video className="mr-1 h-3 w-3" />
-                Play Video & Next
-              </Button>
+            <div className="space-y-2">
+              {/* Video Controls & Next Question - Side by side on large screens */}
+              <div className="flex flex-col lg:flex-row gap-2">
+                {/* Video Controls */}
+                {sponsorVideoData && (
+                  <div className="rounded-lg bg-gray-700/50 border border-gray-600 p-3 flex-1">
+                    <div className="text-xs font-medium text-gray-400 mb-2">Sponsor Video Controls</div>
+                    
+                    {/* Status Display */}
+                    <div className="mb-2 flex items-center gap-2 text-xs">
+                      <span className="text-gray-400">Status:</span>
+                      <span className={`font-semibold ${
+                        orchestration.videoPlaybackStatus === "playing" ? "text-green-400" :
+                        orchestration.videoPlaybackStatus === "paused" ? "text-yellow-400" :
+                        "text-gray-400"
+                      }`}>
+                        {orchestration.videoPlaybackStatus === "playing" ? "▶ Playing" :
+                         orchestration.videoPlaybackStatus === "paused" ? "⏸ Paused" :
+                         "⏹ Stopped"}
+                      </span>
+                    </div>
 
-              <Button
-                onClick={handleNextQuestion}
-                variant="outline"
-                className="text-xs h-full"
-                disabled={currentQuestionIndex >= questionCount - 1}
-              >
-                <ChevronRight className="mr-1 h-4 w-4" />
-                Next Question
-              </Button>
+                    {/* Control Buttons */}
+                    <div className="grid grid-cols-4 gap-1">
+                      <Button
+                        onClick={onGoToSponsorVideo}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-8"
+                        disabled={orchestration.microState === "sponsor-video"}
+                      >
+                        Go To
+                      </Button>
+                      <Button
+                        onClick={onPlaySponsorVideo}
+                        variant="default"
+                        size="sm"
+                        className="text-xs h-8"
+                        disabled={orchestration.microState !== "sponsor-video" || orchestration.videoPlaybackStatus === "playing"}
+                      >
+                        Play
+                      </Button>
+                      <Button
+                        onClick={onPauseSponsorVideo}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-8"
+                        disabled={orchestration.microState !== "sponsor-video" || orchestration.videoPlaybackStatus !== "playing"}
+                      >
+                        Pause
+                      </Button>
+                      <Button
+                        onClick={onStopSponsorVideo}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-8"
+                        disabled={orchestration.microState !== "sponsor-video" || orchestration.videoPlaybackStatus === "stopped"}
+                      >
+                        Stop
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Next Question Button */}
+                <div className={`${sponsorVideoData ? 'lg:w-48' : 'w-full'}`}>
+                  <Button
+                    onClick={handleNextQuestion}
+                    variant="default"
+                    className="w-full h-full text-xs min-h-[6rem]"
+                    disabled={currentQuestionIndex >= questionCount - 1}
+                  >
+                    <ChevronRight className="mr-1 h-4 w-4" />
+                    Next Question
+                  </Button>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}

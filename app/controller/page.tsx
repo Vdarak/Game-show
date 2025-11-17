@@ -74,7 +74,11 @@ export default function ControllerPage() {
     goToQuestions,
     goToQuestionPreview,
     revealQuestionPrompt,
+    goToSponsorVideo,
     playSponsorVideo,
+    pauseSponsorVideo,
+    stopSponsorVideo,
+    videoEnded,
     goToLightningRound,
     goToLightningRoundRules,
     goToEnding,
@@ -671,7 +675,10 @@ export default function ControllerPage() {
             onGoToRules={goToRules}
             onGoToQuestionPreview={handleGoToQuestionPreview}
             onRevealQuestion={revealQuestionPrompt}
+            onGoToSponsorVideo={goToSponsorVideo}
             onPlaySponsorVideo={playSponsorVideo}
+            onPauseSponsorVideo={pauseSponsorVideo}
+            onStopSponsorVideo={stopSponsorVideo}
             onGoToLightningRound={goToLightningRound}
             onGoToLightningRoundRules={goToLightningRoundRules}
             currentQuestionIndex={state.currentQuestionIndex}

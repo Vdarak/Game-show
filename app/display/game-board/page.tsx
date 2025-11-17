@@ -13,7 +13,7 @@ import { LightningRoundRulesScreen } from "@/components/game/lightning-round-rul
 import { EndingScreen } from "@/components/game/ending-screen"
 
 export default function GameBoardPage() {
-  const { state, clearWrongAnswerTrigger, goToQuestionPreview } = useGameState()
+  const { state, clearWrongAnswerTrigger, videoEnded } = useGameState()
   const [animatingBoxIndex, setAnimatingBoxIndex] = useState<number>(-1)
   const [sponsorVideoData, setSponsorVideoData] = useState<string | null>(null)
   
@@ -232,11 +232,7 @@ export default function GameBoardPage() {
   // Show sponsor video when triggered
   if (orchestration.microState === "sponsor-video" && sponsorVideoData) {
     const handleVideoEnd = () => {
-      // Move to next question when video ends
-      const nextIndex = state.currentQuestionIndex + 1
-      if (nextIndex < state.questions.length) {
-        goToQuestionPreview(nextIndex)
-      }
+      videoEnded()
     }
     
     return (

@@ -65,6 +65,7 @@ interface OrchestrationState {
   microState: MicroState
   currentQuestionInFlow: number // which question in the flow (0-indexed)
   sponsorVideoTrigger: number | null // timestamp to trigger video playback (video data in IndexedDB)
+  videoPlaybackStatus: "stopped" | "playing" | "paused" // video playback status
   showWelcome: boolean // show welcome screen elements
   showRules: boolean // show rules screen
   showFooter: boolean // show footer text
@@ -229,6 +230,7 @@ const DEFAULT_STATE: GameState = {
     microState: "preview",
     currentQuestionInFlow: 0,
     sponsorVideoTrigger: null,
+    videoPlaybackStatus: "stopped",
     showWelcome: true,
     showRules: false,
     showFooter: false,
@@ -925,24 +927,77 @@ export function useGameState() {
     })
   }, [broadcastState])
 
-  const playSponsorVideo = useCallback(
-    (videoUrl: string) => {
-      // Don't store the video URL, just trigger playback with a timestamp
-      setState((prev) => {
-        const newState: GameState = {
-          ...prev,
-          orchestration: {
-            ...prev.orchestration,
-            microState: "sponsor-video" as MicroState,
-            sponsorVideoTrigger: Date.now(), // Use timestamp as trigger
-          },
-        }
-        broadcastState(newState)
-        return newState
-      })
-    },
-    [broadcastState],
-  )
+  const goToSponsorVideo = useCallback(() => {
+    setState((prev) => {
+      const newState: GameState = {
+        ...prev,
+        orchestration: {
+          ...prev.orchestration,
+          microState: "sponsor-video" as MicroState,
+          videoPlaybackStatus: "stopped",
+        },
+      }
+      broadcastState(newState)
+      return newState
+    })
+  }, [broadcastState])
+
+  const playSponsorVideo = useCallback(() => {
+    setState((prev) => {
+      const newState: GameState = {
+        ...prev,
+        orchestration: {
+          ...prev.orchestration,
+          videoPlaybackStatus: "playing",
+          sponsorVideoTrigger: Date.now(), // Trigger playback
+        },
+      }
+      broadcastState(newState)
+      return newState
+    })
+  }, [broadcastState])
+
+  const pauseSponsorVideo = useCallback(() => {
+    setState((prev) => {
+      const newState: GameState = {
+        ...prev,
+        orchestration: {
+          ...prev.orchestration,
+          videoPlaybackStatus: "paused",
+        },
+      }
+      broadcastState(newState)
+      return newState
+    })
+  }, [broadcastState])
+
+  const stopSponsorVideo = useCallback(() => {
+    setState((prev) => {
+      const newState: GameState = {
+        ...prev,
+        orchestration: {
+          ...prev.orchestration,
+          videoPlaybackStatus: "stopped",
+        },
+      }
+      broadcastState(newState)
+      return newState
+    })
+  }, [broadcastState])
+
+  const videoEnded = useCallback(() => {
+    setState((prev) => {
+      const newState: GameState = {
+        ...prev,
+        orchestration: {
+          ...prev.orchestration,
+          videoPlaybackStatus: "stopped",
+        },
+      }
+      broadcastState(newState)
+      return newState
+    })
+  }, [broadcastState])
 
   const goToLightningRound = useCallback(() => {
     setMacroState("lightning-round")
@@ -1303,7 +1358,11 @@ export function useGameState() {
     goToQuestions,
     goToQuestionPreview,
     revealQuestionPrompt,
+    goToSponsorVideo,
     playSponsorVideo,
+    pauseSponsorVideo,
+    stopSponsorVideo,
+    videoEnded,
     goToLightningRound,
     goToLightningRoundRules,
     goToEnding,
