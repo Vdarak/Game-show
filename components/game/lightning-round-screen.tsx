@@ -223,7 +223,7 @@ export function LightningRoundScreen({
 
       {/* Header */}
       <div className="relative z-10 px-4 py-4 sm:py-6">
-        <div className="mx-auto max-w-[80vw]">
+        <div className="mx-auto max-w-[90vw]">
           <div className="flex items-center justify-between gap-4 rounded-2xl border-4 border-orange-500 bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 px-4 py-2 shadow-2xl sm:px-6 sm:py-3">
             {/* Left - GATE Logo */}
             <div className="flex-shrink-0">
@@ -236,7 +236,7 @@ export function LightningRoundScreen({
               </div>
             </div>
 
-            {/* Center - Title and Timer */}
+            {/* Center - Title, Timer and Combined Total */}
             <div className="flex-1 text-center">
               <h1
                 className="font-display text-xl font-black uppercase tracking-wider text-orange-500 sm:text-3xl md:text-4xl mb-2"
@@ -249,24 +249,50 @@ export function LightningRoundScreen({
                 Popularity Speed Round
               </h1>
               
-              {/* Timer Display */}
-              {showTimer && (
+              {/* Timer and Combined Total Row */}
+              <div className="flex items-center justify-center gap-4 sm:gap-6 mt-2">
+                {/* Timer Display */}
+                {showTimer && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="inline-block"
+                  >
+                    <div className={`text-5xl sm:text-6xl font-black ${getTimerColor()} transition-colors duration-300`}
+                      style={{
+                        textShadow: '4px 4px 0px #000, -2px -2px 0px #000, 2px -2px 0px #000, -2px 2px 0px #000',
+                        WebkitTextStroke: '2px #000',
+                        paintOrder: 'stroke fill',
+                      }}
+                    >
+                      {timeRemaining}
+                    </div>
+                  </motion.div>
+                )}
+                
+                {/* Combined Total - Now in header */}
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="inline-block"
+                  className="inline-flex flex-col items-center justify-center bg-gradient-to-b from-orange-600 to-red-600 border-4 border-yellow-400 rounded-lg px-4 py-2 sm:px-6 sm:py-3 shadow-2xl"
                 >
-                  <div className={`text-6xl sm:text-7xl font-black ${getTimerColor()} transition-colors duration-300`}
+                  <p className="text-xs sm:text-sm font-bold text-white mb-1 uppercase tracking-wider">Combined Total</p>
+                  <p className="text-3xl sm:text-5xl font-black text-yellow-300"
                     style={{
-                      textShadow: '4px 4px 0px #000, -2px -2px 0px #000, 2px -2px 0px #000, -2px 2px 0px #000',
-                      WebkitTextStroke: '2px #000',
+                      textShadow: '3px 3px 0px #000, -1px -1px 0px #000',
+                      WebkitTextStroke: '1px #000',
                       paintOrder: 'stroke fill',
                     }}
                   >
-                    {timeRemaining}
-                  </div>
+                    {(() => {
+                      const totalPoints = 
+                        contestant1.answers.filter(a => a.pointsRevealed).reduce((sum, a) => sum + a.points, 0) +
+                        contestant2.answers.filter(a => a.pointsRevealed).reduce((sum, a) => sum + a.points, 0)
+                      return totalPoints
+                    })()}
+                  </p>
                 </motion.div>
-              )}
+              </div>
             </div>
 
             {/* Right - GATE Logo */}
@@ -285,12 +311,7 @@ export function LightningRoundScreen({
 
       {/* Main Content - Two Player Grid */}
       <div className="relative z-10 flex-1 px-4 py-6">
-        <div className="mx-auto h-full max-w-[80vw]">
-          {/* Combined Total Display */}
-          <div className="flex justify-center mb-6">
-            <CombinedTotalPoints contestant1={contestant1} contestant2={contestant2} />
-          </div>
-
+        <div className="mx-auto h-full max-w-[90vw]">
           <div className="grid h-full grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Contestant 1 */}
             <div className="flex flex-col">

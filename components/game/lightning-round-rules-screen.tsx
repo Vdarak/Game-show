@@ -60,15 +60,15 @@ export function LightningRoundRulesScreen({ sponsorLogo1, sponsorLogo2 }: Lightn
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3, duration: 0.6 }}
-          className="mx-auto max-w-4xl"
+          className="mx-auto max-w-5xl"
         >
-          <div className="rounded-2xl border-4 border-yellow-400 bg-gradient-to-r from-black via-yellow-500 to-white p-6 shadow-2xl">
-            <p className="text-center text-2xl sm:text-3xl font-bold text-white mb-4 uppercase tracking-wide">
+          <div className="rounded-2xl border-4 border-yellow-400 bg-gradient-to-r from-black via-yellow-500 to-white p-8 shadow-2xl">
+            <p className="text-center text-3xl sm:text-4xl font-bold text-white mb-6 uppercase tracking-wide">
               Presented By:
             </p>
-            <div className="flex items-center justify-center gap-8">
+            <div className="flex items-center justify-center gap-12">
               {/* Sponsor Logo 1 */}
-              <div className="h-16 w-24 sm:h-20 sm:w-32 flex-shrink-0">
+              <div className="h-32 w-48 sm:h-40 sm:w-56 flex-shrink-0">
                 <img
                   src={sponsorLogo1 || "/gate-logo.png"}
                   alt="Sponsor"
@@ -76,7 +76,7 @@ export function LightningRoundRulesScreen({ sponsorLogo1, sponsorLogo2 }: Lightn
                 />
               </div>
               {/* Sponsor Logo 2 */}
-              <div className="h-16 w-24 sm:h-20 sm:w-32 flex-shrink-0">
+              <div className="h-32 w-48 sm:h-40 sm:w-56 flex-shrink-0">
                 <img
                   src={sponsorLogo2 || "/gate-logo.png"}
                   alt="Sponsor"
@@ -84,7 +84,7 @@ export function LightningRoundRulesScreen({ sponsorLogo1, sponsorLogo2 }: Lightn
                 />
               </div>
               {/* GATE Logo (Always third) */}
-              <div className="h-16 w-24 sm:h-20 sm:w-32 flex-shrink-0">
+              <div className="h-32 w-48 sm:h-40 sm:w-56 flex-shrink-0">
                 <img
                   src="/gate-logo.png"
                   alt="GATE"
@@ -102,9 +102,9 @@ export function LightningRoundRulesScreen({ sponsorLogo1, sponsorLogo2 }: Lightn
           transition={{ delay: 0.6, duration: 0.8 }}
           className="text-center space-y-4"
         >
-          <div className="bg-blue-900/80 border-4 border-blue-400 rounded-2xl p-8 sm:p-12 shadow-2xl">
+          <div className="bg-blue-900/80 border-4 border-blue-400 rounded-2xl p-6 sm:p-8 shadow-2xl">
             <h3
-              className="text-4xl sm:text-5xl md:text-6xl font-black text-yellow-400 mb-4 uppercase"
+              className="text-3xl sm:text-4xl md:text-5xl font-black text-yellow-400 mb-3 uppercase"
               style={{
                 textShadow: '3px 3px 0px #000, -1px -1px 0px #000, 1px -1px 0px #000, -1px 1px 0px #000',
                 WebkitTextStroke: '2px #000',
@@ -114,7 +114,7 @@ export function LightningRoundRulesScreen({ sponsorLogo1, sponsorLogo2 }: Lightn
               25 Seconds
             </h3>
             <h4
-              className="text-3xl sm:text-4xl md:text-5xl font-bold text-white uppercase"
+              className="text-2xl sm:text-3xl md:text-4xl font-bold text-white uppercase"
               style={{
                 textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
               }}

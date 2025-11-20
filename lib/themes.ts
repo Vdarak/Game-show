@@ -23,6 +23,7 @@ export const themes: Record<string, Theme> = {
     accentColor: "#8B00FF",
     fontFamily: "'Creepster', 'Nosifer', cursive",
     backgroundPattern: "radial-gradient(circle at 20% 50%, rgba(139, 0, 255, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255, 107, 0, 0.1) 0%, transparent 50%)",
+    backgroundVideo: "/videos/halloween-background.mp4",
   },
   christmas: {
     name: "Christmas",

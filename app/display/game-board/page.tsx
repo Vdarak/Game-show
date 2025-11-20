@@ -270,7 +270,7 @@ export default function GameBoardPage() {
 
       {/* Header - GATE Logo, Popular Consensus Title, Sponsor Logo */}
       <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 sm:px-8 sm:py-4">
-        <div className="mx-auto max-w-[80vw]">
+        <div className="mx-auto max-w-[90vw]">
           <div className="flex items-center justify-between gap-4 rounded-2xl border-4 border-orange-500 bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 px-4 py-2 shadow-2xl sm:px-6 sm:py-3">
             {/* Left - GATE Logo */}
             <div className="flex-shrink-0">
@@ -322,7 +322,7 @@ export default function GameBoardPage() {
       </div>
 
       {/* Top Section - Question */}
-      <div className="relative z-10 mb-8 mt-24 w-full max-w-[80vw] sm:mt-28">
+      <div className="relative z-10 mb-8 mt-24 w-full max-w-[90vw] sm:mt-28">
         <AnimatePresence mode="wait">
           {orchestration.microState === "reveal-question" && currentQuestion ? (
             <motion.div
@@ -342,7 +342,7 @@ export default function GameBoardPage() {
       </div>
 
       {/* Answers Board - Family Feud Style */}
-      <div className="relative z-10 w-full max-w-[80vw]">
+      <div className="relative z-10 w-full max-w-[90vw]">
         {displayQuestion ? (
           displayQuestion.answers.length < 6 ? (
             /* Single Column for < 6 answers */

@@ -24,7 +24,7 @@ export function RulesScreen() {
 
       {/* Header - GATE Logo, Popular Consensus Title, Sponsor Logo */}
       <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 sm:px-8 sm:py-4">
-        <div className="mx-auto max-w-[80vw]">
+        <div className="mx-auto max-w-[90vw]">
           <div className="flex items-center justify-between gap-4 rounded-2xl border-4 border-orange-500 bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 px-4 py-2 shadow-2xl sm:px-6 sm:py-3">
             {/* Left - GATE Logo */}
             <div className="flex-shrink-0">
@@ -76,7 +76,7 @@ export function RulesScreen() {
       </div>
 
       {/* Bento Grid Layout */}
-      <div className="relative z-10 w-[85vw] max-w-[80vw] h-[70vh] mt-24 grid grid-cols-12 gap-3">
+      <div className="relative z-10 w-[90vw] max-w-[90vw] h-[70vh] mt-24 grid grid-cols-12 gap-3">
         {/* OBJECTIVE - Top Left */}
         <motion.div
           initial={{ x: -100, opacity: 0 }}
@@ -91,7 +91,7 @@ export function RulesScreen() {
             OBJECTIVE
           </h2>
           <div className="flex-1 flex items-center">
-            <p className="text-white text-base sm:text-lg leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
+            <p className="text-white text-lg sm:text-xl leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
               • Be the <span className="font-bold text-emerald-400">Team</span> that wins the most <span className="font-bold text-yellow-300">Surveys</span>… <span className="text-orange-400 font-bold">OR</span> … Be the <span className="font-bold text-emerald-400">Team</span> that scores the most <span className="font-bold text-yellow-300">points</span>.
             </p>
           </div>
@@ -110,7 +110,7 @@ export function RulesScreen() {
           >
             FACEOFF
           </h2>
-          <div className="flex-1 flex flex-col justify-center space-y-2 text-sm sm:text-base">
+          <div className="flex-1 flex flex-col justify-center space-y-2 text-base sm:text-lg">
             <p className="text-white leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
               • The <span className="font-bold text-emerald-400">Team</span> that goes <span className="font-bold text-cyan-300">first</span> is selected by the <span className="font-bold text-yellow-300">Faceoff</span>, which happens at the <span className="font-bold text-orange-400">start of every new survey</span>.
             </p>
@@ -136,7 +136,7 @@ export function RulesScreen() {
           >
             GAMEPLAY
           </h2>
-          <div className="flex-1 flex flex-col justify-center space-y-2 text-sm sm:text-base">
+          <div className="flex-1 flex flex-col justify-center space-y-2 text-base sm:text-lg">
             <p className="text-white leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
               • Split into <span className="font-bold text-cyan-300">2 even teams</span>. (<span className="font-bold text-orange-400">6 people max</span>)
             </p>
@@ -165,7 +165,7 @@ export function RulesScreen() {
           >
             SCORING
           </h2>
-          <div className="flex-1 flex flex-col justify-center space-y-2 text-sm sm:text-base">
+          <div className="flex-1 flex flex-col justify-center space-y-2 text-base sm:text-lg">
             <p className="text-white leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
               • Correct answers are added up one of <span className="font-bold text-cyan-300">two ways</span>:
             </p>
@@ -176,7 +176,7 @@ export function RulesScreen() {
               <p className="text-white leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
                 <span className="font-bold text-emerald-400">B)</span> <span className="font-bold text-yellow-300">"Points"</span> - each answer on the survey is worth a designated point value.
               </p>
-              <p className="text-white text-xs sm:text-sm leading-relaxed pl-4" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
+              <p className="text-white text-sm sm:text-base leading-relaxed pl-4" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
                 (ex. <span className="font-bold text-yellow-300">#1</span> answer is worth <span className="font-bold text-orange-400">10pts</span>, <span className="font-bold text-yellow-300">#2</span>=<span className="font-bold text-orange-400">9pts</span>, <span className="font-bold text-yellow-300">#3</span>=<span className="font-bold text-orange-400">8pts</span>, <span className="font-bold text-yellow-300">#4</span>=<span className="font-bold text-orange-400">7pts</span>, <span className="font-bold text-yellow-300">#5</span>=<span className="font-bold text-orange-400">6pts</span>, <span className="font-bold text-yellow-300">#6</span>=<span className="font-bold text-orange-400">5pts</span>, <span className="font-bold text-yellow-300">#7</span>=<span className="font-bold text-orange-400">4pts</span>, <span className="font-bold text-yellow-300">#8</span>=<span className="font-bold text-orange-400">3pts</span>, <span className="font-bold text-yellow-300">#9</span>=<span className="font-bold text-orange-400">2pts</span>, <span className="font-bold text-yellow-300">#10</span>=<span className="font-bold text-orange-400">1pt</span>)
               </p>
             </div>

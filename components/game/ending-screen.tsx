@@ -34,7 +34,7 @@ export function EndingScreen({
 
       {/* Header - Same as game board */}
       <div className="relative z-10 px-2 py-2 sm:px-4 sm:py-3 flex-shrink-0">
-        <div className="mx-auto max-w-[80vw]">
+        <div className="mx-auto max-w-[90vw]">
           <div className="flex items-center justify-between gap-2 sm:gap-4 rounded-xl border-3 border-orange-500 bg-gradient-to-r from-teal-600 via-emerald-500 to-teal-600 px-2 py-1 sm:px-4 sm:py-2 shadow-2xl">
             {/* Left - GATE Logo */}
             <div className="flex-shrink-0">
@@ -79,11 +79,11 @@ export function EndingScreen({
         </div>
       </div>
 
-      {/* Main Content - Centered with max-w-80vw */}
+      {/* Main Content - Centered with max-w-90vw */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center min-h-0 px-2 py-2 sm:px-4 sm:py-3">
-        <div className="w-full max-w-[80vw] flex flex-col gap-2 sm:gap-3 h-full min-h-0">
+        <div className="w-full max-w-[90vw] flex flex-col gap-2 sm:gap-3 h-full min-h-0">
           {/* Top Row - Chibi, Sponsor, Contact */}
-          <div className="flex gap-2 sm:gap-3 flex-1 min-h-0 mb-2 sm:mb-3">
+          <div className="flex gap-2 sm:gap-3 flex-1 min-h-0">
             {/* Left - Chibi */}
             <motion.div
               animate={{
@@ -113,12 +113,12 @@ export function EndingScreen({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.8 }}
-              className="flex-1 bg-white border-4 border-teal-500 rounded-lg p-1.5 sm:p-3 flex flex-col justify-between min-h-0 shadow-xl"
+              className="flex-1 border-4 border-teal-500 rounded-lg bg-gradient-to-br from-purple-900/90 to-indigo-900/90 p-1.5 sm:p-3 flex flex-col justify-between min-h-0 shadow-xl backdrop-blur-sm"
             >
               <div className="flex-shrink-0">
                 <h3
-                  className="text-[0.65rem] sm:text-xs font-black text-teal-600 text-center leading-tight mb-1 uppercase tracking-wider"
-                  style={{ textShadow: '1px 1px 1px rgba(0,0,0,0.2)' }}
+                  className="text-sm sm:text-lg md:text-xl font-black text-yellow-400 text-center leading-tight mb-1 uppercase tracking-wider"
+                  style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}
                 >
                   Our Amazing Sponsors
                 </h3>
@@ -135,11 +135,6 @@ export function EndingScreen({
                   </div>
                 )}
               </div>
-              <div className="flex-shrink-0 text-center">
-                <p className="text-[0.6rem] sm:text-[0.65rem] font-black text-teal-600 leading-tight">
-                  {sponsorName}
-                </p>
-              </div>
             </motion.div>
 
             {/* Right - Contact Section */}
@@ -147,71 +142,88 @@ export function EndingScreen({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="flex-1 bg-white border-4 border-teal-500 rounded-lg p-1.5 sm:p-3 flex flex-col justify-center min-h-0 shadow-xl"
+              className="flex-1 border-4 border-teal-500 rounded-lg bg-gradient-to-br from-cyan-900/90 to-teal-900/90 p-1.5 sm:p-3 flex flex-col justify-center min-h-0 shadow-xl backdrop-blur-sm"
             >
-              <h3
-                className="text-[0.65rem] sm:text-xs font-black text-teal-600 text-center mb-2 leading-tight uppercase tracking-wider"
-                style={{ textShadow: '1px 1px 1px rgba(0,0,0,0.2)' }}
-              >
-                Contact
-              </h3>
-              <div className="space-y-0.5 sm:space-y-1 text-teal-600 text-[0.55rem] sm:text-[0.6rem] font-bold text-center leading-tight">
-                <div>Email</div>
-                <div>Phone Number</div>
-                <div>Website</div>
-              </div>
+                <div className="space-y-2 sm:space-y-4 text-white text-xl sm:text-3xl md:text-4xl font-bold text-center leading-tight">
+                <div className="text-emerald-400 font-black text-2xl sm:text-4xl md:text-5xl">Jordan White</div>
+                <div className="break-all text-lg sm:text-2xl md:text-3xl">gatentertainment.org</div>
+                <div className="text-lg sm:text-2xl md:text-3xl">+1 (303) 332-2449</div>
+                </div>
             </motion.div>
           </div>
 
-          {/* Bottom Row - QR Codes (Full Width) */}
+          {/* Cognijin Credit Card */}
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 1.2 }}
+            className="w-full bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 border-3 border-purple-400 rounded-lg p-2 sm:p-3 flex-shrink-0 shadow-xl"
+          >
+            <div className="flex items-center justify-center gap-3">
+              <div className="h-8 w-12 sm:h-10 sm:w-16 relative flex-shrink-0">
+                <Image
+                  src="/cognijin.svg"
+                  alt="Cognijin"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <p className="text-white text-[0.6rem] sm:text-xs font-bold text-center leading-tight">
+                Game Show Designed & Developed by <span className="font-black">Cognijin</span>
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Bottom Row - QR Codes (Full Width - 1/3rd of screen) */}
           <motion.div
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 1 }}
-            className="w-full bg-white border-4 border-teal-500 rounded-lg p-1.5 sm:p-3 flex-shrink-0 shadow-xl"
+            className="w-full bg-white border-4 border-teal-500 rounded-lg p-3 sm:p-6 flex-shrink-0 shadow-xl"
+            style={{ minHeight: '33vh' }}
           >
-            <div className="flex gap-1.5 sm:gap-3 justify-between items-end h-full">
+            <div className="flex gap-3 sm:gap-6 justify-between items-center h-full">
               {/* Google Reviews QR */}
-              <div className="flex-1 flex flex-col items-center gap-0.5 sm:gap-1">
-                <div className="bg-white border-2 border-teal-500 rounded p-0.5 sm:p-1 w-12 h-12 sm:w-20 sm:h-20 relative flex-shrink-0 shadow-lg">
+              <div className="flex-1 flex flex-col items-center gap-2 sm:gap-3 h-full justify-center">
+                <div className="bg-white border-3 border-teal-500 rounded p-2 sm:p-3 w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 relative flex-shrink-0 shadow-lg">
                   <Image
                     src="/google-QR.png"
                     alt="Google Reviews"
                     fill
-                    className="object-contain p-0.5"
+                    className="object-contain p-1"
                   />
                 </div>
-                <p className="text-[0.5rem] sm:text-xs font-bold text-teal-600 text-center leading-tight">
+                <p className="text-sm sm:text-base md:text-lg font-bold text-teal-600 text-center leading-tight">
                   Google
                 </p>
               </div>
 
               {/* Take Surveys QR */}
-              <div className="flex-1 flex flex-col items-center gap-0.5 sm:gap-1">
-                <div className="bg-white border-2 border-teal-500 rounded p-0.5 sm:p-1 w-12 h-12 sm:w-20 sm:h-20 relative flex-shrink-0 shadow-lg">
+              <div className="flex-1 flex flex-col items-center gap-2 sm:gap-3 h-full justify-center">
+                <div className="bg-white border-3 border-teal-500 rounded p-2 sm:p-3 w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 relative flex-shrink-0 shadow-lg">
                   <Image
                     src="/survey-QR.png"
                     alt="Take Surveys"
                     fill
-                    className="object-contain p-0.5"
+                    className="object-contain p-1"
                   />
                 </div>
-                <p className="text-[0.5rem] sm:text-xs font-bold text-teal-600 text-center leading-tight">
+                <p className="text-sm sm:text-base md:text-lg font-bold text-teal-600 text-center leading-tight">
                   Survey
                 </p>
               </div>
 
               {/* Website QR */}
-              <div className="flex-1 flex flex-col items-center gap-0.5 sm:gap-1">
-                <div className="bg-white border-2 border-teal-500 rounded p-0.5 sm:p-1 w-12 h-12 sm:w-20 sm:h-20 relative flex-shrink-0 shadow-lg">
+              <div className="flex-1 flex flex-col items-center gap-2 sm:gap-3 h-full justify-center">
+                <div className="bg-white border-3 border-teal-500 rounded p-2 sm:p-3 w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 relative flex-shrink-0 shadow-lg">
                   <Image
                     src="/website-QR.png"
                     alt="Website"
                     fill
-                    className="object-contain p-0.5"
+                    className="object-contain p-1"
                   />
                 </div>
-                <p className="text-[0.5rem] sm:text-xs font-bold text-teal-600 text-center leading-tight">
+                <p className="text-sm sm:text-base md:text-lg font-bold text-teal-600 text-center leading-tight">
                   Website
                 </p>
               </div>

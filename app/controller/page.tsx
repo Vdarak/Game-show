@@ -106,6 +106,7 @@ export default function ControllerPage() {
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showScoreResetConfirm, setShowScoreResetConfirm] = useState(false)
   const [introMusicPlaying, setIntroMusicPlaying] = useState(false)
+  const [currentBackgroundMusic, setCurrentBackgroundMusic] = useState<"intro" | "excitement" | null>(null)
   const introMusicRef = useRef<HTMLAudioElement | null>(null)
 
   const [displays, setDisplays] = useState<DisplayWindow[]>([
@@ -965,26 +966,86 @@ export default function ControllerPage() {
               {/* Background Music Section */}
               <div className="border-t border-gray-600 pt-4">
                 <h3 className="mb-2 font-display text-xs sm:text-sm text-gray-300">Background Music</h3>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => {
-                      if (!introMusicPlaying) {
-                        // Play intro music
+                
+                {/* Current Playing Indicator */}
+                {currentBackgroundMusic && (
+                  <div className="mb-2 text-xs text-green-400 flex items-center gap-1">
+                    <Volume2 className="h-3 w-3 animate-pulse" />
+                    <span>Now Playing: {currentBackgroundMusic === "intro" ? "GATE Intro Music" : "Excitement"}</span>
+                  </div>
+                )}
+                
+                {/* Music Options */}
+                <div className="space-y-2">
+                  {/* GATE Intro Music */}
+                  <div className="flex gap-2 items-center">
+                    <span className="text-xs text-gray-400 min-w-[100px]">GATE Intro:</span>
+                    <Button
+                      onClick={() => {
+                        // Stop any currently playing music
+                        if (introMusicRef.current) {
+                          introMusicRef.current.pause()
+                          introMusicRef.current.currentTime = 0
+                        }
+                        setIntroMusicPlaying(false)
+                        setCurrentBackgroundMusic(null)
+                        
+                        // Play GATE intro music
                         const audio = new Audio("/sounds/intro-music.wav")
                         introMusicRef.current = audio
                         audio.play()
                         setIntroMusicPlaying(true)
-                        audio.onended = () => setIntroMusicPlaying(false)
-                      }
-                    }}
-                    disabled={introMusicPlaying}
-                    variant="default"
-                    size="sm"
-                    className="flex-1 text-xs"
-                  >
-                    <Play className="mr-2 h-3 w-3" />
-                    Play
-                  </Button>
+                        setCurrentBackgroundMusic("intro")
+                        audio.onended = () => {
+                          setIntroMusicPlaying(false)
+                          setCurrentBackgroundMusic(null)
+                        }
+                      }}
+                      disabled={currentBackgroundMusic === "intro"}
+                      variant={currentBackgroundMusic === "intro" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 text-xs"
+                    >
+                      <Play className="mr-1 h-3 w-3" />
+                      Play
+                    </Button>
+                  </div>
+                  
+                  {/* Excitement Music */}
+                  <div className="flex gap-2 items-center">
+                    <span className="text-xs text-gray-400 min-w-[100px]">Excitement:</span>
+                    <Button
+                      onClick={() => {
+                        // Stop any currently playing music
+                        if (introMusicRef.current) {
+                          introMusicRef.current.pause()
+                          introMusicRef.current.currentTime = 0
+                        }
+                        setIntroMusicPlaying(false)
+                        setCurrentBackgroundMusic(null)
+                        
+                        // Play excitement music
+                        const audio = new Audio("/sounds/excitement.wav")
+                        introMusicRef.current = audio
+                        audio.play()
+                        setIntroMusicPlaying(true)
+                        setCurrentBackgroundMusic("excitement")
+                        audio.onended = () => {
+                          setIntroMusicPlaying(false)
+                          setCurrentBackgroundMusic(null)
+                        }
+                      }}
+                      disabled={currentBackgroundMusic === "excitement"}
+                      variant={currentBackgroundMusic === "excitement" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 text-xs"
+                    >
+                      <Play className="mr-1 h-3 w-3" />
+                      Play
+                    </Button>
+                  </div>
+                  
+                  {/* Stop Button */}
                   <Button
                     onClick={() => {
                       // Stop intro music
@@ -993,14 +1054,15 @@ export default function ControllerPage() {
                         introMusicRef.current.currentTime = 0
                       }
                       setIntroMusicPlaying(false)
+                      setCurrentBackgroundMusic(null)
                     }}
                     disabled={!introMusicPlaying}
                     variant="outline"
                     size="sm"
-                    className="flex-1 text-xs"
+                    className="w-full text-xs"
                   >
                     <Square className="mr-2 h-3 w-3" />
-                    Stop
+                    Stop All
                   </Button>
                 </div>
               </div>
