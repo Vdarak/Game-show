@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useGameState } from "@/hooks/use-game-state"
 import { AnimatedNumber } from "@/components/game/animated-number"
 import { StrikeIndicator } from "@/components/game/strike-indicator"
+import { DitherBackground } from "@/components/game/dither-background"
 import { formatScore } from "@/lib/game-utils"
 import { getTheme, applyTheme } from "@/lib/themes"
 import { Maximize2, Minimize2 } from "lucide-react"
@@ -116,6 +117,19 @@ export default function UnifiedTeamDisplay() {
               fontFamily: theme.fontFamily,
             }}
           >
+            {/* Dither Background - positioned behind everything */}
+            <div className="absolute inset-0 z-0 pointer-events-none">
+              <DitherBackground
+                colorBack="#00000000"
+                colorFront="#dd7c0dff"
+                speed={0.1}
+                shape="wave"
+                type="4x4"
+                pxSize={1}
+                scale={1.13}
+              />
+            </div>
+
             {/* Video Background */}
             {theme.backgroundVideo && (
               <video
