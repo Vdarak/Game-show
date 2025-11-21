@@ -420,96 +420,304 @@ export default function ControllerPage() {
           <details className="group">
             <summary className="cursor-pointer flex items-center gap-2 mb-3">
               <AlertCircle className="h-5 w-5 text-blue-400" />
-              <h2 className="font-display text-sm sm:text-base font-bold text-blue-300">Setup Tutorial</h2>
+              <h2 className="font-display text-sm sm:text-base font-bold text-blue-300">Setup Tutorial & Pre-Show Checklist</h2>
               <span className="ml-auto text-blue-400 text-xs group-open:rotate-90 transition-transform">▶</span>
             </summary>
             <div className="space-y-2">
+            
+            {/* SETUP PHASE */}
             <details className="group">
-              <summary className="cursor-pointer rounded-lg bg-gray-800/50 p-3 hover:bg-gray-700/50 transition-colors">
+              <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-purple-900/50 to-purple-800/50 border border-purple-500/30 p-3 hover:bg-purple-700/30 transition-colors">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-semibold text-yellow-300">Step 1: Initial Setup</span>
+                  <span className="text-xs sm:text-sm font-bold text-purple-300">📋 STEP 1: Initial Setup (Do This FIRST)</span>
                 </div>
               </summary>
-              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300">
+              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
                 <p className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Check Internet Connection:</strong> Verify stable internet. If connection is poor, switch to offline mode by installing the PWA (use Install PWA button above) and turning off internet.</span>
+                  <span className="text-purple-400 mt-1 font-bold">1.</span>
+                  <span><strong className="text-purple-300">Upload Sponsor Logos & Videos:</strong> Click through the Game Orchestration sections below (Welcome, Rules, Lightning Rules, Ending) and upload all sponsor logos where needed.</span>
                 </p>
                 <p className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Upload Assets:</strong> Go to Orchestration Panel → Select relevant timeline section → Upload sponsor logos, videos, and banners → Update footer text (Survey Sample)</span>
+                  <span className="text-purple-400 mt-1 font-bold">2.</span>
+                  <span><strong className="text-purple-300">Set Questions or Load Episode:</strong> Either click "Manage Episodes" to load a saved episode, OR click "Survey Questions" to manually add/edit survey questions and answers for the main game.</span>
                 </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-purple-400 mt-1 font-bold">3.</span>
+                  <span><strong className="text-purple-300">Configure Footer Text:</strong> In the Survey Questions section of the Orchestration Panel, add footer text for each question (e.g., "Survey Sample: 100 People").</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-purple-400 mt-1 font-bold">4.</span>
+                  <span><strong className="text-purple-300">Upload Sponsor Logo 2 (Lightning Rules):</strong> In the Lightning Round Rules section, upload two sponsor logos that will appear during the rules screen.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-purple-400 mt-1 font-bold">5.</span>
+                  <span><strong className="text-purple-300">Set Sponsor Name (Ending Screen):</strong> In the Ending section, enter the sponsor name that will appear on the final screen.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-purple-400 mt-1 font-bold">6.</span>
+                  <span><strong className="text-purple-300">Toggle Survey Totals:</strong> Use the "Show Survey Totals" switch in the Orchestration Panel to decide if answer totals should be visible on each question.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-purple-400 mt-1 font-bold">7.</span>
+                  <span><strong className="text-purple-300">Upload Sponsor Video (Optional):</strong> If you have a sponsor video, upload it in the Sponsor Video section. <strong className="text-yellow-300">NOTE:</strong> Sponsor video controls will only appear in the Orchestration Panel AFTER you upload a video.</span>
+                </p>
+                <div className="mt-3 p-2 bg-purple-900/30 border border-purple-500/50 rounded">
+                  <strong className="text-purple-300">⚠️ Important:</strong> Complete ALL of these steps before moving to testing!
+                </div>
               </div>
             </details>
 
+            {/* GAME ORCHESTRATION PANEL EXPLAINED */}
             <details className="group">
-              <summary className="cursor-pointer rounded-lg bg-gray-800/50 p-3 hover:bg-gray-700/50 transition-colors">
+              <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-cyan-900/50 to-cyan-800/50 border border-cyan-500/30 p-3 hover:bg-cyan-700/30 transition-colors">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-semibold text-yellow-300">Step 2: Content Verification</span>
+                  <span className="text-xs sm:text-sm font-bold text-cyan-300">🎮 Understanding the Game Orchestration Panel</span>
                 </div>
               </summary>
-              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300">
-                <p className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Review Questions:</strong> Click "Survey Questions" or "Lightning Questions" to add/edit questions and answers.</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Test Sound Effects:</strong> Click each sound button (Ding, Ring In, Duplicate, Wrong, Whoosh) to verify audio is working. Use Play/Stop for background music.</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Preview Locally:</strong> Navigate through timeline sections (Welcome, Rules, Questions, Lightning) on this laptop before sharing to external displays.</span>
-                </p>
+              <div className="mt-2 ml-4 space-y-3 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
+                <div>
+                  <p className="text-cyan-300 font-semibold mb-1">📍 Timeline Navigation:</p>
+                  <p className="ml-3">Click timeline buttons (Welcome → Rules → Questions → Lightning → Ending) to navigate between game phases. The active phase is highlighted in green.</p>
+                </div>
+                <div>
+                  <p className="text-cyan-300 font-semibold mb-1">❓ Survey Questions Section:</p>
+                  <p className="ml-3">• Lists all questions with Preview/Reveal buttons</p>
+                  <p className="ml-3">• Click "Reveal Question" to show the question to audience</p>
+                  <p className="ml-3">• Click individual answers to reveal them one by one</p>
+                  <p className="ml-3">• Use "Reveal All" or "Hide All" for bulk control</p>
+                  <p className="ml-3">• Navigate with ← → buttons between questions</p>
+                </div>
+                <div>
+                  <p className="text-cyan-300 font-semibold mb-1">🎬 Sponsor Video Controls:</p>
+                  <p className="ml-3 text-yellow-300">These controls ONLY appear if you upload a sponsor video!</p>
+                  <p className="ml-3">• "Go to Sponsor Video" - Navigate to video screen</p>
+                  <p className="ml-3">• "Play Video" - Start video playback</p>
+                  <p className="ml-3">• "Pause Video" - Pause the video</p>
+                  <p className="ml-3">• "Stop Video" - Stop and reset video</p>
+                </div>
+                <div>
+                  <p className="text-cyan-300 font-semibold mb-1">⚡ Lightning Round Section:</p>
+                  <p className="ml-3">• Update contestant names before they come on stage</p>
+                  <p className="ml-3">• Edit lightning questions if needed</p>
+                  <p className="ml-3">• Reveal answers one by one as contestants respond</p>
+                  <p className="ml-3">• Click point values to reveal/hide points</p>
+                  <p className="ml-3">• Start/stop timer for timed rounds</p>
+                </div>
+                <div>
+                  <p className="text-cyan-300 font-semibold mb-1">🔊 Sound Effects & Score Control:</p>
+                  <p className="ml-3">• Test all sound buttons (Ding, Ring In, Duplicate, Wrong, Whoosh)</p>
+                  <p className="ml-3">• Play background music (Intro/Excitement)</p>
+                  <p className="ml-3">• Adjust team scores with +/- buttons</p>
+                  <p className="ml-3">• Add strikes with the buzzer button</p>
+                </div>
               </div>
             </details>
 
+            {/* DRY RUN TESTING */}
             <details className="group">
-              <summary className="cursor-pointer rounded-lg bg-gray-800/50 p-3 hover:bg-gray-700/50 transition-colors">
+              <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-green-900/50 to-green-800/50 border border-green-500/30 p-3 hover:bg-green-700/30 transition-colors">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-semibold text-yellow-300">Step 3: Display Testing</span>
+                  <span className="text-xs sm:text-sm font-bold text-green-300">🧪 STEP 2: Dry Run Testing (Side-by-Side)</span>
                 </div>
               </summary>
-              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300">
+              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
                 <p className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Open Displays:</strong> Click "Open All Displays" below to launch Game Board and Teams screens in new windows.</span>
+                  <span className="text-green-400 mt-1 font-bold">1.</span>
+                  <span><strong className="text-green-300">Open Displays Side-by-Side:</strong> Click "Open All Displays" below to launch Game Board and Teams windows. Arrange them next to this controller window so you can see everything at once.</span>
                 </p>
                 <p className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Verify Screens:</strong> Check that logos appear correctly on Welcome, Rules, Lightning Rules, and Ending screens.</span>
+                  <span className="text-green-400 mt-1 font-bold">2.</span>
+                  <span><strong className="text-green-300">Test Welcome Screen:</strong> Go to Welcome and verify sponsor logo appears correctly on the Game Board display.</span>
                 </p>
                 <p className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Test Gameplay:</strong> Navigate through timeline, reveal answers, test strikes, and verify team scores update on both Game Board and Teams displays.</span>
+                  <span className="text-green-400 mt-1 font-bold">3.</span>
+                  <span><strong className="text-green-300">Test Rules Screen:</strong> Navigate to Rules and check sponsor logo and game rules display properly.</span>
                 </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1 font-bold">4.</span>
+                  <span><strong className="text-green-300">Test Question Flow:</strong> Go through a few questions - click Preview, Reveal Question, reveal individual answers, check that they appear on Game Board with correct animations.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1 font-bold">5.</span>
+                  <span><strong className="text-green-300">Test Team Display Themes:</strong> Check the Teams display window - verify team colors/themes are displaying correctly in the unified layout.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1 font-bold">6.</span>
+                  <span><strong className="text-green-300">Test Score Updates:</strong> Use the score control buttons (+/-) and watch the Teams display update in real-time with animations.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1 font-bold">7.</span>
+                  <span><strong className="text-green-300">Test Strikes:</strong> Click the buzzer button to add strikes, verify strike indicators appear on Game Board.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1 font-bold">8.</span>
+                  <span><strong className="text-green-300">Test Lightning Round:</strong> Navigate to Lightning Round Rules, check logos. Go to Lightning Round, test contestant names, reveal answers/points, test timer.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1 font-bold">9.</span>
+                  <span><strong className="text-green-300">Test Ending Screen:</strong> Go to Ending, verify sponsor name and chibi image display correctly.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1 font-bold">10.</span>
+                  <span><strong className="text-green-300">Test Sponsor Video (if uploaded):</strong> Navigate to sponsor video, test Play/Pause/Stop controls.</span>
+                </p>
+                <div className="mt-3 p-2 bg-green-900/30 border border-green-500/50 rounded">
+                  <strong className="text-green-300">✓ Goal:</strong> Complete a full run-through of the entire game flow before audience arrives!
+                </div>
               </div>
             </details>
 
+            {/* AUDIO/VISUAL CHECK */}
             <details className="group">
-              <summary className="cursor-pointer rounded-lg bg-gray-800/50 p-3 hover:bg-gray-700/50 transition-colors">
+              <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-yellow-900/50 to-yellow-800/50 border border-yellow-500/30 p-3 hover:bg-yellow-700/30 transition-colors">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-semibold text-yellow-300">Step 4: Go Live</span>
+                  <span className="text-xs sm:text-sm font-bold text-yellow-300">🔊 STEP 3: Audio/Visual Check (Before Connecting Speaker)</span>
                 </div>
               </summary>
-              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300">
+              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
                 <p className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Position Displays:</strong> Drag display windows to external monitors/projectors and press F for fullscreen.</span>
+                  <span className="text-yellow-400 mt-1 font-bold">1.</span>
+                  <span><strong className="text-yellow-300">Test All Sound Effects:</strong> Click each sound button on your laptop speakers - Ding, Ring In, Duplicate, Wrong Answer, Whoosh. Make sure each plays correctly.</span>
                 </p>
                 <p className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Start Game:</strong> Begin with Welcome screen, then navigate through timeline using Orchestration Panel.</span>
+                  <span className="text-yellow-400 mt-1 font-bold">2.</span>
+                  <span><strong className="text-yellow-300">Test Background Music:</strong> Click "Play Intro Music" and "Play Excitement Music" buttons. Verify music plays and stops correctly.</span>
                 </p>
                 <p className="flex items-start gap-2">
-                  <span className="text-blue-400 mt-1">•</span>
-                  <span><strong className="text-white">Control Gameplay:</strong> Use buttons to reveal answers, manage strikes, play sounds, and control the lightning round timer.</span>
+                  <span className="text-yellow-400 mt-1 font-bold">3.</span>
+                  <span><strong className="text-yellow-300">Check Visual Animations:</strong> Reveal some answers and watch for smooth slide-in animations. Add strikes and check strike indicators animate correctly.</span>
                 </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-yellow-400 mt-1 font-bold">4.</span>
+                  <span><strong className="text-yellow-300">Check Motion Backgrounds:</strong> Look at Game Board - verify animated gradients and particle effects are working smoothly.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-yellow-400 mt-1 font-bold">5.</span>
+                  <span><strong className="text-yellow-300">Check Wrong Answer Animation:</strong> Trigger wrong answer to see the red X animation on Game Board.</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-yellow-400 mt-1 font-bold">6.</span>
+                  <span><strong className="text-yellow-300">Only After Testing:</strong> Connect laptop to external speakers and test volume levels. Make sure audience can hear clearly but not too loud.</span>
+                </p>
+                <div className="mt-3 p-2 bg-yellow-900/30 border border-yellow-500/50 rounded">
+                  <strong className="text-yellow-300">⚡ Pro Tip:</strong> Always test audio on laptop speakers FIRST to ensure files are working, then connect external speakers.
+                </div>
               </div>
             </details>
+
+            {/* PRE-SHOW CHECKLIST */}
+            <details className="group">
+              <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-red-900/50 to-red-800/50 border border-red-500/30 p-3 hover:bg-red-700/30 transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-bold text-red-300">✅ STEP 4: Pre-Show Checklist (Before Audience)</span>
+                </div>
+              </summary>
+              <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
+                <p className="font-bold text-red-300 mb-2">Double-check EVERYTHING before showing to audience:</p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>All sponsor logos uploaded and displaying correctly on all screens (Welcome, Rules, Lightning Rules, Ending)</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>All survey questions loaded with correct answers and point values</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>Footer text set for each question (e.g., "Survey Sample: 100 People")</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>Lightning round questions configured with answers and points</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>Sponsor video uploaded (if using) and controls tested</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>Sponsor name entered for ending screen</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>Team themes/colors verified on Teams display</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>All sound effects working on external speakers</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>Background music tested and volume adjusted</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>Animations and visual effects working smoothly</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>Full dry run completed from Welcome to Ending</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>Display windows positioned on external monitors/projectors</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>Press F on each display window for fullscreen mode</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="text-red-400 mt-1">☐</span>
+                  <span>Controller page ready with Welcome screen showing</span>
+                </p>
+                <div className="mt-3 p-2 bg-red-900/30 border border-red-500/50 rounded">
+                  <strong className="text-red-300">🎯 All checked?</strong> You're ready to go live!
+                </div>
+              </div>
+            </details>
+
+            {/* DURING THE SHOW */}
+            <details className="group">
+              <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-blue-900/50 to-blue-800/50 border border-blue-500/30 p-3 hover:bg-blue-700/30 transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-bold text-blue-300">🎬 During the Show: Game Flow Instructions</span>
+                </div>
+              </summary>
+              <div className="mt-2 ml-4 space-y-3 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
+                <div>
+                  <p className="text-blue-300 font-semibold mb-1">📺 Survey Questions Phase:</p>
+                  <p className="ml-3">1. Wait for Jordan's cue before revealing each question</p>
+                  <p className="ml-3">2. Click "Reveal Question" button when Jordan signals</p>
+                  <p className="ml-3">3. Click individual answer cards to reveal them as the show progresses</p>
+                  <p className="ml-3">4. Use sound effects (Ding for correct, Wrong for incorrect)</p>
+                  <p className="ml-3">5. Add strikes with buzzer button when teams answer incorrectly</p>
+                  <p className="ml-3">6. Navigate to next question with → button or use "Next Question"</p>
+                  <p className="ml-3">7. Play sponsor video between questions if scheduled</p>
+                </div>
+                <div>
+                  <p className="text-blue-300 font-semibold mb-1">⚡ Lightning Round Phase:</p>
+                  <p className="ml-3">1. Update contestant names as they come on stage</p>
+                  <p className="ml-3">2. Start timer if using a timed round</p>
+                  <p className="ml-3">3. Wait for Jordan's cue to reveal each answer</p>
+                  <p className="ml-3">4. Click answer text to reveal the answer first</p>
+                  <p className="ml-3">5. Then click the point value to reveal points</p>
+                  <p className="ml-3">6. Continue revealing remaining answers on Jordan's cue</p>
+                  <p className="ml-3">7. Watch total points update automatically at bottom</p>
+                </div>
+                <div>
+                  <p className="text-blue-300 font-semibold mb-1">🎯 General Tips:</p>
+                  <p className="ml-3">• Keep eyes on Jordan for all cues - never reveal ahead!</p>
+                  <p className="ml-3">• Update scores after each round using +/- buttons</p>
+                  <p className="ml-3">• Use background music during transitions</p>
+                  <p className="ml-3">• Reset strikes between questions using reset button</p>
+                  <p className="ml-3">• Stay calm - you can undo reveals with "Hide All" if needed</p>
+                </div>
+              </div>
+            </details>
+
           </div>
-          <div className="mt-3 p-2 bg-yellow-900/30 border border-yellow-600/50 rounded text-xs text-yellow-200">
-            <strong>💡 Pro Tip:</strong> Always test everything locally before displaying to audience. Use the eye icons below to hide/show displays during setup.
+          <div className="mt-3 p-2 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-500/50 rounded text-xs text-blue-200">
+            <strong>💡 Remember:</strong> Setup → Test → Check → Go Live. Never skip the testing phase!
           </div>
           </details>
         </Card>
