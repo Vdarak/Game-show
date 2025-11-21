@@ -25,7 +25,7 @@ export function LightningRoundRulesScreen({ sponsorLogo1, sponsorLogo2 }: Lightn
       <div className="absolute inset-0 bg-black/60 z-[1]" />
 
       {/* Content Container */}
-      <div className="relative z-10 w-full max-w-6xl mx-auto space-y-8">
+      <div className="relative z-10 w-full max-w-[90vw] mx-auto space-y-8">
         {/* Title */}
         <motion.div
           initial={{ opacity: 0, y: -50 }}
@@ -60,7 +60,7 @@ export function LightningRoundRulesScreen({ sponsorLogo1, sponsorLogo2 }: Lightn
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3, duration: 0.6 }}
-          className="mx-auto max-w-5xl"
+          className="mx-auto max-w-full"
         >
           <div className="rounded-2xl border-4 border-yellow-400 bg-gradient-to-r from-black via-yellow-500 to-white p-8 shadow-2xl">
             <p className="text-center text-3xl sm:text-4xl font-bold text-white mb-6 uppercase tracking-wide">

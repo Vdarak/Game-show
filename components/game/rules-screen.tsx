@@ -76,7 +76,7 @@ export function RulesScreen() {
       </div>
 
       {/* Bento Grid Layout */}
-      <div className="relative z-10 w-[90vw] max-w-[90vw] h-[70vh] mt-24 grid grid-cols-12 gap-3">
+      <div className="relative z-10 w-[90vw] max-w-[90vw] h-[75vh] mt-24 grid grid-cols-12 gap-3">
         {/* OBJECTIVE - Top Left */}
         <motion.div
           initial={{ x: -100, opacity: 0 }}
@@ -85,13 +85,13 @@ export function RulesScreen() {
           className="col-span-6 row-span-4 rounded-xl border-4 border-teal-500 bg-gradient-to-br from-cyan-900/90 to-teal-900/90 p-4 shadow-xl backdrop-blur-sm flex flex-col"
         >
           <h2
-            className="font-display text-2xl sm:text-3xl font-bold text-yellow-400 mb-3"
+            className="font-display text-4xl sm:text-5xl font-bold text-yellow-400 mb-3"
             style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}
           >
             OBJECTIVE
           </h2>
           <div className="flex-1 flex items-center">
-            <p className="text-white text-lg sm:text-xl leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
+            <p className="text-white text-2xl sm:text-3xl leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
               • Be the <span className="font-bold text-emerald-400">Team</span> that wins the most <span className="font-bold text-yellow-300">Surveys</span>… <span className="text-orange-400 font-bold">OR</span> … Be the <span className="font-bold text-emerald-400">Team</span> that scores the most <span className="font-bold text-yellow-300">points</span>.
             </p>
           </div>
@@ -105,12 +105,12 @@ export function RulesScreen() {
           className="col-span-6 row-span-4 rounded-xl border-4 border-teal-500 bg-gradient-to-br from-purple-900/90 to-indigo-900/90 p-4 shadow-xl backdrop-blur-sm flex flex-col"
         >
           <h2
-            className="font-display text-2xl sm:text-3xl font-bold text-yellow-400 mb-3"
+            className="font-display text-4xl sm:text-5xl font-bold text-yellow-400 mb-3"
             style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}
           >
             FACEOFF
           </h2>
-          <div className="flex-1 flex flex-col justify-center space-y-2 text-base sm:text-lg">
+          <div className="flex-1 flex flex-col justify-center space-y-2 text-xl sm:text-2xl">
             <p className="text-white leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
               • The <span className="font-bold text-emerald-400">Team</span> that goes <span className="font-bold text-cyan-300">first</span> is selected by the <span className="font-bold text-yellow-300">Faceoff</span>, which happens at the <span className="font-bold text-orange-400">start of every new survey</span>.
             </p>
@@ -131,12 +131,12 @@ export function RulesScreen() {
           className="col-span-6 row-span-5 rounded-xl border-4 border-teal-500 bg-gradient-to-br from-indigo-900/90 to-blue-900/90 p-4 shadow-xl backdrop-blur-sm flex flex-col"
         >
           <h2
-            className="font-display text-2xl sm:text-3xl font-bold text-yellow-400 mb-3"
+            className="font-display text-4xl sm:text-5xl font-bold text-yellow-400 mb-3"
             style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}
           >
             GAMEPLAY
           </h2>
-          <div className="flex-1 flex flex-col justify-center space-y-2 text-base sm:text-lg">
+          <div className="flex-1 flex flex-col justify-center space-y-2 text-xl sm:text-2xl">
             <p className="text-white leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
               • Split into <span className="font-bold text-cyan-300">2 even teams</span>. (<span className="font-bold text-orange-400">6 people max</span>)
             </p>
@@ -160,12 +160,12 @@ export function RulesScreen() {
           className="col-span-6 row-span-5 rounded-xl border-4 border-teal-500 bg-gradient-to-br from-pink-900/90 to-purple-900/90 p-4 shadow-xl backdrop-blur-sm flex flex-col"
         >
           <h2
-            className="font-display text-2xl sm:text-3xl font-bold text-yellow-400 mb-3"
+            className="font-display text-4xl sm:text-5xl font-bold text-yellow-400 mb-3"
             style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}
           >
             SCORING
           </h2>
-          <div className="flex-1 flex flex-col justify-center space-y-2 text-base sm:text-lg">
+          <div className="flex-1 flex flex-col justify-center space-y-2 text-xl sm:text-2xl">
             <p className="text-white leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
               • Correct answers are added up one of <span className="font-bold text-cyan-300">two ways</span>:
             </p>
@@ -176,7 +176,7 @@ export function RulesScreen() {
               <p className="text-white leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
                 <span className="font-bold text-emerald-400">B)</span> <span className="font-bold text-yellow-300">"Points"</span> - each answer on the survey is worth a designated point value.
               </p>
-              <p className="text-white text-sm sm:text-base leading-relaxed pl-4" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
+              <p className="text-white text-lg sm:text-xl leading-relaxed pl-4" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
                 (ex. <span className="font-bold text-yellow-300">#1</span> answer is worth <span className="font-bold text-orange-400">10pts</span>, <span className="font-bold text-yellow-300">#2</span>=<span className="font-bold text-orange-400">9pts</span>, <span className="font-bold text-yellow-300">#3</span>=<span className="font-bold text-orange-400">8pts</span>, <span className="font-bold text-yellow-300">#4</span>=<span className="font-bold text-orange-400">7pts</span>, <span className="font-bold text-yellow-300">#5</span>=<span className="font-bold text-orange-400">6pts</span>, <span className="font-bold text-yellow-300">#6</span>=<span className="font-bold text-orange-400">5pts</span>, <span className="font-bold text-yellow-300">#7</span>=<span className="font-bold text-orange-400">4pts</span>, <span className="font-bold text-yellow-300">#8</span>=<span className="font-bold text-orange-400">3pts</span>, <span className="font-bold text-yellow-300">#9</span>=<span className="font-bold text-orange-400">2pts</span>, <span className="font-bold text-yellow-300">#10</span>=<span className="font-bold text-orange-400">1pt</span>)
               </p>
             </div>

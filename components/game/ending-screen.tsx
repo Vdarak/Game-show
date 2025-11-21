@@ -165,11 +165,11 @@ export function EndingScreen({
                   src="/cognijin.svg"
                   alt="Cognijin"
                   fill
-                  className="object-contain"
+                  className="object-contain bg-white/80 rounded-md"
                 />
               </div>
               <p className="text-white text-[0.6rem] sm:text-xs font-bold text-center leading-tight">
-                Game Show Designed & Developed by <span className="font-black">Cognijin</span>
+                Popular Consensus Designed & Developed by <span className="font-black">Cognijin</span>
               </p>
             </div>
           </motion.div>

@@ -140,27 +140,27 @@ export default function GameBoardPage() {
           duration: 0.4
         }}
       >
-        <div className="relative overflow-hidden rounded-lg border-4 border-orange-500 bg-gradient-to-r from-cyan-700 to-teal-700 p-4 shadow-lg">
+        <div className="relative overflow-hidden rounded-lg border-4 border-orange-500 bg-gradient-to-r from-cyan-700 to-teal-700 p-5 sm:p-6 shadow-lg">
           {/* Rank number on left */}
-          <div className="absolute left-0 top-0 bottom-0 flex items-center justify-center w-16 bg-cyan-900/50 border-r-4 border-teal-500 font-display text-3xl font-bold text-teal-200 sm:w-20 sm:text-4xl">
+          <div className="absolute left-0 top-0 bottom-0 flex items-center justify-center w-20 bg-cyan-900/50 border-r-4 border-teal-500 font-display text-4xl font-bold text-teal-200 sm:w-24 sm:text-5xl">
             {index + 1}
           </div>
 
           {/* Answer content */}
-          <div className="ml-16 flex items-center justify-between gap-4 sm:ml-20">
-            <div className="flex-1 min-w-0 h-8 sm:h-10 flex items-center justify-center">
+          <div className="ml-20 flex items-center justify-between gap-4 sm:ml-24">
+            <div className="flex-1 min-w-0 h-10 sm:h-12 flex items-center justify-center">
               <AnimatePresence mode="wait">
                 {!isPreview && answer.revealed ? (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ type: "spring", stiffness: 150, damping: 20 }}
-                    className="font-display text-xl font-bold text-white uppercase tracking-wide sm:text-3xl truncate"
+                    className="font-display text-3xl font-bold text-white uppercase tracking-wide sm:text-4xl truncate"
                   >
                     {answer.text}
                   </motion.div>
                 ) : (
-                  <div className="w-full h-8 sm:h-10 bg-gradient-to-r from-cyan-600 to-teal-600 rounded animate-pulse" />
+                  <div className="w-full h-10 sm:h-12 bg-gradient-to-r from-cyan-600 to-teal-600 rounded animate-pulse" />
                 )}
               </AnimatePresence>
             </div>
@@ -174,12 +174,12 @@ export default function GameBoardPage() {
                       initial={{ x: 100, opacity: 0 }}
                       animate={{ x: 0, opacity: 1 }}
                       transition={{ type: "spring", stiffness: 150, damping: 20 }}
-                      className="font-display text-2xl font-bold text-teal-200 sm:text-3xl"
+                      className="font-display text-3xl font-bold text-teal-200 sm:text-4xl"
                     >
                       {answer.points}
                     </motion.div>
                   ) : (
-                    <div className="w-16 h-8 bg-gradient-to-r from-cyan-600 to-teal-600 rounded animate-pulse sm:w-20" />
+                    <div className="w-20 h-10 bg-gradient-to-r from-cyan-600 to-teal-600 rounded animate-pulse sm:w-24" />
                   )}
                 </AnimatePresence>
               </div>
