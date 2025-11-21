@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { getVideoFromIndexedDB } from "@/lib/video-storage"
+import { toast } from "sonner"
 import { 
   Play, 
   Eye,
@@ -26,10 +27,16 @@ import {
   Edit2,
   Save,
   X,
-  BookOpen
+  BookOpen,
+  Minus,
+  RotateCcw,
+  Volume2,
+  Square
 } from "lucide-react"
-import type { MacroState, MicroState, OrchestrationState, Question, LightningRoundState } from "@/hooks/use-game-state"
+import type { MacroState, MicroState, OrchestrationState, Question, LightningRoundState, Team } from "@/hooks/use-game-state"
 import { LightningRoundController } from "./lightning-round-controller"
+import { AnimatedNumber } from "./animated-number"
+import { formatScore } from "@/lib/game-utils"
 
 interface OrchestrationPanelProps {
   orchestration: OrchestrationState
@@ -84,6 +91,16 @@ interface OrchestrationPanelProps {
   onLightningRulesSponsorLogoUpload: (logoNumber: 1 | 2, event: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveLightningRulesSponsorLogo: (logoNumber: 1 | 2) => void
   onGoToEnding: () => void
+  // Sound effects and score control props
+  teams: Team[]
+  onUpdateScore: (teamId: string, points: number) => void
+  onTriggerWrongAnswer: () => void
+  onAddStrike: () => void
+  soundEffects: Array<{ name: string; type: "ding" | "buzz" | "buzzer" | "duplicate" | "whoosh"; filename: string; color: string }>
+  playingSound: string | null
+  currentBackgroundMusic: "intro" | "excitement" | null
+  onPlayBackgroundMusic: (type: "intro" | "excitement") => void
+  onStopBackgroundMusic: () => void
 }
 
 type TimelineState = "welcome" | "rules" | "question" | "lightning-rules" | "lightning" | "ending"
@@ -141,6 +158,16 @@ export function OrchestrationPanel({
   onLightningRulesSponsorLogoUpload,
   onRemoveLightningRulesSponsorLogo,
   onGoToEnding,
+  // Sound effects and score control props
+  teams,
+  onUpdateScore,
+  onTriggerWrongAnswer,
+  onAddStrike,
+  soundEffects,
+  playingSound,
+  currentBackgroundMusic,
+  onPlayBackgroundMusic,
+  onStopBackgroundMusic,
 }: OrchestrationPanelProps) {
   const [selectedTimeline, setSelectedTimeline] = useState<TimelineState | null>(null)
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState<number | null>(null)
@@ -197,6 +224,111 @@ export function OrchestrationPanel({
       setSelectedQuestionIndex(currentQuestionIndex)
     }
   }, [currentQuestionIndex, orchestration.macroState])
+
+  // Score control state
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set(["A"]))
+  const [scorePreset, setScorePreset] = useState<"default" | "alternative">("default")
+  const [scoreChangeValue, setScoreChangeValue] = useState(100)
+  const [showScoreResetConfirm, setShowScoreResetConfirm] = useState(false)
+
+  const handlePresetChange = (preset: "default" | "alternative") => {
+    setScorePreset(preset)
+    if (preset === "default") {
+      setScoreChangeValue(100)
+    } else {
+      setScoreChangeValue(20)
+    }
+  }
+
+  const presetValues = scorePreset === "default" ? [10, 20, 50, 100] : [25, 50, 100, 500]
+
+  const toggleTeamSelection = (teamId: string) => {
+    setSelectedTeams((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(teamId)) {
+        newSet.delete(teamId)
+      } else {
+        newSet.add(teamId)
+      }
+      return newSet
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedTeams.size === 4) {
+      setSelectedTeams(new Set())
+    } else {
+      setSelectedTeams(new Set(["A", "B", "C", "D"]))
+    }
+  }
+
+  const applyScoreToSelected = (points: number) => {
+    const changedTeams: Array<{ name: string; color: string; points: number }> = []
+    
+    selectedTeams.forEach((teamId) => {
+      onUpdateScore(teamId, points)
+      const team = teams.find(t => t.id === teamId)
+      if (team) {
+        changedTeams.push({ name: team.name, color: team.color, points })
+      }
+    })
+    
+    // Show single toast with all teams
+    if (changedTeams.length > 0) {
+      const toastContent = (
+        <div className="flex flex-row gap-2">
+          {changedTeams.map((team, idx) => (
+            <div 
+              key={idx} 
+              className="flex items-center gap-2 p-2 rounded whitespace-nowrap"
+              style={{ 
+                border: `2px solid ${team.color}`,
+                backgroundColor: 'rgba(255, 255, 255, 0.05)'
+              }}
+            >
+              <span className="font-semibold" style={{ color: team.color }}>{team.name}</span>
+              <span 
+                className="font-bold text-lg"
+                style={{ color: team.points > 0 ? '#22c55e' : '#ef4444' }}
+              >
+                {team.points > 0 ? '+' : ''}{team.points}
+              </span>
+            </div>
+          ))}
+        </div>
+      )
+      
+      toast(toastContent, {
+        duration: 3000,
+        position: 'top-center',
+        style: {
+          background: '#1f2937',
+          color: 'white',
+          border: '2px solid #374151',
+          padding: '1rem',
+          width: 'fit-content',
+          maxWidth: 'calc(100vw - 2rem)',
+        },
+      })
+    }
+  }
+
+  const handleResetScores = () => {
+    if (showScoreResetConfirm) {
+      selectedTeams.forEach((teamId) => {
+        const team = teams.find((t) => t.id === teamId)
+        if (team) {
+          onUpdateScore(teamId, -team.score)
+        }
+      })
+      setShowScoreResetConfirm(false)
+      setSelectedTeams(new Set())
+    } else {
+      setShowScoreResetConfirm(true)
+      setTimeout(() => setShowScoreResetConfirm(false), 3000)
+    }
+  }
+
 
   // Question manager functions
   const handleEdit = (question: Question) => {
@@ -294,7 +426,14 @@ export function OrchestrationPanel({
       if (orchestration.macroState === "questions" && orchestration.currentQuestionInFlow === index) {
         return "active"
       }
+      // Mark as completed if we've moved past this question or past the questions phase entirely
       if (orchestration.currentQuestionInFlow > index) return "completed"
+      // If we're in lightning-rules, lightning-round, or final, all questions are completed
+      if (orchestration.macroState === "lightning-round-rules" || 
+          orchestration.macroState === "lightning-round" || 
+          orchestration.macroState === "final") {
+        return "completed"
+      }
     }
     return "inactive"
   }
@@ -663,6 +802,230 @@ export function OrchestrationPanel({
         </div>
       </div>
 
+      {/* Score Control and Sound Effects - Side by Side */}
+      <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Score Control */}
+        <div>
+          <Card className="h-full justify-between bg-gray-700/50 border-gray-600 p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-display text-sm">Score Control</h2>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => handlePresetChange("alternative")}
+                  className={`rounded-full px-2 py-1 text-xs font-medium transition-all ${
+                    scorePreset === "alternative"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                >
+                  25/50
+                </button>
+                <button
+                  onClick={() => handlePresetChange("default")}
+                  className={`rounded-full px-2 py-1 text-xs font-medium transition-all ${
+                    scorePreset === "default"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                >
+                  10/20
+                </button>
+              </div>
+            </div>
+
+            <div className="h-full space-y-3">
+              {/* Team Selection */}
+              <div className="flex gap-1">
+                <Button
+                  onClick={toggleSelectAll}
+                  variant={selectedTeams.size === 4 ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 text-xs"
+                  style={{
+                    backgroundColor: selectedTeams.size === 4 ? undefined : "#374151",
+                  }}
+                >
+                  All
+                </Button>
+                {teams.map((team) => (
+                  <Button
+                    key={team.id}
+                    onClick={() => toggleTeamSelection(team.id)}
+                    variant={selectedTeams.has(team.id) ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 text-xs"
+                    style={{
+                      backgroundColor: selectedTeams.has(team.id) ? team.color : "#374151",
+                      borderColor: team.color,
+                    }}
+                  >
+                    {team.id}
+                  </Button>
+                ))}
+              </div>
+
+              {selectedTeams.size > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-3"
+                >
+                  {/* Score Adjustment Controls */}
+                  <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-3">
+                    <div className="mb-2 flex items-center justify-center gap-3">
+                      <Button
+                        onClick={() => applyScoreToSelected(-scoreChangeValue)}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 text-sm"
+                        style={{ backgroundColor: "#374151" }}
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <div className="flex min-w-[80px] items-center justify-center">
+                        <AnimatedNumber value={scoreChangeValue} color="#ffffffff" size="massive" />
+                      </div>
+                      <Button
+                        onClick={() => applyScoreToSelected(scoreChangeValue)}
+                        variant="default"
+                        size="sm"
+                        className="h-8 w-8 bg-blue-600 text-sm hover:bg-blue-500"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+
+                    {/* Preset Value Buttons */}
+                    <div className="grid grid-cols-4 gap-1">
+                      {presetValues.map((value) => (
+                        <Button
+                          key={value}
+                          onClick={() => setScoreChangeValue(value)}
+                          variant={scoreChangeValue === value ? "default" : "outline"}
+                          size="sm"
+                          className="text-xs"
+                          style={{
+                            backgroundColor: scoreChangeValue === value ? "#2563eb" : "#374151",
+                          }}
+                        >
+                          {value}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Reset Button */}
+                  <Button
+                    onClick={handleResetScores}
+                    variant={showScoreResetConfirm ? "destructive" : "outline"}
+                    className="w-full text-xs"
+                    size="sm"
+                  >
+                    <RotateCcw className="mr-1 h-3 w-3" />
+                    {showScoreResetConfirm ? "Confirm?" : "Reset"}
+                  </Button>
+                </motion.div>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        {/* Sound Effects & Background Music */}
+        <div>
+          <Card className="bg-gray-700/50 border-gray-600 p-4 h-full">
+            <h2 className="mb-4 font-display text-sm">Sound Effects</h2>
+            
+            {/* Sound Effect Buttons - 5 columns on large screens */}
+            <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {soundEffects.map((sound) => (
+                <motion.button
+                  key={sound.type}
+                  onClick={() => {
+                    onPlaySound(sound.type)
+                    if (sound.type === "buzz") {
+                      // Trigger wrong answer animation and add strike
+                      onTriggerWrongAnswer()
+                      onAddStrike()
+                    }
+                  }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`relative aspect-square flex flex-col items-center justify-center rounded-lg font-display font-bold text-white transition-all duration-200 border ${sound.color} border-opacity-70 bg-gray-700 hover:border-opacity-100`}
+                >
+                  <motion.div
+                    animate={playingSound === sound.type ? { scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] } : { scale: 1, rotate: 0 }}
+                    transition={{ duration: 0.3, repeat: playingSound === sound.type ? Infinity : 0 }}
+                    className="flex flex-col items-center"
+                  >
+                    <Volume2 className="h-6 w-6 sm:h-8 sm:w-8 mb-1" />
+                  </motion.div>
+                  <span className="text-xs sm:text-sm text-center px-1">{sound.name}</span>
+                </motion.button>
+              ))}
+            </div>
+
+            {/* Background Music Section */}
+            <div className="border-t border-gray-600 pt-4">
+              <h3 className="mb-2 font-display text-sm text-gray-300">Background Music</h3>
+              
+              {/* Current Playing Indicator */}
+              {currentBackgroundMusic && (
+                <div className="mb-2 text-xs text-green-400 flex items-center gap-1">
+                  <Volume2 className="h-3 w-3 animate-pulse" />
+                  <span>Now Playing: {currentBackgroundMusic === "intro" ? "GATE Intro Music" : "Excitement"}</span>
+                </div>
+              )}
+              
+              {/* Music Options */}
+              <div className="space-y-2">
+                {/* GATE Intro Music */}
+                <div className="flex gap-2 items-center">
+                  <span className="text-xs text-gray-400 min-w-[100px]">GATE Intro:</span>
+                  <Button
+                    onClick={() => onPlayBackgroundMusic("intro")}
+                    disabled={currentBackgroundMusic === "intro"}
+                    variant={currentBackgroundMusic === "intro" ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 text-xs"
+                  >
+                    <Play className="mr-1 h-3 w-3" />
+                    Play
+                  </Button>
+                </div>
+                
+                {/* Excitement Music */}
+                <div className="flex gap-2 items-center">
+                  <span className="text-xs text-gray-400 min-w-[100px]">Excitement:</span>
+                  <Button
+                    onClick={() => onPlayBackgroundMusic("excitement")}
+                    disabled={currentBackgroundMusic === "excitement"}
+                    variant={currentBackgroundMusic === "excitement" ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 text-xs"
+                  >
+                    <Play className="mr-1 h-3 w-3" />
+                    Play
+                  </Button>
+                </div>
+                
+                {/* Stop Button */}
+                <Button
+                  onClick={onStopBackgroundMusic}
+                  disabled={!currentBackgroundMusic}
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                >
+                  <Square className="mr-2 h-3 w-3" />
+                  Stop All
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+
       {/* Controls Area */}
       <AnimatePresence mode="wait">
         {selectedTimeline === "question" && selectedQuestionIndex !== null && (
@@ -900,7 +1263,7 @@ export function OrchestrationPanel({
                         className="text-xs h-8"
                         disabled={orchestration.microState === "sponsor-video"}
                       >
-                        Go To
+                        Go to Sponsor
                       </Button>
                       <Button
                         onClick={onPlaySponsorVideo}

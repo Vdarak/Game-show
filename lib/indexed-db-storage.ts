@@ -5,7 +5,7 @@ const GAME_STATE_STORE = "game-state"
 const VIDEOS_STORE = "videos"
 const GAME_STATE_KEY = "gameshow-state"
 const VIDEO_KEY = "sponsor-video"
-const DB_VERSION = 2
+const DB_VERSION = 4
 
 let dbInstance: IDBDatabase | null = null
 

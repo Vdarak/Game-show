@@ -68,7 +68,7 @@ export function LightningRoundRulesScreen({ sponsorLogo1, sponsorLogo2 }: Lightn
             </p>
             <div className="flex items-center justify-center gap-12">
               {/* Sponsor Logo 1 */}
-              <div className="h-32 w-48 sm:h-40 sm:w-56 flex-shrink-0">
+              <div className="h-40 w-64 sm:h-48 sm:w-72 flex-shrink-0">
                 <img
                   src={sponsorLogo1 || "/gate-logo.png"}
                   alt="Sponsor"
@@ -76,7 +76,7 @@ export function LightningRoundRulesScreen({ sponsorLogo1, sponsorLogo2 }: Lightn
                 />
               </div>
               {/* Sponsor Logo 2 */}
-              <div className="h-32 w-48 sm:h-40 sm:w-56 flex-shrink-0">
+              <div className="h-40 w-64 sm:h-48 sm:w-72 flex-shrink-0">
                 <img
                   src={sponsorLogo2 || "/gate-logo.png"}
                   alt="Sponsor"
@@ -84,7 +84,7 @@ export function LightningRoundRulesScreen({ sponsorLogo1, sponsorLogo2 }: Lightn
                 />
               </div>
               {/* GATE Logo (Always third) */}
-              <div className="h-32 w-48 sm:h-40 sm:w-56 flex-shrink-0">
+              <div className="h-40 w-64 sm:h-48 sm:w-72 flex-shrink-0">
                 <img
                   src="/gate-logo.png"
                   alt="GATE"

@@ -65,6 +65,8 @@ interface OrchestrationState {
   microState: MicroState
   currentQuestionInFlow: number // which question in the flow (0-indexed)
   sponsorVideoTrigger: number | null // timestamp to trigger video playback (video data in IndexedDB)
+  sponsorVideoPauseTrigger: number | null // timestamp to trigger video pause
+  sponsorVideoStopTrigger: number | null // timestamp to trigger video stop
   videoPlaybackStatus: "stopped" | "playing" | "paused" // video playback status
   showWelcome: boolean // show welcome screen elements
   showRules: boolean // show rules screen
@@ -230,6 +232,8 @@ const DEFAULT_STATE: GameState = {
     microState: "preview",
     currentQuestionInFlow: 0,
     sponsorVideoTrigger: null,
+    sponsorVideoPauseTrigger: null,
+    sponsorVideoStopTrigger: null,
     videoPlaybackStatus: "stopped",
     showWelcome: true,
     showRules: false,
@@ -964,6 +968,7 @@ export function useGameState() {
         orchestration: {
           ...prev.orchestration,
           videoPlaybackStatus: "paused",
+          sponsorVideoPauseTrigger: Date.now(), // Trigger pause
         },
       }
       broadcastState(newState)
@@ -978,6 +983,7 @@ export function useGameState() {
         orchestration: {
           ...prev.orchestration,
           videoPlaybackStatus: "stopped",
+          sponsorVideoStopTrigger: Date.now(), // Trigger stop
         },
       }
       broadcastState(newState)
@@ -992,6 +998,7 @@ export function useGameState() {
         orchestration: {
           ...prev.orchestration,
           videoPlaybackStatus: "stopped",
+          sponsorVideoStopTrigger: Date.now(),
         },
       }
       broadcastState(newState)

@@ -3,7 +3,7 @@
 const DB_NAME = "gameshow-data"
 const STORE_NAME = "videos"
 const VIDEO_KEY = "sponsor-video"
-const DB_VERSION = 2
+const DB_VERSION = 4
 
 let dbInstance: IDBDatabase | null = null
 

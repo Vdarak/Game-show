@@ -14,24 +14,42 @@ interface SponsorVideoScreenProps {
 export function SponsorVideoScreen({ videoUrl, sponsorLogo, footerText, onVideoEnd }: SponsorVideoScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const { state } = useGameState()
+  const lastPlayTrigger = useRef<number | null>(null)
+  const lastPauseTrigger = useRef<number | null>(null)
+  const lastStopTrigger = useRef<number | null>(null)
 
-  // Handle playback commands
+  // Handle play trigger - only play if trigger actually changed
   useEffect(() => {
-    if (!videoRef.current) return
-
+    if (!videoRef.current || !state.orchestration.sponsorVideoTrigger) return
+    if (state.orchestration.sponsorVideoTrigger === lastPlayTrigger.current) return
+    
+    lastPlayTrigger.current = state.orchestration.sponsorVideoTrigger
     const video = videoRef.current
+    video.play().catch((error) => {
+      console.error("Error playing video:", error)
+    })
+  }, [state.orchestration.sponsorVideoTrigger])
 
-    if (state.orchestration.videoPlaybackStatus === "playing") {
-      video.play().catch((error) => {
-        console.error("Error playing video:", error)
-      })
-    } else if (state.orchestration.videoPlaybackStatus === "paused") {
-      video.pause()
-    } else if (state.orchestration.videoPlaybackStatus === "stopped") {
-      video.pause()
-      video.currentTime = 0
-    }
-  }, [state.orchestration.videoPlaybackStatus])
+  // Handle pause trigger - only pause if trigger actually changed
+  useEffect(() => {
+    if (!videoRef.current || !state.orchestration.sponsorVideoPauseTrigger) return
+    if (state.orchestration.sponsorVideoPauseTrigger === lastPauseTrigger.current) return
+    
+    lastPauseTrigger.current = state.orchestration.sponsorVideoPauseTrigger
+    const video = videoRef.current
+    video.pause()
+  }, [state.orchestration.sponsorVideoPauseTrigger])
+
+  // Handle stop trigger - only stop if trigger actually changed
+  useEffect(() => {
+    if (!videoRef.current || !state.orchestration.sponsorVideoStopTrigger) return
+    if (state.orchestration.sponsorVideoStopTrigger === lastStopTrigger.current) return
+    
+    lastStopTrigger.current = state.orchestration.sponsorVideoStopTrigger
+    const video = videoRef.current
+    video.pause()
+    video.currentTime = 0
+  }, [state.orchestration.sponsorVideoStopTrigger])
 
   // Handle video end - just notify, don't auto-advance
   const handleVideoEnded = () => {
@@ -108,13 +126,13 @@ export function SponsorVideoScreen({ videoUrl, sponsorLogo, footerText, onVideoE
       </div>
 
       {/* Sponsor Video Content */}
-      <div className="relative z-10 flex items-center justify-center w-full h-[calc(100vh-180px)] mt-24">
+      <div className="relative z-10 flex items-center justify-center w-full max-w-[90vw] h-[calc(100vh-180px)] mt-24">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
           transition={{ duration: 0.5 }}
-          className="relative w-full max-w-6xl aspect-video rounded-3xl overflow-hidden shadow-2xl border-4 border-orange-500"
+          className="relative w-full max-w-[80vw] aspect-video rounded-3xl overflow-hidden shadow-2xl border-4 border-orange-500"
         >
           <video
             ref={videoRef}
@@ -122,6 +140,7 @@ export function SponsorVideoScreen({ videoUrl, sponsorLogo, footerText, onVideoE
             onEnded={handleVideoEnded}
             className="w-full h-full object-contain bg-black"
             src={videoUrl}
+            preload="metadata"
           >
             <source src={videoUrl} type="video/mp4" />
           </video>

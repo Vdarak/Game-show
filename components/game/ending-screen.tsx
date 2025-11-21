@@ -120,7 +120,7 @@ export function EndingScreen({
                   className="text-sm sm:text-lg md:text-xl font-black text-yellow-400 text-center leading-tight mb-1 uppercase tracking-wider"
                   style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}
                 >
-                  Our Amazing Sponsors
+                  {sponsorName}
                 </h3>
               </div>
               <div className="flex-1 flex items-center justify-center min-h-0 my-1">
@@ -152,27 +152,7 @@ export function EndingScreen({
             </motion.div>
           </div>
 
-          {/* Cognijin Credit Card */}
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 1.2 }}
-            className="w-full bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 border-3 border-purple-400 rounded-lg p-2 sm:p-3 flex-shrink-0 shadow-xl"
-          >
-            <div className="flex items-center justify-center gap-3">
-              <div className="h-8 w-12 sm:h-10 sm:w-16 relative flex-shrink-0">
-                <Image
-                  src="/cognijin.svg"
-                  alt="Cognijin"
-                  fill
-                  className="object-contain bg-white/80 rounded-md"
-                />
-              </div>
-              <p className="text-white text-[0.6rem] sm:text-xs font-bold text-center leading-tight">
-                Popular Consensus Designed & Developed by <span className="font-black">Cognijin</span>
-              </p>
-            </div>
-          </motion.div>
+          
 
           {/* Bottom Row - QR Codes (Full Width - 1/3rd of screen) */}
           <motion.div
@@ -194,7 +174,7 @@ export function EndingScreen({
                   />
                 </div>
                 <p className="text-sm sm:text-base md:text-lg font-bold text-teal-600 text-center leading-tight">
-                  Google
+                  Leave a Review
                 </p>
               </div>
 
@@ -227,6 +207,27 @@ export function EndingScreen({
                   Website
                 </p>
               </div>
+            </div>
+          </motion.div>
+          {/* Cognijin Credit Card */}
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 1.2 }}
+            className="w-full bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 border-3 border-purple-400 rounded-lg p-2 sm:p-3 flex-shrink-0 shadow-xl"
+          >
+            <div className="flex items-center justify-center gap-3">
+              <div className="h-8 w-12 sm:h-10 sm:w-16 relative flex-shrink-0">
+                <Image
+                  src="/cognijin.svg"
+                  alt="Cognijin"
+                  fill
+                  className="object-contain bg-white/80 rounded-md"
+                />
+              </div>
+              <p className="text-white text-[0.6rem] sm:text-xs font-bold text-center leading-tight">
+                Popular Consensus Designed & Developed by <span className="font-black">Cognijin</span>
+              </p>
             </div>
           </motion.div>
         </div>
