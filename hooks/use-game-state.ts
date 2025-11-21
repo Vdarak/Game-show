@@ -285,11 +285,11 @@ const DEFAULT_STATE: GameState = {
 }
 
 function migrateOldState(savedState: any): GameState {
-  // If state already has teams array, migrate it and use latest questions
+  // If state already has teams array, preserve all data including loaded episode questions
   if (savedState.teams && Array.isArray(savedState.teams)) {
     return {
       ...savedState,
-      questions: DEFAULT_STATE.questions, // Always use latest questions
+      questions: savedState.questions || DEFAULT_STATE.questions, // Preserve saved questions (including loaded episodes)
       sponsorLogo: savedState.sponsorLogo || null, // Preserve sponsor logo
       hasSponsorVideo: savedState.hasSponsorVideo || false, // Preserve flag
       surveyFooterTexts: savedState.surveyFooterTexts || ["", "", "", "", ""], // Preserve per-survey footer texts
