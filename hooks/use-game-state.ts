@@ -1126,6 +1126,35 @@ export function useGameState() {
     [broadcastState],
   )
 
+  const hideLightningAnswer = useCallback(
+    (contestant: 1 | 2, answerIndex: number) => {
+      setState((prev) => {
+        const contestantKey = contestant === 1 ? "contestant1" : "contestant2"
+        const currentContestant = prev.lightningRound[contestantKey]
+        const newAnswers = [...currentContestant.answers]
+        newAnswers[answerIndex] = {
+          ...newAnswers[answerIndex],
+          revealed: false,
+          pointsRevealed: false,
+        }
+        
+        const newState = {
+          ...prev,
+          lightningRound: {
+            ...prev.lightningRound,
+            [contestantKey]: {
+              ...currentContestant,
+              answers: newAnswers,
+            },
+          },
+        }
+        broadcastState(newState)
+        return newState
+      })
+    },
+    [broadcastState],
+  )
+
   const revealAllLightningAnswers = useCallback(
     (contestant: 1 | 2) => {
       setState((prev) => {
@@ -1576,6 +1605,7 @@ export function useGameState() {
     updateLightningContestantName,
     updateLightningAnswer,
     revealLightningAnswer,
+    hideLightningAnswer,
     revealAllLightningAnswers,
     hideAllLightningAnswers,
     toggleLightningPoints,

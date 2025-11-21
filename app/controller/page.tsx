@@ -87,6 +87,7 @@ export default function ControllerPage() {
     updateLightningContestantName,
     updateLightningAnswer,
     revealLightningAnswer,
+    hideLightningAnswer,
     toggleLightningPoints,
     revealAllLightningAnswers,
     hideAllLightningAnswers,
@@ -129,6 +130,8 @@ export default function ControllerPage() {
     { name: "Duplicate", type: "duplicate" as const, filename: "duplicate-answer.wav", color: "border-yellow-600" },
     { name: "Wrong", type: "buzz" as const, filename: "wrong-buzzer.wav", color: "border-red-600" },
     { name: "Whoosh", type: "whoosh" as const, filename: "answer-box-fly-whoosh.wav", color: "border-blue-600" },
+    { name: "Answer Reveal", type: "answer-reveal" as const, filename: "answer-reveal.wav", color: "border-cyan-600" },
+    { name: "Point Reveal", type: "point-reveal" as const, filename: "point-reveal.wav", color: "border-orange-600" },
   ]
 
   // Preload sound effects immediately when audio is ready
@@ -819,6 +822,7 @@ export default function ControllerPage() {
             onUpdateLightningContestantName={updateLightningContestantName}
             onUpdateLightningAnswer={updateLightningAnswer}
             onRevealLightningAnswer={revealLightningAnswer}
+            onHideLightningAnswer={hideLightningAnswer}
             onToggleLightningPoints={toggleLightningPoints}
             onRevealAllLightningAnswers={revealAllLightningAnswers}
             onHideAllLightningAnswers={hideAllLightningAnswers}

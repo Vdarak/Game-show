@@ -63,7 +63,7 @@ interface OrchestrationPanelProps {
   onAddQuestion: (question: any) => void
   onUpdateQuestion: (id: string, question: any) => void
   onDeleteQuestion: (id: string) => void
-  onPlaySound: (type: "ding" | "buzz" | "buzzer" | "duplicate" | "whoosh") => void
+  onPlaySound: (type: "ding" | "buzz" | "buzzer" | "duplicate" | "whoosh" | "answer-reveal" | "point-reveal") => void
   sponsorLogo: string | null
   onSponsorLogoUpload: (event: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveSponsorLogo: () => void
@@ -79,6 +79,7 @@ interface OrchestrationPanelProps {
   onUpdateLightningContestantName: (contestant: 1 | 2, name: string) => void
   onUpdateLightningAnswer: (contestant: 1 | 2, answerIndex: number, text: string, points: number) => void
   onRevealLightningAnswer: (contestant: 1 | 2, answerIndex: number) => void
+  onHideLightningAnswer: (contestant: 1 | 2, answerIndex: number) => void
   onToggleLightningPoints: (contestant: 1 | 2, answerIndex: number) => void
   onRevealAllLightningAnswers: (contestant: 1 | 2) => void
   onHideAllLightningAnswers: (contestant: 1 | 2) => void
@@ -100,7 +101,7 @@ interface OrchestrationPanelProps {
   onUpdateScore: (teamId: string, points: number) => void
   onTriggerWrongAnswer: () => void
   onAddStrike: () => void
-  soundEffects: Array<{ name: string; type: "ding" | "buzz" | "buzzer" | "duplicate" | "whoosh"; filename: string; color: string }>
+  soundEffects: Array<{ name: string; type: "ding" | "buzz" | "buzzer" | "duplicate" | "whoosh" | "answer-reveal" | "point-reveal"; filename: string; color: string }>
   playingSound: string | null
   currentBackgroundMusic: "intro" | "excitement" | null
   onPlayBackgroundMusic: (type: "intro" | "excitement") => void
@@ -154,6 +155,7 @@ export function OrchestrationPanel({
   onUpdateLightningContestantName,
   onUpdateLightningAnswer,
   onRevealLightningAnswer,
+  onHideLightningAnswer,
   onToggleLightningPoints,
   onRevealAllLightningAnswers,
   onHideAllLightningAnswers,
@@ -981,8 +983,8 @@ export function OrchestrationPanel({
           <Card className="bg-gray-700/50 border-gray-600 p-4 h-full">
             <h2 className="mb-4 font-display text-sm">Sound Effects</h2>
             
-            {/* Sound Effect Buttons - 5 columns on large screens */}
-            <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            {/* Sound Effect Buttons - One row */}
+            <div className="mb-4 flex gap-2 flex-wrap">
               {soundEffects.map((sound) => (
                 <motion.button
                   key={sound.type}
@@ -996,16 +998,16 @@ export function OrchestrationPanel({
                   }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.95 }}
-                  className={`relative aspect-square flex flex-col items-center justify-center rounded-lg font-display font-bold text-white transition-all duration-200 border ${sound.color} border-opacity-70 bg-gray-700 hover:border-opacity-100`}
+                  className={`relative flex-1 min-w-20 flex flex-col items-center justify-center py-3 px-2 rounded-lg font-display font-bold text-white transition-all duration-200 border ${sound.color} border-opacity-70 bg-gray-700 hover:border-opacity-100`}
                 >
                   <motion.div
                     animate={playingSound === sound.type ? { scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] } : { scale: 1, rotate: 0 }}
                     transition={{ duration: 0.3, repeat: playingSound === sound.type ? Infinity : 0 }}
                     className="flex flex-col items-center"
                   >
-                    <Volume2 className="h-6 w-6 sm:h-8 sm:w-8 mb-1" />
+                    <Volume2 className="h-5 w-5 mb-1" />
                   </motion.div>
-                  <span className="text-xs sm:text-sm text-center px-1">{sound.name}</span>
+                  <span className="text-xs text-center px-1">{sound.name}</span>
                 </motion.button>
               ))}
             </div>
@@ -1555,6 +1557,7 @@ export function OrchestrationPanel({
               onUpdateContestantName={onUpdateLightningContestantName}
               onUpdateAnswer={onUpdateLightningAnswer}
               onRevealAnswer={onRevealLightningAnswer}
+              onHideAnswer={onHideLightningAnswer}
               onTogglePoints={onToggleLightningPoints}
               onRevealAllAnswers={onRevealAllLightningAnswers}
               onHideAllAnswers={onHideAllLightningAnswers}

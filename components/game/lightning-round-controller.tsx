@@ -14,10 +14,11 @@ interface LightningRoundControllerProps {
   onUpdateContestantName: (contestant: 1 | 2, name: string) => void
   onUpdateAnswer: (contestant: 1 | 2, answerIndex: number, text: string, points: number) => void
   onRevealAnswer: (contestant: 1 | 2, answerIndex: number) => void
+  onHideAnswer: (contestant: 1 | 2, answerIndex: number) => void
   onTogglePoints: (contestant: 1 | 2, answerIndex: number) => void
   onRevealAllAnswers: (contestant: 1 | 2) => void
   onHideAllAnswers: (contestant: 1 | 2) => void
-  onPlaySound: (type: "ding" | "buzz" | "buzzer" | "duplicate" | "whoosh") => void
+  onPlaySound: (type: "ding" | "buzz" | "buzzer" | "duplicate" | "whoosh" | "answer-reveal" | "point-reveal") => void
   onStartTimer: (seconds: number) => void
   onStopTimer: () => void
   onToggleTimerVisibility: () => void
@@ -55,6 +56,7 @@ export function LightningRoundController({
   onUpdateContestantName,
   onUpdateAnswer,
   onRevealAnswer,
+  onHideAnswer,
   onTogglePoints,
   onRevealAllAnswers,
   onHideAllAnswers,
@@ -220,14 +222,28 @@ export function LightningRoundController({
 
           {/* Reveal All Button */}
           <Button
-            onClick={() => handleSequentialReveal(1)}
+            onClick={() => {
+              if (allAnswersRevealed1) {
+                onHideAllAnswers(1)
+              } else {
+                handleSequentialReveal(1)
+              }
+            }}
             variant="default"
             className="w-full mb-3"
             size="sm"
-            disabled={allAnswersRevealed1}
           >
-            <Eye className="mr-2 h-4 w-4" />
-            Reveal All Answers
+            {allAnswersRevealed1 ? (
+              <>
+                <EyeOff className="mr-2 h-4 w-4" />
+                Hide All Answers
+              </>
+            ) : (
+              <>
+                <Eye className="mr-2 h-4 w-4" />
+                Reveal All Answers
+              </>
+            )}
           </Button>
 
           {/* Answers */}
@@ -272,18 +288,36 @@ export function LightningRoundController({
                 <div className="flex gap-1">
                   <Button
                     onClick={() => {
-                      onRevealAnswer(1, index)
-                      onPlaySound("whoosh")
+                      if (answer.revealed) {
+                        onHideAnswer(1, index)
+                      } else {
+                        onRevealAnswer(1, index)
+                        onPlaySound("answer-reveal")
+                      }
                     }}
                     variant={answer.revealed ? "secondary" : "default"}
                     size="sm"
                     className="flex-1 h-7 text-xs"
                   >
-                    <Eye className="mr-1 h-3 w-3" />
-                    {answer.revealed ? "Revealed" : "Reveal"}
+                    {answer.revealed ? (
+                      <>
+                        <EyeOff className="mr-1 h-3 w-3" />
+                        Hide
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="mr-1 h-3 w-3" />
+                        Reveal
+                      </>
+                    )}
                   </Button>
                   <Button
-                    onClick={() => onTogglePoints(1, index)}
+                    onClick={() => {
+                      onTogglePoints(1, index)
+                      if (!answer.pointsRevealed) {
+                        onPlaySound("point-reveal")
+                      }
+                    }}
                     variant={answer.pointsRevealed ? "secondary" : "outline"}
                     size="sm"
                     className="flex-1 h-7 text-xs"
@@ -322,14 +356,28 @@ export function LightningRoundController({
 
           {/* Reveal All Button */}
           <Button
-            onClick={() => handleSequentialReveal(2)}
+            onClick={() => {
+              if (allAnswersRevealed2) {
+                onHideAllAnswers(2)
+              } else {
+                handleSequentialReveal(2)
+              }
+            }}
             variant="default"
             className="w-full mb-3"
             size="sm"
-            disabled={allAnswersRevealed2}
           >
-            <Eye className="mr-2 h-4 w-4" />
-            Reveal All Answers
+            {allAnswersRevealed2 ? (
+              <>
+                <EyeOff className="mr-2 h-4 w-4" />
+                Hide All Answers
+              </>
+            ) : (
+              <>
+                <Eye className="mr-2 h-4 w-4" />
+                Reveal All Answers
+              </>
+            )}
           </Button>
 
           {/* Answers */}
@@ -374,18 +422,36 @@ export function LightningRoundController({
                 <div className="flex gap-1">
                   <Button
                     onClick={() => {
-                      onRevealAnswer(2, index)
-                      onPlaySound("whoosh")
+                      if (answer.revealed) {
+                        onHideAnswer(2, index)
+                      } else {
+                        onRevealAnswer(2, index)
+                        onPlaySound("answer-reveal")
+                      }
                     }}
                     variant={answer.revealed ? "secondary" : "default"}
                     size="sm"
                     className="flex-1 h-7 text-xs"
                   >
-                    <Eye className="mr-1 h-3 w-3" />
-                    {answer.revealed ? "Revealed" : "Reveal"}
+                    {answer.revealed ? (
+                      <>
+                        <EyeOff className="mr-1 h-3 w-3" />
+                        Hide
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="mr-1 h-3 w-3" />
+                        Reveal
+                      </>
+                    )}
                   </Button>
                   <Button
-                    onClick={() => onTogglePoints(2, index)}
+                    onClick={() => {
+                      onTogglePoints(2, index)
+                      if (!answer.pointsRevealed) {
+                        onPlaySound("point-reveal")
+                      }
+                    }}
                     variant={answer.pointsRevealed ? "secondary" : "outline"}
                     size="sm"
                     className="flex-1 h-7 text-xs"
