@@ -146,8 +146,8 @@ export function EndingScreen({
             >
                 <div className="space-y-2 sm:space-y-4 text-white text-xl sm:text-3xl md:text-4xl font-bold text-center leading-tight">
                 <div className="text-emerald-400 font-black text-2xl sm:text-4xl md:text-5xl">Jordan White</div>
-                <div className="break-all text-lg sm:text-2xl md:text-3xl">gatentertainment.org</div>
-                <div className="text-lg sm:text-2xl md:text-3xl">+1 (303) 332-2449</div>
+                <div className="break-all text-lg sm:text-2xl md:text-3xl">www.GamesAndTrivia.fun</div>
+                <div className="text-lg sm:text-2xl md:text-3xl">(303) 332-2449</div>
                 </div>
             </motion.div>
           </div>
