@@ -146,8 +146,7 @@ function DigitColumn({ digit, isChanged, isIncreasing, color, size, theme = "" }
             className={`flex w-full items-center justify-center ${size} font-bold tabular-nums leading-none`}
             style={{
               height: "100%",
-              color: color || "currentColor",
-              textShadow: color ? `0 0 20px ${color}40` : undefined,
+              color: color || "currentColor"
             }}
           >
             {num}

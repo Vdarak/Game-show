@@ -132,7 +132,11 @@ export default function UnifiedTeamDisplay() {
 
             {/* Overlay for video backgrounds to ensure content is readable */}
             {theme.backgroundVideo && (
-              <div className="absolute inset-0 bg-black/20 z-[1]" />
+              <div 
+                className={`absolute inset-0 z-[1] ${
+                  team.theme === 'valentine' ? 'bg-black/10' : 'bg-black/20'
+                }`} 
+              />
             )}
 
             {/* Score Change Toast for this team */}
