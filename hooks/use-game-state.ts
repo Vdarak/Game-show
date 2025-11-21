@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { saveVideoToIndexedDB, getVideoFromIndexedDB, deleteVideoFromIndexedDB } from "@/lib/video-storage"
 import { saveGameStateToIndexedDB, getGameStateFromIndexedDB } from "@/lib/indexed-db-storage"
+import { toast } from "sonner"
 
 interface Answer {
   id: string
@@ -1327,8 +1328,204 @@ export function useGameState() {
     [broadcastState],
   )
 
+  // Episode Management
+  const [episodes, setEpisodes] = useState<Array<{
+    id: string
+    name: string
+    createdAt: number
+    updatedAt: number
+    data: any
+  }>>([])
+  const [currentEpisodeName, setCurrentEpisodeName] = useState("")
+
+  // Load episodes from localStorage on mount
+  useEffect(() => {
+    const savedEpisodes = localStorage.getItem('gameshow-episodes')
+    if (savedEpisodes) {
+      try {
+        setEpisodes(JSON.parse(savedEpisodes))
+      } catch (error) {
+        console.error('Failed to load episodes:', error)
+      }
+    }
+  }, [])
+
+  // Save episodes to localStorage whenever they change
+  useEffect(() => {
+    if (episodes.length > 0) {
+      localStorage.setItem('gameshow-episodes', JSON.stringify(episodes))
+    }
+  }, [episodes])
+
+  const saveEpisode = useCallback((name: string, overwrite: boolean = false) => {
+    const episodeData = {
+      teams: state.teams.map(team => ({
+        id: team.id,
+        name: team.name,
+        color: team.color,
+        theme: team.theme,
+      })),
+      questions: state.questions,
+      surveyFooterTexts: state.surveyFooterTexts,
+      lightningRound: {
+        questions: state.lightningRound.questions,
+        contestant1: {
+          name: state.lightningRound.contestant1.name,
+          answers: state.lightningRound.contestant1.answers.map(a => ({
+            text: a.text,
+            points: a.points,
+          })),
+        },
+        contestant2: {
+          name: state.lightningRound.contestant2.name,
+          answers: state.lightningRound.contestant2.answers.map(a => ({
+            text: a.text,
+            points: a.points,
+          })),
+        },
+      },
+      sponsorName: state.sponsorName,
+    }
+
+    setEpisodes(prev => {
+      const existing = prev.find(ep => ep.name === name)
+      
+      if (existing && overwrite) {
+        toast.success(`Episode "${name}" updated successfully!`, {
+          duration: 3000,
+        })
+        return prev.map(ep => ep.name === name ? {
+          ...ep,
+          updatedAt: Date.now(),
+          data: episodeData,
+        } : ep)
+      } else {
+        toast.success(`Episode "${name}" saved successfully!`, {
+          duration: 3000,
+        })
+        const newEpisode = {
+          id: `episode-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          data: episodeData,
+        }
+        return [...prev, newEpisode]
+      }
+    })
+
+    setCurrentEpisodeName(name)
+  }, [state])
+
+  const loadEpisode = useCallback((episodeId: string) => {
+    const episode = episodes.find(ep => ep.id === episodeId)
+    if (!episode) return
+
+    const data = episode.data
+
+    setState(prev => {
+      // Restore teams with preserved scores and strikes
+      const restoredTeams = data.teams.map((savedTeam: any) => {
+        const currentTeam = prev.teams.find(t => t.id === savedTeam.id)
+        return {
+          ...savedTeam,
+          score: currentTeam?.score || 0,
+          currentRoundScore: 0,
+          strikes: currentTeam?.strikes || 0,
+        }
+      })
+
+      // Restore lightning round with reset reveals
+      const restoredLightningRound = {
+        ...prev.lightningRound,
+        questions: data.lightningRound.questions,
+        contestant1: {
+          name: data.lightningRound.contestant1.name,
+          answers: data.lightningRound.contestant1.answers.map((a: any, i: number) => ({
+            id: String(i + 1),
+            text: a.text,
+            points: a.points,
+            revealed: false,
+            pointsRevealed: false,
+          })),
+          totalPoints: 0,
+        },
+        contestant2: {
+          name: data.lightningRound.contestant2.name,
+          answers: data.lightningRound.contestant2.answers.map((a: any, i: number) => ({
+            id: String(i + 1),
+            text: a.text,
+            points: a.points,
+            revealed: false,
+            pointsRevealed: false,
+          })),
+          totalPoints: 0,
+        },
+      }
+
+      const newState: GameState = {
+        ...prev,
+        teams: restoredTeams,
+        questions: data.questions,
+        surveyFooterTexts: data.surveyFooterTexts,
+        lightningRound: restoredLightningRound,
+        sponsorName: data.sponsorName,
+        currentQuestionIndex: 0,
+        currentQuestion: data.questions[0] || null,
+      }
+
+      broadcastState(newState)
+      return newState
+    })
+
+    setCurrentEpisodeName(episode.name)
+    toast.success(`Episode "${episode.name}" loaded successfully!`, {
+      duration: 3000,
+    })
+  }, [episodes, broadcastState])
+
+  const renameEpisode = useCallback((episodeId: string, newName: string) => {
+    const oldName = episodes.find(ep => ep.id === episodeId)?.name
+    
+    setEpisodes(prev => prev.map(ep => ep.id === episodeId ? {
+      ...ep,
+      name: newName,
+      updatedAt: Date.now(),
+    } : ep))
+
+    // Update current episode name if it's the one being renamed
+    setEpisodes(prev => {
+      const renamed = prev.find(ep => ep.id === episodeId)
+      if (renamed && currentEpisodeName === renamed.name) {
+        setCurrentEpisodeName(newName)
+      }
+      return prev
+    })
+
+    toast.success(`Episode renamed from "${oldName}" to "${newName}"!`, {
+      duration: 3000,
+    })
+  }, [currentEpisodeName, episodes])
+
+  const deleteEpisode = useCallback((episodeId: string) => {
+    const episodeName = episodes.find(ep => ep.id === episodeId)?.name
+    
+    setEpisodes(prev => {
+      const episode = prev.find(ep => ep.id === episodeId)
+      if (episode && currentEpisodeName === episode.name) {
+        setCurrentEpisodeName("")
+      }
+      return prev.filter(ep => ep.id !== episodeId)
+    })
+
+    toast.success(`Episode "${episodeName}" deleted successfully!`, {
+      duration: 3000,
+    })
+  }, [currentEpisodeName, episodes])
+
   return {
     state,
+
     updateScore,
     addStrike,
     resetStrikes,
@@ -1390,6 +1587,13 @@ export function useGameState() {
     updateChibiImage,
     updateSponsorName,
     updateLightningRulesSponsorLogo,
+    // Episode management
+    episodes,
+    currentEpisodeName,
+    saveEpisode,
+    loadEpisode,
+    renameEpisode,
+    deleteEpisode,
   }
 }
 

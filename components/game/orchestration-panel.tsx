@@ -31,12 +31,15 @@ import {
   Minus,
   RotateCcw,
   Volume2,
-  Square
+  Square,
+  Archive
 } from "lucide-react"
 import type { MacroState, MicroState, OrchestrationState, Question, LightningRoundState, Team } from "@/hooks/use-game-state"
 import { LightningRoundController } from "./lightning-round-controller"
 import { AnimatedNumber } from "./animated-number"
 import { formatScore } from "@/lib/game-utils"
+import { EpisodeManager } from "./episode-manager"
+import type { Episode } from "./episode-manager"
 
 interface OrchestrationPanelProps {
   orchestration: OrchestrationState
@@ -82,6 +85,7 @@ interface OrchestrationPanelProps {
   onStartLightningTimer: (seconds: number) => void
   onStopLightningTimer: () => void
   onToggleLightningTimerVisibility: () => void
+  onResetLightningRound: () => void
   chibiImage: string
   onChibiImageChange: (imageUrl: string) => void
   sponsorName: string
@@ -101,6 +105,13 @@ interface OrchestrationPanelProps {
   currentBackgroundMusic: "intro" | "excitement" | null
   onPlayBackgroundMusic: (type: "intro" | "excitement") => void
   onStopBackgroundMusic: () => void
+  // Episode management props
+  episodes: Episode[]
+  currentEpisodeName: string
+  onSaveEpisode: (name: string, overwrite?: boolean) => void
+  onLoadEpisode: (episodeId: string) => void
+  onRenameEpisode: (episodeId: string, newName: string) => void
+  onDeleteEpisode: (episodeId: string) => void
 }
 
 type TimelineState = "welcome" | "rules" | "question" | "lightning-rules" | "lightning" | "ending"
@@ -149,6 +160,7 @@ export function OrchestrationPanel({
   onStartLightningTimer,
   onStopLightningTimer,
   onToggleLightningTimerVisibility,
+  onResetLightningRound,
   chibiImage,
   onChibiImageChange,
   sponsorName,
@@ -168,6 +180,13 @@ export function OrchestrationPanel({
   currentBackgroundMusic,
   onPlayBackgroundMusic,
   onStopBackgroundMusic,
+  // Episode management
+  episodes,
+  currentEpisodeName,
+  onSaveEpisode,
+  onLoadEpisode,
+  onRenameEpisode,
+  onDeleteEpisode,
 }: OrchestrationPanelProps) {
   const [selectedTimeline, setSelectedTimeline] = useState<TimelineState | null>(null)
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState<number | null>(null)
@@ -199,6 +218,9 @@ export function OrchestrationPanel({
   
   // Question manager state (Survey Questions)
   const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false)
+  
+  // Episode manager state
+  const [isEpisodeDialogOpen, setIsEpisodeDialogOpen] = useState(false)
   
   // Lightning Questions manager state
   const [isLightningQuestionsDialogOpen, setIsLightningQuestionsDialogOpen] = useState(false)
@@ -484,6 +506,29 @@ export function OrchestrationPanel({
           <h2 className="font-display text-lg font-bold">Game Orchestration</h2>
           
           <div className="flex gap-2">
+            {/* Episode Manager */}
+            <Dialog open={isEpisodeDialogOpen} onOpenChange={setIsEpisodeDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="border-purple-500 text-purple-400 hover:bg-purple-500/10">
+                  <Archive className="mr-2 h-4 w-4" />
+                  Manage Episodes
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-gray-800 text-white border-gray-700">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-display">Episode Manager</DialogTitle>
+                </DialogHeader>
+                <EpisodeManager
+                  episodes={episodes}
+                  currentEpisodeName={currentEpisodeName}
+                  onSaveEpisode={onSaveEpisode}
+                  onLoadEpisode={onLoadEpisode}
+                  onRenameEpisode={onRenameEpisode}
+                  onDeleteEpisode={onDeleteEpisode}
+                />
+              </DialogContent>
+            </Dialog>
+
             {/* Survey Questions Manager */}
             <Dialog open={isQuestionDialogOpen} onOpenChange={setIsQuestionDialogOpen}>
               <DialogTrigger asChild>
@@ -1517,6 +1562,7 @@ export function OrchestrationPanel({
               onStartTimer={onStartLightningTimer}
               onStopTimer={onStopLightningTimer}
               onToggleTimerVisibility={onToggleLightningTimerVisibility}
+              onResetLightningRound={onResetLightningRound}
             />
           </motion.div>
         )}

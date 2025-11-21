@@ -93,10 +93,18 @@ export default function ControllerPage() {
     startLightningTimer,
     stopLightningTimer,
     toggleLightningTimerVisibility,
+    resetLightningRound,
     // Ending screen functions
     updateChibiImage,
     updateSponsorName,
     updateLightningRulesSponsorLogo,
+    // Episode management
+    episodes,
+    currentEpisodeName,
+    saveEpisode,
+    loadEpisode,
+    renameEpisode,
+    deleteEpisode,
   } = useGameState()
 
   const { playSound, preloadSound, playingSound, isReady } = useAudio()
@@ -609,6 +617,7 @@ export default function ControllerPage() {
             onStartLightningTimer={startLightningTimer}
             onStopLightningTimer={stopLightningTimer}
             onToggleLightningTimerVisibility={toggleLightningTimerVisibility}
+            onResetLightningRound={resetLightningRound}
             chibiImage={state.chibiImage}
             onChibiImageChange={updateChibiImage}
             sponsorName={state.sponsorName}
@@ -654,6 +663,12 @@ export default function ControllerPage() {
               setIntroMusicPlaying(false)
               setCurrentBackgroundMusic(null)
             }}
+            episodes={episodes}
+            currentEpisodeName={currentEpisodeName}
+            onSaveEpisode={saveEpisode}
+            onLoadEpisode={loadEpisode}
+            onRenameEpisode={renameEpisode}
+            onDeleteEpisode={deleteEpisode}
           />
         </div>
 

@@ -5,7 +5,7 @@ import { motion, useSpring, useTransform } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
-import { Eye, EyeOff, Zap, Users, Timer, Play, Square } from "lucide-react"
+import { Eye, EyeOff, Zap, Users, Timer, Play, Square, RotateCcw } from "lucide-react"
 import type { LightningRoundState } from "@/hooks/use-game-state"
 
 interface LightningRoundControllerProps {
@@ -21,6 +21,7 @@ interface LightningRoundControllerProps {
   onStartTimer: (seconds: number) => void
   onStopTimer: () => void
   onToggleTimerVisibility: () => void
+  onResetLightningRound: () => void
 }
 
 function AnimatedPoints({ value, revealed }: { value: number; revealed: boolean }) {
@@ -61,6 +62,7 @@ export function LightningRoundController({
   onStartTimer,
   onStopTimer,
   onToggleTimerVisibility,
+  onResetLightningRound,
 }: LightningRoundControllerProps) {
   const [customTimerValue, setCustomTimerValue] = useState("25")
   const revealTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -397,6 +399,22 @@ export function LightningRoundController({
           </div>
         </Card>
       </div>
+
+      {/* Reset Button */}
+      <Card className="bg-red-900/20 border-red-600/50 p-3">
+        <Button
+          onClick={onResetLightningRound}
+          variant="destructive"
+          className="w-full"
+          size="sm"
+        >
+          <RotateCcw className="mr-2 h-4 w-4" />
+          Reset Lightning Round
+        </Button>
+        <p className="text-xs text-red-200 mt-2 text-center">
+          Resets all answers, points, and reveals back to default state
+        </p>
+      </Card>
 
       {/* Instructions */}
       <Card className="bg-yellow-900/20 border-yellow-600/50 p-3">
