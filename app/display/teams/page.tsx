@@ -235,9 +235,9 @@ export default function UnifiedTeamDisplay() {
                       times: [0, 0.2, 0.6, 1],
                       ease: "easeOut",
                     }}
-                    className="absolute z-50 left-1/2 top-2/3 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                    className="mt-4 absolute z-50 left-1/2 top-2/3 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                   >
-                    <h1 className="font-display text-2xl sm:text-3xl font-bold text-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.8)] whitespace-nowrap">
+                    <h1 className="font-display text-2xl sm:text-4xl font-bold text-red-800 drop-shadow-[0_0_20px_rgba(239,68,68,0.8)] whitespace-nowrap">
                       YOU'RE OUT!
                     </h1>
                   </motion.div>
