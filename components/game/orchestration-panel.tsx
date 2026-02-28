@@ -1151,11 +1151,10 @@ export function OrchestrationPanel({
                   {currentQuestion.answers.length < 6 ? (
                     <div className="flex flex-col gap-2">
                       {currentQuestion.answers.map((answer, index) => (
-                        <motion.button
+                        <motion.div
                           key={answer.id}
                           whileHover={orchestration.microState !== "preview" ? { scale: 1.02 } : {}}
                           whileTap={orchestration.microState !== "preview" ? { scale: 0.98 } : {}}
-                          disabled={orchestration.microState === "preview"}
                           className={`flex items-center justify-between gap-2 rounded-lg p-2 transition-colors text-left ${
                             orchestration.microState === "preview" 
                               ? "bg-gray-800 opacity-50 cursor-not-allowed"
@@ -1163,13 +1162,6 @@ export function OrchestrationPanel({
                                 ? "bg-green-600" 
                                 : "bg-gray-700 hover:bg-gray-600"
                           }`}
-                          onClick={() => {
-                            if (orchestration.microState === "preview") return
-                            if (!answer.revealed) {
-                              onPlaySound("ding")
-                            }
-                            onRevealAnswer(answer.id)
-                          }}
                         >
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-800 font-display text-xs">
@@ -1180,8 +1172,7 @@ export function OrchestrationPanel({
                           <div className="flex items-center gap-2 flex-shrink-0">
                             <div className="font-display text-xs text-yellow-400">{answer.points}</div>
                             <Button
-                              onClick={(e) => {
-                                e.stopPropagation()
+                              onClick={() => {
                                 if (orchestration.microState === "preview") return
                                 if (!answer.revealed) {
                                   onPlaySound("ding")
@@ -1196,7 +1187,7 @@ export function OrchestrationPanel({
                               {answer.revealed ? "Hide" : "Show"}
                             </Button>
                           </div>
-                        </motion.button>
+                        </motion.div>
                       ))}
                     </div>
                   ) : (
