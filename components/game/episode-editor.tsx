@@ -1,0 +1,861 @@
+"use client"
+
+import { useState, useEffect, useCallback, useRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Plus,
+  Folder,
+  Layers,
+  HelpCircle,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Save,
+  Clock,
+  X,
+  Edit3,
+  ArrowLeft,
+  Video,
+  Zap,
+  Target,
+  Timer,
+  FileText,
+  CheckCircle,
+  MessageSquare,
+} from "lucide-react"
+import { episodesApi, roundsApi, questionsApi } from "@/lib/api-client"
+import type {
+  Episode,
+  EpisodeWithRounds,
+  Round,
+  RoundWithQuestions,
+  Question,
+  QuestionType,
+  ScoringMode,
+} from "@/lib/api-types"
+import { toast } from "sonner"
+
+interface EpisodeEditorProps {
+  episodeId: string
+  onClose: () => void
+  onUpdate?: () => void
+}
+
+export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorProps) {
+  const [isLoading, setIsLoading] = useState(true)
+  const [isOperating, setIsOperating] = useState(false) // For blocking operations (add/delete)
+  const [isAutosaving, setIsAutosaving] = useState(false) // For autosave (non-blocking)
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
+  const [episode, setEpisode] = useState<EpisodeWithRounds | null>(null)
+  const [expandedRound, setExpandedRound] = useState<number | null>(null)
+  const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null)
+
+  // Edit states
+  const [editingEpisode, setEditingEpisode] = useState(false)
+  const [episodeTitle, setEpisodeTitle] = useState("")
+  const [episodeDescription, setEpisodeDescription] = useState("")
+
+  // Load episode
+  useEffect(() => {
+    loadEpisode()
+  }, [episodeId])
+
+  const loadEpisode = async () => {
+    setIsLoading(true)
+    try {
+      const data = await episodesApi.get(episodeId)
+      setEpisode(data)
+      setEpisodeTitle(data.Title)
+      setEpisodeDescription(data.Description || "")
+    } catch (err) {
+      toast.error("Failed to load episode")
+      onClose()
+    }
+    setIsLoading(false)
+  }
+
+  // Save Episode
+  const handleSaveEpisode = async () => {
+    if (!episode) return
+    setIsOperating(true)
+    try {
+      await episodesApi.update({
+        IDEpisode: episode.IDEpisode,
+        Title: episodeTitle,
+        Description: episodeDescription || undefined,
+      })
+      setEpisode({ ...episode, Title: episodeTitle, Description: episodeDescription })
+      setEditingEpisode(false)
+      setLastSavedAt(new Date())
+      toast.success("Episode updated!")
+      onUpdate?.()
+    } catch (err) {
+      toast.error("Failed to update episode")
+    }
+    setIsOperating(false)
+  }
+
+  // Add Round
+  const handleAddRound = async () => {
+    if (!episode) return
+    setIsOperating(true)
+    try {
+      const newRound = await roundsApi.create({
+        IDEpisode: episode.IDEpisode,
+        RoundNumber: episode.rounds.length + 1,
+        TimerSeconds: 20,
+        PointPoolOptions: [2, 4, 6, 8],
+        TimedBonusTiers: [{ within: 5, bonus: 3 }, { within: 10, bonus: 1 }],
+        NegativeScoring: false,
+        ScoringMode: "both",
+      })
+      setEpisode({
+        ...episode,
+        rounds: [...episode.rounds, { ...newRound, questions: [] }],
+      })
+      setExpandedRound(episode.rounds.length)
+      toast.success("Round added!")
+    } catch (err) {
+      toast.error("Failed to add round")
+    }
+    setIsOperating(false)
+  }
+
+  // Update Round (autosave - non-blocking)
+  const handleUpdateRound = async (roundId: string, updates: Partial<Round>) => {
+    if (!episode) return
+    setIsAutosaving(true)
+    try {
+      const updated = await roundsApi.update({ IDRound: roundId, ...updates })
+      setEpisode({
+        ...episode,
+        rounds: episode.rounds.map((r) =>
+          r.IDRound === roundId ? { ...r, ...updated } : r
+        ),
+      })
+      setLastSavedAt(new Date())
+    } catch (err) {
+      // Silently fail for autosave
+      console.error("Failed to update round:", err)
+    }
+    setIsAutosaving(false)
+  }
+
+  // Delete Round
+  const handleDeleteRound = async (roundId: string) => {
+    if (!episode) return
+    if (!confirm("Delete this round and all its questions?")) return
+    
+    setIsOperating(true)
+    try {
+      await roundsApi.delete(roundId)
+      setEpisode({
+        ...episode,
+        rounds: episode.rounds.filter((r) => r.IDRound !== roundId),
+      })
+      toast.success("Round deleted!")
+      onUpdate?.()
+    } catch (err) {
+      toast.error("Failed to delete round")
+    }
+    setIsOperating(false)
+  }
+
+  // Add Question
+  const handleAddQuestion = async (roundId: string, roundIndex: number) => {
+    if (!episode) return
+    const round = episode.rounds[roundIndex]
+    
+    setIsOperating(true)
+    try {
+      const newQuestion = await questionsApi.create({
+        IDRound: roundId,
+        QuestionOrder: round.questions.length + 1,
+        QuestionText: "New Question",
+        QuestionType: "multiple_choice",
+        CorrectAnswer: "",
+        Options: ["", "", "", ""],
+      })
+      
+      const updatedRounds = [...episode.rounds]
+      updatedRounds[roundIndex] = {
+        ...round,
+        questions: [...round.questions, newQuestion],
+      }
+      setEpisode({ ...episode, rounds: updatedRounds })
+      setExpandedQuestion(newQuestion.IDQuestion)
+      toast.success("Question added!")
+    } catch (err) {
+      toast.error("Failed to add question")
+    }
+    setIsOperating(false)
+  }
+
+  // Update Question (autosave - non-blocking)
+  const handleUpdateQuestion = async (questionId: string, roundIndex: number, updates: Partial<Question>) => {
+    if (!episode) return
+    setIsAutosaving(true)
+    try {
+      // Build update request with proper types
+      const updateRequest = {
+        IDQuestion: questionId,
+        QuestionText: updates.QuestionText,
+        CorrectAnswer: updates.CorrectAnswer,
+        Category: updates.Category ?? undefined,
+        QuestionType: updates.QuestionType,
+        Options: updates.Options ?? undefined,
+      }
+      const updated = await questionsApi.update(updateRequest)
+      const updatedRounds = [...episode.rounds]
+      updatedRounds[roundIndex] = {
+        ...updatedRounds[roundIndex],
+        questions: updatedRounds[roundIndex].questions.map((q) =>
+          q.IDQuestion === questionId ? { ...q, ...updated } : q
+        ),
+      }
+      setEpisode({ ...episode, rounds: updatedRounds })
+      setLastSavedAt(new Date())
+    } catch (err) {
+      // Silently fail for autosave
+      console.error("Failed to update question:", err)
+    }
+    setIsAutosaving(false)
+  }
+
+  // Delete Question
+  const handleDeleteQuestion = async (questionId: string, roundIndex: number) => {
+    if (!episode) return
+    if (!confirm("Delete this question?")) return
+    
+    setIsOperating(true)
+    try {
+      await questionsApi.delete(questionId)
+      const updatedRounds = [...episode.rounds]
+      updatedRounds[roundIndex] = {
+        ...updatedRounds[roundIndex],
+        questions: updatedRounds[roundIndex].questions.filter(
+          (q) => q.IDQuestion !== questionId
+        ),
+      }
+      setEpisode({ ...episode, rounds: updatedRounds })
+      toast.success("Question deleted!")
+    } catch (err) {
+      toast.error("Failed to delete question")
+    }
+    setIsOperating(false)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 z-50 bg-gray-950 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      </div>
+    )
+  }
+
+  if (!episode) return null
+
+  return (
+    <div className="fixed inset-0 z-50 bg-gray-950 flex flex-col">
+      {/* Header */}
+      <div className="flex-shrink-0 bg-gray-900 border-b border-gray-800 px-3 sm:px-6 py-3 sm:py-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 px-2">
+              <ArrowLeft className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Back</span>
+            </Button>
+            <div className="h-6 w-px bg-gray-700 hidden sm:block" />
+            {editingEpisode ? (
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 flex-wrap">
+                <Input
+                  value={episodeTitle}
+                  onChange={(e) => setEpisodeTitle(e.target.value)}
+                  className="bg-gray-800 border-gray-700 w-full sm:w-64"
+                  placeholder="Episode Title"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleSaveEpisode}
+                    disabled={isOperating}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Save className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Save</span>
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingEpisode(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                <Folder className="h-5 w-5 text-purple-400 flex-shrink-0" />
+                <h1 className="text-lg sm:text-xl font-bold text-white truncate">{episode.Title}</h1>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setEditingEpisode(true)}
+                  className="text-gray-400 flex-shrink-0"
+                >
+                  <Edit3 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-500">
+            {isAutosaving ? (
+              <span className="flex items-center gap-1.5 text-purple-400">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Autosaving...
+              </span>
+            ) : lastSavedAt ? (
+              <span className="text-gray-500">
+                Saved {lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            ) : null}
+            <span>
+              {episode.rounds.length} rounds · {episode.rounds.reduce((acc, r) => acc + r.questions.length, 0)} questions
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+        {/* Rounds List */}
+        <div className="w-full md:w-80 bg-gray-900/50 md:border-r border-b md:border-b-0 border-gray-800 flex flex-col max-h-48 md:max-h-none">
+          <div className="p-4 border-b border-gray-800">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="font-semibold text-white flex items-center gap-2">
+                <Layers className="h-4 w-4 text-purple-400" />
+                Rounds
+              </h2>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAddRound}
+                disabled={isOperating}
+                className="border-purple-500/50 text-purple-400 h-8"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-2">
+              {episode.rounds.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Layers className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No rounds yet</p>
+                </div>
+              ) : (
+                episode.rounds.map((round, roundIndex) => (
+                  <div
+                    key={round.IDRound}
+                    className={`mb-2 rounded-lg border transition-colors cursor-pointer ${
+                      expandedRound === roundIndex
+                        ? "border-purple-500 bg-purple-500/10"
+                        : "border-gray-700 bg-gray-800/50 hover:border-gray-600"
+                    }`}
+                    onClick={() => setExpandedRound(roundIndex)}
+                  >
+                    <div className="p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-white">Round {round.RoundNumber}</span>
+                        <span className="text-xs text-gray-500">
+                          {round.questions.length} Q
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteRound(round.IDRound)
+                        }}
+                        className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+
+        {/* Round Details / Questions */}
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          {expandedRound !== null && episode.rounds[expandedRound] ? (
+            <>
+              {/* Round Settings */}
+              <div className="flex-shrink-0">
+                <RoundSettings
+                  key={episode.rounds[expandedRound].IDRound}
+                  round={episode.rounds[expandedRound]}
+                  onUpdate={(updates) => handleUpdateRound(episode.rounds[expandedRound].IDRound, updates)}
+                />
+              </div>
+
+              {/* Questions */}
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+                  <h3 className="font-semibold text-white flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-purple-400" />
+                    Questions
+                  </h3>
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      handleAddQuestion(episode.rounds[expandedRound].IDRound, expandedRound)
+                    }
+                    disabled={isOperating}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Question
+                  </Button>
+                </div>
+                <ScrollArea className="flex-1 min-h-0">
+                  <div className="p-4 space-y-3">
+                    {episode.rounds[expandedRound].questions.length === 0 ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <HelpCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p>No questions in this round</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            handleAddQuestion(episode.rounds[expandedRound].IDRound, expandedRound)
+                          }
+                          className="mt-4 border-purple-500/50 text-purple-400"
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add First Question
+                        </Button>
+                      </div>
+                    ) : (
+                      episode.rounds[expandedRound].questions.map((question, qIndex) => (
+                        <QuestionCard
+                          key={question.IDQuestion}
+                          question={question}
+                          index={qIndex}
+                          isExpanded={expandedQuestion === question.IDQuestion}
+                          onToggle={() =>
+                            setExpandedQuestion(
+                              expandedQuestion === question.IDQuestion ? null : question.IDQuestion
+                            )
+                          }
+                          onUpdate={(updates) =>
+                            handleUpdateQuestion(question.IDQuestion, expandedRound, updates)
+                          }
+                          onDelete={() => handleDeleteQuestion(question.IDQuestion, expandedRound)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <Layers className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                <p>Select a round to view questions</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Round Settings Component
+interface RoundSettingsProps {
+  round: RoundWithQuestions
+  onUpdate: (updates: Partial<Round>) => void
+}
+
+function RoundSettings({ round, onUpdate }: RoundSettingsProps) {
+  const [timer, setTimer] = useState(round.TimerSeconds)
+  const [scoringMode, setScoringMode] = useState(round.ScoringMode)
+  const [negativeScoring, setNegativeScoring] = useState(round.NegativeScoring)
+  const [pointPool, setPointPool] = useState(round.PointPoolOptions)
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const initializedRef = useRef(false)
+  const hasPendingChangesRef = useRef(false)
+  const onUpdateRef = useRef(onUpdate)
+  const currentValuesRef = useRef({ timer, scoringMode, negativeScoring, pointPool })
+  
+  onUpdateRef.current = onUpdate
+  currentValuesRef.current = { timer, scoringMode, negativeScoring, pointPool }
+
+  // Autosave with debounce
+  useEffect(() => {
+    // Skip initial render
+    if (!initializedRef.current) {
+      initializedRef.current = true
+      return
+    }
+
+    hasPendingChangesRef.current = true
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+
+    debounceRef.current = setTimeout(() => {
+      hasPendingChangesRef.current = false
+      onUpdateRef.current({
+        TimerSeconds: timer,
+        ScoringMode: scoringMode,
+        NegativeScoring: negativeScoring,
+        PointPoolOptions: pointPool,
+      })
+    }, 1000)
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+    }
+  }, [timer, scoringMode, negativeScoring, pointPool])
+
+  // Flush pending changes on unmount (e.g., when switching rounds)
+  useEffect(() => {
+    return () => {
+      if (hasPendingChangesRef.current) {
+        if (debounceRef.current) {
+          clearTimeout(debounceRef.current)
+        }
+        const vals = currentValuesRef.current
+        onUpdateRef.current({
+          TimerSeconds: vals.timer,
+          ScoringMode: vals.scoringMode,
+          NegativeScoring: vals.negativeScoring,
+          PointPoolOptions: vals.pointPool,
+        })
+      }
+    }
+  }, [])
+
+  return (
+    <div className="p-4 border-b border-gray-800 bg-gray-900/30">
+      <div className="flex flex-wrap items-center gap-4">
+        <h3 className="font-semibold text-white text-base">Round {round.RoundNumber}</h3>
+        
+        <div className="h-5 w-px bg-gray-700 hidden sm:block" />
+        
+        {/* Timer */}
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-gray-500" />
+          <div className="flex gap-1.5">
+            {[10, 15, 20, 30, 45, 60].map((t) => (
+              <button
+                key={t}
+                onClick={() => setTimer(t)}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                  timer === t
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                }`}
+              >
+                {t}s
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-5 w-px bg-gray-700 hidden sm:block" />
+
+        {/* Scoring Mode */}
+        <div className="flex gap-1.5">
+          {[
+            { value: "both", label: "Both", Icon: Zap },
+            { value: "point_pool", label: "Pool", Icon: Target },
+            { value: "timed", label: "Timed", Icon: Timer },
+          ].map((mode) => (
+            <button
+              key={mode.value}
+              onClick={() => setScoringMode(mode.value as ScoringMode)}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-all flex items-center gap-1.5 ${
+                scoringMode === mode.value
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+              }`}
+            >
+              <mode.Icon className="h-4 w-4" />
+              <span>{mode.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="h-5 w-px bg-gray-700 hidden sm:block" />
+
+        {/* Point Pool */}
+        <div className="flex gap-1.5">
+          {[
+            { values: [1, 2, 3, 4] },
+            { values: [2, 4, 6, 8] },
+            { values: [5, 10, 15, 20] },
+            { values: [1, 3, 5, 10] },
+          ].map((preset) => (
+            <button
+              key={preset.values.join("-")}
+              onClick={() => setPointPool(preset.values)}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                JSON.stringify(pointPool) === JSON.stringify(preset.values)
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+              }`}
+            >
+              {preset.values.join(",")}
+            </button>
+          ))}
+        </div>
+
+        <div className="h-5 w-px bg-gray-700 hidden sm:block" />
+
+        {/* Negative Scoring */}
+        <div className="flex items-center gap-2">
+          <Switch checked={negativeScoring} onCheckedChange={setNegativeScoring} />
+          <span className="text-sm text-gray-400">Negative</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Question Card Component
+interface QuestionCardProps {
+  question: Question
+  index: number
+  isExpanded: boolean
+  onToggle: () => void
+  onUpdate: (updates: Partial<Question>) => void
+  onDelete: () => void
+}
+
+function QuestionCard({
+  question,
+  index,
+  isExpanded,
+  onToggle,
+  onUpdate,
+  onDelete,
+}: QuestionCardProps) {
+  const [text, setText] = useState(question.QuestionText)
+  const [answer, setAnswer] = useState(question.CorrectAnswer)
+  const [category, setCategory] = useState(question.Category || "")
+  const [type, setType] = useState(question.QuestionType)
+  const [options, setOptions] = useState(question.Options || ["", "", "", ""])
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const initializedRef = useRef(false)
+  const onUpdateRef = useRef(onUpdate)
+  onUpdateRef.current = onUpdate
+
+  // Autosave with debounce
+  useEffect(() => {
+    // Skip initial render
+    if (!initializedRef.current) {
+      initializedRef.current = true
+      return
+    }
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+
+    debounceRef.current = setTimeout(() => {
+      onUpdateRef.current({
+        QuestionText: text,
+        CorrectAnswer: answer,
+        Category: category || undefined,
+        QuestionType: type,
+        Options: type === "multiple_choice" ? options.filter((o) => o.trim()) : undefined,
+      })
+    }, 1000)
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+    }
+  }, [text, answer, category, type, options])
+
+  return (
+    <Card className="bg-gray-800/50 border-gray-700 overflow-hidden">
+      {/* Header */}
+      <div
+        className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-700/30"
+        onClick={onToggle}
+      >
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
+          )}
+          <span className="text-sm text-purple-400 font-medium flex-shrink-0">Q{index + 1}</span>
+          {question.Category && (
+            <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 flex-shrink-0">
+              {question.Category}
+            </span>
+          )}
+          <span className="text-white truncate">{question.QuestionText}</span>
+        </div>
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          {question.QuestionVideoUrl && <Video className="h-4 w-4 text-blue-400" />}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onDelete}
+            className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Expanded Content */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="border-t border-gray-700"
+          >
+            <div className="p-4 space-y-4">
+              {/* Question Type Presets */}
+              <div>
+                <label className="text-xs text-gray-400 mb-2 block">Question Type</label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: "multiple_choice", label: "Multiple Choice", Icon: FileText },
+                    { value: "true_false", label: "True/False", Icon: CheckCircle },
+                    { value: "open_ended", label: "Open Ended", Icon: MessageSquare },
+                  ].map((qType) => (
+                    <button
+                      key={qType.value}
+                      onClick={() => {
+                        setType(qType.value as QuestionType)
+                        if (qType.value === "true_false") {
+                          setOptions(["True", "False"])
+                        } else if (qType.value === "multiple_choice") {
+                          setOptions(["", "", "", ""])
+                        } else {
+                          setOptions([])
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                        type === qType.value
+                          ? "bg-purple-600 text-white"
+                          : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                      }`}
+                    >
+                      <qType.Icon className="h-4 w-4" />
+                      <span>{qType.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Category</label>
+                <Input
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="e.g., Geography"
+                  className="bg-gray-900 border-gray-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Question Text *</label>
+                <Textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="Enter your question..."
+                  className="bg-gray-900 border-gray-600 resize-none"
+                  rows={2}
+                />
+              </div>
+
+              {/* Dynamic inputs based on question type */}
+              {type === "true_false" ? (
+                <div>
+                  <label className="text-xs text-gray-400 mb-2 block">Correct Answer *</label>
+                  <div className="flex gap-2">
+                    {["True", "False"].map((ans) => (
+                      <button
+                        key={ans}
+                        onClick={() => setAnswer(ans)}
+                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          answer === ans
+                            ? ans === "True" ? "bg-green-600 text-white" : "bg-red-600 text-white"
+                            : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                        }`}
+                      >
+                        {ans}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Correct Answer *</label>
+                  <Input
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    placeholder="The correct answer"
+                    className="bg-gray-900 border-gray-600"
+                  />
+                </div>
+              )}
+
+              {type === "multiple_choice" && (
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Answer Options</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {options.map((opt, i) => (
+                      <Input
+                        key={i}
+                        value={opt}
+                        onChange={(e) => {
+                          const newOpts = [...options]
+                          newOpts[i] = e.target.value
+                          setOptions(newOpts)
+                        }}
+                        placeholder={`Option ${String.fromCharCode(65 + i)}`}
+                        className="bg-gray-900 border-gray-600"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Card>
+  )
+}

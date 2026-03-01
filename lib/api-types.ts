@@ -1,0 +1,339 @@
+// ============================================
+// Trivi-Time API TypeScript Definitions
+// ============================================
+
+// -------------------- Auth --------------------
+export interface LoginRequest {
+  Email: string
+  Password: string
+}
+
+export interface LoginResponse {
+  access_token: string
+  token_type: string
+  user_id: string
+  email: string
+  display_name: string
+}
+
+// -------------------- Episodes --------------------
+export interface ThemeConfig {
+  primaryColor?: string
+  [key: string]: unknown
+}
+
+export interface SponsorConfig {
+  name?: string
+  logo?: string
+  [key: string]: unknown
+}
+
+export interface CreateEpisodeRequest {
+  Title: string
+  Description?: string
+  ThemeConfig?: ThemeConfig
+  SponsorConfig?: SponsorConfig
+}
+
+export interface UpdateEpisodeRequest {
+  IDEpisode: string
+  Title?: string
+  Description?: string
+  ThemeConfig?: ThemeConfig
+  SponsorConfig?: SponsorConfig
+}
+
+export interface Episode {
+  IDEpisode: string
+  IDUser: string
+  Title: string
+  Description: string | null
+  ThemeConfig: ThemeConfig | null
+  SponsorConfig: SponsorConfig | null
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+export interface EpisodeWithRounds extends Episode {
+  rounds: RoundWithQuestions[]
+}
+
+// -------------------- Rounds --------------------
+export interface TimedBonusTier {
+  within: number
+  bonus: number
+}
+
+export type ScoringMode = "point_pool" | "timed" | "both"
+
+export interface CreateRoundRequest {
+  IDEpisode: string
+  RoundNumber: number
+  TimerSeconds?: number
+  PointPoolOptions?: number[]
+  TimedBonusTiers?: TimedBonusTier[]
+  NegativeScoring?: boolean
+  ScoringMode?: ScoringMode
+}
+
+export interface UpdateRoundRequest {
+  IDRound: string
+  RoundNumber?: number
+  TimerSeconds?: number
+  PointPoolOptions?: number[]
+  TimedBonusTiers?: TimedBonusTier[]
+  NegativeScoring?: boolean
+  ScoringMode?: ScoringMode
+}
+
+export interface Round {
+  IDRound: string
+  IDEpisode: string
+  RoundNumber: number
+  TimerSeconds: number
+  PointPoolOptions: number[]
+  TimedBonusTiers: TimedBonusTier[]
+  NegativeScoring: boolean
+  ScoringMode: ScoringMode
+}
+
+export interface RoundWithQuestions extends Round {
+  questions: Question[]
+}
+
+// -------------------- Questions --------------------
+export type QuestionType = "multiple_choice" | "true_false" | "open_ended"
+
+export interface CreateQuestionRequest {
+  IDRound: string
+  QuestionOrder: number
+  Category?: string
+  QuestionText: string
+  QuestionType?: QuestionType
+  CorrectAnswer: string
+  Options?: string[]
+  QuestionVideoUrl?: string | null
+  AnswerVideoUrl?: string | null
+  TimerSecondsOverride?: number | null
+  ScoringModeOverride?: ScoringMode | null
+}
+
+export interface UpdateQuestionRequest {
+  IDQuestion: string
+  QuestionOrder?: number
+  Category?: string
+  QuestionText?: string
+  QuestionType?: QuestionType
+  CorrectAnswer?: string
+  Options?: string[]
+  TimerSecondsOverride?: number | null
+  ScoringModeOverride?: ScoringMode | null
+}
+
+export interface Question {
+  IDQuestion: string
+  IDRound: string
+  QuestionOrder: number
+  Category: string | null
+  QuestionText: string
+  QuestionType: QuestionType
+  CorrectAnswer: string
+  Options: string[] | null
+  QuestionVideoUrl: string | null
+  AnswerVideoUrl: string | null
+  TimerSecondsOverride: number | null
+  ScoringModeOverride: ScoringMode | null
+}
+
+export interface MoveQuestionRequest {
+  IDQuestion: string
+  NewIDRound: string
+}
+
+export interface UploadVideoRequest {
+  IDQuestion: string
+  VideoType: "question" | "answer"
+  Base64Video: string
+}
+
+// -------------------- Sessions --------------------
+export type SessionStatus = "lobby" | "active" | "completed"
+
+export interface CreateSessionRequest {
+  IDEpisode: string
+}
+
+export interface Session {
+  IDGameSession: string
+  IDEpisode: string
+  IDUser: string
+  RoomCode: string
+  Status: SessionStatus
+  CurrentRound: number | null
+  CurrentQuestion: number | null
+  QuestionStartedAt: string | null
+  CreatedAt: string
+  QRData: string
+}
+
+export interface SessionStatusResponse extends Session {
+  team_count: number
+}
+
+// -------------------- Host Links --------------------
+export interface GenerateHostLinkRequest {
+  IDEpisode: string
+}
+
+export interface HostLinkResponse {
+  token: string
+  expires_at: string
+  IDGameSession: string
+  RoomCode: string
+}
+
+export interface ValidateHostLinkRequest {
+  Token: string
+}
+
+// -------------------- Teams --------------------
+export interface JoinSessionRequest {
+  RoomCode: string
+  TeamName: string
+  AvatarBase64?: string | null
+}
+
+export interface Team {
+  IDTeam: string
+  IDGameSession: string
+  TeamName: string
+  AvatarBlobPath: string | null
+  JoinedAt: string
+}
+
+// -------------------- Player Question --------------------
+export interface CurrentQuestionRequest {
+  IDGameSession: string
+  IDTeam: string
+}
+
+export interface CurrentQuestionResponse {
+  IDQuestion: string
+  IDRound: string
+  QuestionOrder: number
+  Category: string | null
+  QuestionText: string
+  QuestionType: QuestionType
+  Options: string[] | null
+  QuestionVideoUrl: string | null
+  TimerSeconds: number
+  AvailableWagers: number[]
+  QuestionStartedAt: string
+}
+
+// -------------------- Submissions --------------------
+export interface SubmitAnswerRequest {
+  IDGameSession: string
+  IDTeam: string
+  IDQuestion: string
+  AnswerText: string
+  WageredPoints: number
+}
+
+export interface SubmitAnswerResponse {
+  IDResponse: string
+  IDTeam: string
+  IDQuestion: string
+  AnswerText: string
+  WageredPoints: number
+  SubmissionSeconds: number
+  WasOnTime: boolean
+  TimedBonusAwarded: number
+}
+
+export interface PointPoolRequest {
+  IDGameSession: string
+  IDTeam: string
+}
+
+export interface PointPoolResponse {
+  IDRound: string
+  RoundNumber: number
+  AvailableValues: number[]
+}
+
+// -------------------- Grading --------------------
+export interface GradeRequest {
+  IDGameSession: string
+}
+
+export interface GradedResponse {
+  IDResponse: string
+  IDTeam: string
+  IDQuestion: string
+  AnswerText: string
+  WageredPoints: number
+  IsCorrect: boolean
+  WasOnTime: boolean
+  TimedBonusAwarded: number
+  PointsAwarded: number
+}
+
+export interface GradeResponse {
+  session_id: string
+  total_graded: number
+  responses: GradedResponse[]
+}
+
+// -------------------- Leaderboard --------------------
+export interface LeaderboardEntry {
+  IDTeam: string
+  TeamName: string
+  AvatarBlobPath: string | null
+  TotalScore: number
+  RoundScore: number
+  Rank: number
+}
+
+export interface LeaderboardResponse {
+  IDGameSession: string
+  entries: LeaderboardEntry[]
+}
+
+// -------------------- Responses --------------------
+export interface ListResponsesRequest {
+  IDGameSession: string
+  IDQuestion?: string | null
+}
+
+export interface TeamResponse {
+  IDResponse: string
+  IDTeam: string
+  IDQuestion: string
+  AnswerText: string
+  WageredPoints: number
+  IsCorrect: boolean | null
+  WasOnTime: boolean
+  TimedBonusAwarded: number
+  SubmissionSeconds: number
+}
+
+// -------------------- Kick --------------------
+export interface KickTeamRequest {
+  IDGameSession: string
+  IDTeam: string
+}
+
+export interface KickTeamResponse {
+  kicked: boolean
+  TeamName: string
+}
+
+// -------------------- Generic --------------------
+export interface DeleteResponse {
+  deleted: boolean
+}
+
+export interface ApiError {
+  detail: string
+}

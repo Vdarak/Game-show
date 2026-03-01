@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Inter, Rubik, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { PWARegister } from "@/components/pwa/pwa-register"
+import { Providers } from "@/components/providers"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -58,9 +59,11 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} ${rubik.variable} ${geistMono.variable} font-sans antialiased`}>
-        <PWARegister />
-        {children}
-        <Analytics />
+        <Providers>
+          <PWARegister />
+          {children}
+          <Analytics />
+        </Providers>
       </body>
     </html>
   )

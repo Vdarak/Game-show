@@ -1,0 +1,260 @@
+// ============================================
+// Trivi-Time API Client
+// ============================================
+
+import type {
+  LoginRequest,
+  LoginResponse,
+  CreateEpisodeRequest,
+  UpdateEpisodeRequest,
+  Episode,
+  EpisodeWithRounds,
+  CreateRoundRequest,
+  UpdateRoundRequest,
+  Round,
+  CreateQuestionRequest,
+  UpdateQuestionRequest,
+  Question,
+  MoveQuestionRequest,
+  UploadVideoRequest,
+  CreateSessionRequest,
+  Session,
+  SessionStatusResponse,
+  GenerateHostLinkRequest,
+  HostLinkResponse,
+  ValidateHostLinkRequest,
+  JoinSessionRequest,
+  Team,
+  CurrentQuestionRequest,
+  CurrentQuestionResponse,
+  SubmitAnswerRequest,
+  SubmitAnswerResponse,
+  PointPoolRequest,
+  PointPoolResponse,
+  GradeRequest,
+  GradeResponse,
+  LeaderboardResponse,
+  ListResponsesRequest,
+  TeamResponse,
+  KickTeamRequest,
+  KickTeamResponse,
+  DeleteResponse,
+  ApiError,
+} from "./api-types"
+
+// -------------------- Configuration --------------------
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ""
+
+// Debug: Log API URL on startup (client-side only)
+if (typeof window !== "undefined") {
+  console.log("[API Client] Base URL:", API_BASE_URL || "(empty - check NEXT_PUBLIC_API_URL)")
+} 
+
+// -------------------- Token Management --------------------
+let authToken: string | null = null
+
+export function setAuthToken(token: string | null) {
+  authToken = token
+  if (typeof window !== "undefined") {
+    if (token) {
+      localStorage.setItem("trivitime_token", token)
+    } else {
+      localStorage.removeItem("trivitime_token")
+    }
+  }
+}
+
+export function getAuthToken(): string | null {
+  if (authToken) return authToken
+  if (typeof window !== "undefined") {
+    authToken = localStorage.getItem("trivitime_token")
+  }
+  return authToken
+}
+
+export function clearAuthToken() {
+  authToken = null
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("trivitime_token")
+  }
+}
+
+// -------------------- Fetch Helper --------------------
+class ApiClientError extends Error {
+  status: number
+  detail: string
+
+  constructor(status: number, detail: string) {
+    super(detail)
+    this.name = "ApiClientError"
+    this.status = status
+    this.detail = detail
+  }
+}
+
+async function apiRequest<T>(
+  endpoint: string,
+  options: {
+    method?: "GET" | "POST"
+    body?: unknown
+    requiresAuth?: boolean
+  } = {}
+): Promise<T> {
+  const { method = "POST", body, requiresAuth = false } = options
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  }
+
+  if (requiresAuth) {
+    const token = getAuthToken()
+    if (!token) {
+      throw new ApiClientError(401, "No authentication token available")
+    }
+    headers["Authorization"] = `Bearer ${token}`
+  }
+
+  const url = `${API_BASE_URL}${endpoint}`
+  console.log(`[API] ${method} ${url}`)
+
+  let response: Response
+  try {
+    response = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  } catch (err) {
+    console.error(`[API] Network error:`, err)
+    throw new ApiClientError(0, `Network error: ${err instanceof Error ? err.message : 'Failed to fetch'}`)
+  }
+
+  if (!response.ok) {
+    let detail = "Unknown error"
+    try {
+      const errorData: ApiError = await response.json()
+      detail = errorData.detail
+    } catch {
+      detail = response.statusText
+    }
+    throw new ApiClientError(response.status, detail)
+  }
+
+  return response.json()
+}
+
+// -------------------- Auth API --------------------
+export const authApi = {
+  login: (data: LoginRequest): Promise<LoginResponse> =>
+    apiRequest("/auth/login", { body: data }),
+}
+
+// -------------------- Episodes API --------------------
+export const episodesApi = {
+  create: (data: CreateEpisodeRequest): Promise<Episode> =>
+    apiRequest("/episodes/create", { body: data, requiresAuth: true }),
+
+  list: (): Promise<Episode[]> =>
+    apiRequest("/episodes/list", { body: {}, requiresAuth: true }),
+
+  get: (IDEpisode: string): Promise<EpisodeWithRounds> =>
+    apiRequest("/episodes/get", { body: { IDEpisode }, requiresAuth: true }),
+
+  update: (data: UpdateEpisodeRequest): Promise<Episode> =>
+    apiRequest("/episodes/update", { body: data, requiresAuth: true }),
+
+  delete: (IDEpisode: string): Promise<DeleteResponse> =>
+    apiRequest("/episodes/delete", { body: { IDEpisode }, requiresAuth: true }),
+}
+
+// -------------------- Rounds API --------------------
+export const roundsApi = {
+  create: (data: CreateRoundRequest): Promise<Round> =>
+    apiRequest("/rounds/create", { body: data, requiresAuth: true }),
+
+  update: (data: UpdateRoundRequest): Promise<Round> =>
+    apiRequest("/rounds/update", { body: data, requiresAuth: true }),
+
+  delete: (IDRound: string): Promise<DeleteResponse> =>
+    apiRequest("/rounds/delete", { body: { IDRound }, requiresAuth: true }),
+}
+
+// -------------------- Questions API --------------------
+export const questionsApi = {
+  create: (data: CreateQuestionRequest): Promise<Question> =>
+    apiRequest("/questions/create", { body: data, requiresAuth: true }),
+
+  update: (data: UpdateQuestionRequest): Promise<Question> =>
+    apiRequest("/questions/update", { body: data, requiresAuth: true }),
+
+  delete: (IDQuestion: string): Promise<DeleteResponse> =>
+    apiRequest("/questions/delete", { body: { IDQuestion }, requiresAuth: true }),
+
+  move: (data: MoveQuestionRequest): Promise<Question> =>
+    apiRequest("/questions/move", { body: data, requiresAuth: true }),
+
+  uploadVideo: (data: UploadVideoRequest): Promise<Question> =>
+    apiRequest("/questions/upload-video", { body: data, requiresAuth: true }),
+}
+
+// -------------------- Sessions API --------------------
+export const sessionsApi = {
+  // Host-only (requires auth)
+  create: (data: CreateSessionRequest): Promise<Session> =>
+    apiRequest("/sessions/create", { body: data, requiresAuth: true }),
+
+  start: (IDGameSession: string): Promise<Session> =>
+    apiRequest("/sessions/start", { body: { IDGameSession }, requiresAuth: true }),
+
+  nextQuestion: (IDGameSession: string): Promise<Session> =>
+    apiRequest("/sessions/next-question", { body: { IDGameSession }, requiresAuth: true }),
+
+  end: (IDGameSession: string): Promise<Session> =>
+    apiRequest("/sessions/end", { body: { IDGameSession }, requiresAuth: true }),
+
+  restart: (IDGameSession: string): Promise<Session> =>
+    apiRequest("/sessions/restart", { body: { IDGameSession }, requiresAuth: true }),
+
+  grade: (data: GradeRequest): Promise<GradeResponse> =>
+    apiRequest("/sessions/grade", { body: data, requiresAuth: true }),
+
+  responses: (data: ListResponsesRequest): Promise<TeamResponse[]> =>
+    apiRequest("/sessions/responses", { body: data, requiresAuth: true }),
+
+  kick: (data: KickTeamRequest): Promise<KickTeamResponse> =>
+    apiRequest("/sessions/kick", { body: data, requiresAuth: true }),
+
+  // Public endpoints (no auth)
+  status: (IDGameSession: string): Promise<SessionStatusResponse> =>
+    apiRequest("/sessions/status", { body: { IDGameSession } }),
+
+  join: (data: JoinSessionRequest): Promise<Team> =>
+    apiRequest("/sessions/join", { body: data }),
+
+  currentQuestion: (data: CurrentQuestionRequest): Promise<CurrentQuestionResponse> =>
+    apiRequest("/sessions/current-question", { body: data }),
+
+  submit: (data: SubmitAnswerRequest): Promise<SubmitAnswerResponse> =>
+    apiRequest("/sessions/submit", { body: data }),
+
+  pointPool: (data: PointPoolRequest): Promise<PointPoolResponse> =>
+    apiRequest("/sessions/point-pool", { body: data }),
+
+  leaderboard: (IDGameSession: string): Promise<LeaderboardResponse> =>
+    apiRequest("/sessions/leaderboard", { body: { IDGameSession } }),
+
+  teams: (IDGameSession: string): Promise<Team[]> =>
+    apiRequest("/sessions/teams", { body: { IDGameSession } }),
+}
+
+// -------------------- Host Links API --------------------
+export const hostLinksApi = {
+  generate: (data: GenerateHostLinkRequest): Promise<HostLinkResponse> =>
+    apiRequest("/host-link/generate", { body: data, requiresAuth: true }),
+
+  validate: (data: ValidateHostLinkRequest): Promise<Session> =>
+    apiRequest("/host-link/validate", { body: data }),
+}
+
+// -------------------- Export Error Class --------------------
+export { ApiClientError }

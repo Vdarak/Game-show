@@ -97,8 +97,8 @@ export function EpisodeManager({
 
       {/* Save Episode Section */}
       <div className="space-y-3">
-        <h3 className="text-lg font-semibold text-white">Save Current Configuration</h3>
-        <div className="flex gap-2">
+        <h3 className="text-base sm:text-lg font-semibold text-white">Save Current Configuration</h3>
+        <div className="flex flex-col sm:flex-row gap-2">
           <Input
             value={newEpisodeName}
             onChange={(e) => setNewEpisodeName(e.target.value)}
@@ -106,7 +106,7 @@ export function EpisodeManager({
             className="flex-1 bg-gray-700 border-gray-600 text-white"
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
           />
-          <Button onClick={handleSave} variant="default" disabled={!newEpisodeName.trim()}>
+          <Button onClick={handleSave} variant="default" disabled={!newEpisodeName.trim()} className="w-full sm:w-auto">
             <Save className="mr-2 h-4 w-4" />
             Save
           </Button>
@@ -170,10 +170,10 @@ export function EpisodeManager({
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-white truncate">{episode.name}</h4>
-                      <div className="flex gap-3 text-xs text-gray-400 mt-1">
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400 mt-1">
                         <span>Created: {formatDate(episode.createdAt)}</span>
                         {episode.updatedAt !== episode.createdAt && (
                           <span>Updated: {formatDate(episode.updatedAt)}</span>
@@ -185,7 +185,7 @@ export function EpisodeManager({
                         <span>{episode.data.teams.length} teams</span>
                       </div>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 justify-end sm:justify-start flex-shrink-0">
                       <Button
                         onClick={() => onLoadEpisode(episode.id)}
                         variant="default"
