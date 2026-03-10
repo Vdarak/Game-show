@@ -33,6 +33,7 @@ export interface CreateEpisodeRequest {
   Description?: string
   ThemeConfig?: ThemeConfig
   SponsorConfig?: SponsorConfig
+  RulesContent?: string[]
 }
 
 export interface UpdateEpisodeRequest {
@@ -41,6 +42,7 @@ export interface UpdateEpisodeRequest {
   Description?: string
   ThemeConfig?: ThemeConfig
   SponsorConfig?: SponsorConfig
+  RulesContent?: string[]
 }
 
 export interface Episode {
@@ -50,6 +52,8 @@ export interface Episode {
   Description: string | null
   ThemeConfig: ThemeConfig | null
   SponsorConfig: SponsorConfig | null
+  RulesContent: string[] | null
+  RulesVideoUrl: string | null
   CreatedAt: string
   UpdatedAt: string
 }
@@ -151,13 +155,32 @@ export interface MoveQuestionRequest {
 }
 
 export interface UploadVideoRequest {
-  IDQuestion: string
-  VideoType: "question" | "answer"
-  Base64Video: string
+  question_id: string
+  video_type: "question" | "answer"
+  file: File
+}
+
+export interface UploadRulesVideoRequest {
+  episode_id: string
+  file: File
 }
 
 // -------------------- Sessions --------------------
 export type SessionStatus = "lobby" | "active" | "completed"
+
+export type GameState =
+  | "lobby"
+  | "welcome"
+  | "rules"
+  | "get_ready"
+  | "announced"
+  | "video_playing"
+  | "options_revealed"
+  | "timer_running"
+  | "timer_ended"
+  | "answer_reveal"
+  | "break"
+  | "completed"
 
 export interface CreateSessionRequest {
   IDEpisode: string
@@ -172,6 +195,10 @@ export interface Session {
   CurrentRound: number | null
   CurrentQuestion: number | null
   QuestionStartedAt: string | null
+  GameState: GameState | null
+  PreBreakState: GameState | null
+  TimerRemaining: number | null
+  TimerTotal: number | null
   CreatedAt: string
   QRData: string
 }
@@ -183,17 +210,45 @@ export interface SessionStatusResponse extends Session {
 // -------------------- Host Links --------------------
 export interface GenerateHostLinkRequest {
   IDEpisode: string
+  ValidFrom: string       // ISO date string
+  ValidTo: string         // ISO date string
+  HostName: string        // Name of the host receiving the link
 }
 
 export interface HostLinkResponse {
   token: string
-  expires_at: string
   IDGameSession: string
   RoomCode: string
+  PIN: string
+  ValidFrom: string
+  ValidTo: string
+  HostName: string
 }
 
 export interface ValidateHostLinkRequest {
   Token: string
+  PIN: string
+}
+
+export interface HostLinkListRequest {
+  IDEpisode?: string
+}
+
+export interface HostLinkListItem {
+  IDGameSession: string
+  IDEpisode: string
+  EpisodeTitle: string
+  RoomCode: string
+  HostName: string
+  ValidFrom: string
+  ValidTo: string
+  CreatedAt: string
+  Status: string
+}
+
+export interface HostLinkRevokeRequest {
+  IDGameSession: string
+  PIN: string
 }
 
 // -------------------- Teams --------------------
@@ -283,6 +338,22 @@ export interface GradeResponse {
   session_id: string
   total_graded: number
   responses: GradedResponse[]
+}
+
+// -------------------- Grade Override --------------------
+export interface GradeOverrideItem {
+  IDResponse: string
+  IsCorrect: boolean
+}
+
+export interface GradeOverrideRequest {
+  IDGameSession: string
+  overrides: GradeOverrideItem[]
+}
+
+export interface GradeOverrideResponse {
+  updated: number
+  response_ids: string[]
 }
 
 // -------------------- Leaderboard --------------------

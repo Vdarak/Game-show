@@ -36,8 +36,11 @@ import {
   FileText,
   CheckCircle,
   MessageSquare,
+  Upload,
+  BookOpen,
+
 } from "lucide-react"
-import { episodesApi, roundsApi, questionsApi } from "@/lib/api-client"
+import { episodesApi, roundsApi, questionsApi, getMediaUrl } from "@/lib/api-client"
 import type {
   Episode,
   EpisodeWithRounds,
@@ -69,6 +72,16 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
   const [episodeTitle, setEpisodeTitle] = useState("")
   const [episodeDescription, setEpisodeDescription] = useState("")
 
+  // Rules states
+  const [rulesText, setRulesText] = useState("")
+  const [rulesVideoUrl, setRulesVideoUrl] = useState<string | null>(null)
+  const [rulesVideoFileName, setRulesVideoFileName] = useState<string | null>(null)
+  const [uploadingRulesVideo, setUploadingRulesVideo] = useState(false)
+  const [rulesUploadProgress, setRulesUploadProgress] = useState(0)
+  const rulesDebounceRef = useRef<NodeJS.Timeout | null>(null)
+
+
+
   // Load episode
   useEffect(() => {
     loadEpisode()
@@ -81,12 +94,71 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
       setEpisode(data)
       setEpisodeTitle(data.Title)
       setEpisodeDescription(data.Description || "")
+      setRulesText(data.RulesContent?.join("\n") || "")
+      setRulesVideoUrl(data.RulesVideoUrl || null)
     } catch (err) {
       toast.error("Failed to load episode")
       onClose()
     }
     setIsLoading(false)
   }
+
+
+
+  // Upload rules video
+  const handleRulesVideoUpload = async (file: File) => {
+    if (!episode) return
+    setUploadingRulesVideo(true)
+    setRulesUploadProgress(10)
+    setRulesVideoFileName(file.name)
+
+    try {
+      setRulesUploadProgress(30)
+      const result = await episodesApi.uploadRulesVideo({
+        episode_id: episode.IDEpisode,
+        file,
+      })
+      setRulesUploadProgress(100)
+      await new Promise(r => setTimeout(r, 300))
+      setRulesVideoUrl(result.RulesVideoUrl)
+      toast.success("Rules video uploaded!")
+    } catch (err) {
+      console.error("Rules video upload failed:", err)
+      toast.error("Failed to upload rules video")
+      setRulesVideoFileName(null)
+    } finally {
+      setUploadingRulesVideo(false)
+      setRulesUploadProgress(0)
+    }
+  }
+
+  // Autosave rules changes
+  useEffect(() => {
+    if (!episode) return
+
+    if (rulesDebounceRef.current) {
+      clearTimeout(rulesDebounceRef.current)
+    }
+
+    rulesDebounceRef.current = setTimeout(async () => {
+      const rulesArray = rulesText.split("\n").filter(line => line.trim())
+      try {
+        await episodesApi.update({
+          IDEpisode: episode.IDEpisode,
+          RulesContent: rulesArray.length > 0 ? rulesArray : undefined,
+        })
+        setLastSavedAt(new Date())
+      } catch (err) {
+        console.error("Failed to save rules:", err)
+      }
+    }, 1500)
+
+    return () => {
+      if (rulesDebounceRef.current) {
+        clearTimeout(rulesDebounceRef.current)
+      }
+    }
+  }, [rulesText, episode])
 
   // Save Episode
   const handleSaveEpisode = async () => {
@@ -159,7 +231,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
   const handleDeleteRound = async (roundId: string) => {
     if (!episode) return
     if (!confirm("Delete this round and all its questions?")) return
-    
+
     setIsOperating(true)
     try {
       await roundsApi.delete(roundId)
@@ -179,7 +251,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
   const handleAddQuestion = async (roundId: string, roundIndex: number) => {
     if (!episode) return
     const round = episode.rounds[roundIndex]
-    
+
     setIsOperating(true)
     try {
       const newQuestion = await questionsApi.create({
@@ -190,7 +262,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
         CorrectAnswer: "",
         Options: ["", "", "", ""],
       })
-      
+
       const updatedRounds = [...episode.rounds]
       updatedRounds[roundIndex] = {
         ...round,
@@ -240,7 +312,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
   const handleDeleteQuestion = async (questionId: string, roundIndex: number) => {
     if (!episode) return
     if (!confirm("Delete this question?")) return
-    
+
     setIsOperating(true)
     try {
       await questionsApi.delete(questionId)
@@ -338,11 +410,11 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
 
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-        {/* Rounds List */}
-        <div className="w-full md:w-80 bg-gray-900/50 md:border-r border-b md:border-b-0 border-gray-800 flex flex-col max-h-48 md:max-h-none">
-          <div className="p-4 border-b border-gray-800">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="font-semibold text-white flex items-center gap-2">
+        {/* Rounds Navigation */}
+        <div className="w-full md:w-64 bg-gray-900/50 md:border-r border-b md:border-b-0 border-gray-800 flex flex-col">
+          <div className="p-3 sm:p-4 border-b border-gray-800">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-white flex items-center gap-2 text-sm sm:text-base">
                 <Layers className="h-4 w-4 text-purple-400" />
                 Rounds
               </h2>
@@ -351,58 +423,137 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
                 variant="outline"
                 onClick={handleAddRound}
                 disabled={isOperating}
-                className="border-purple-500/50 text-purple-400 h-8"
+                className="border-purple-500/50 text-purple-400 h-7 w-7 p-0"
               >
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
           </div>
-          <ScrollArea className="flex-1">
-            <div className="p-2">
-              {episode.rounds.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Layers className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No rounds yet</p>
-                </div>
-              ) : (
-                episode.rounds.map((round, roundIndex) => (
+          <div className="p-2 sm:p-3">
+            {episode.rounds.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <Layers className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                <p className="text-xs">No rounds yet</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-2 gap-1.5 sm:gap-2">
+                {episode.rounds.map((round, roundIndex) => (
                   <div
                     key={round.IDRound}
-                    className={`mb-2 rounded-lg border transition-colors cursor-pointer ${
-                      expandedRound === roundIndex
-                        ? "border-purple-500 bg-purple-500/10"
-                        : "border-gray-700 bg-gray-800/50 hover:border-gray-600"
-                    }`}
+                    className={`relative group rounded-lg border transition-all cursor-pointer aspect-square flex flex-col items-center justify-center p-1 ${expandedRound === roundIndex
+                      ? "border-purple-500 bg-purple-500/20 ring-1 ring-purple-500/40"
+                      : "border-gray-700 bg-gray-800/50 hover:border-gray-500 hover:bg-gray-800"
+                      }`}
                     onClick={() => setExpandedRound(roundIndex)}
                   >
-                    <div className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-white">Round {round.RoundNumber}</span>
-                        <span className="text-xs text-gray-500">
-                          {round.questions.length} Q
-                        </span>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteRound(round.IDRound)
+                    <span className={`font-display text-lg sm:text-xl font-bold ${expandedRound === roundIndex ? "text-purple-300" : "text-white"
+                      }`}>
+                      {round.RoundNumber}
+                    </span>
+                    <span className="text-[10px] sm:text-xs text-gray-500 leading-tight">
+                      {round.questions.length} Q
+                    </span>
+                    {/* Delete button — shown on hover */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteRound(round.IDRound)
+                      }}
+                      className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500/90 text-white items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Rules Section */}
+          <div className="border-t border-gray-800 p-3 sm:p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <BookOpen className="h-4 w-4 text-purple-400" />
+              <h3 className="text-sm font-semibold text-white">Rules</h3>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Rules Text (one per line)</label>
+                <Textarea
+                  value={rulesText}
+                  onChange={(e) => setRulesText(e.target.value)}
+                  placeholder="Enter rules, one per line..."
+                  className="bg-gray-900 border-gray-700 text-xs h-24 resize-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Rules Video</label>
+                {rulesVideoUrl ? (
+                  <div className="relative rounded-lg overflow-hidden bg-black border border-gray-700">
+                    <video
+                      src={getMediaUrl(rulesVideoUrl)!}
+                      className="w-full h-32 object-contain bg-black"
+                      controls
+                      playsInline
+                      muted
+                    />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => {
+                          setRulesVideoUrl(null)
+                          setRulesVideoFileName(null)
                         }}
-                        className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+                        className="px-2 py-1 bg-red-500/80 rounded text-xs text-white"
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                        Remove
+                      </button>
+                    </div>
+                    <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between">
+                      {rulesVideoFileName && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-900/80 text-gray-300 truncate max-w-[60%]">
+                          {rulesVideoFileName}
+                        </span>
+                      )}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/80 text-white">✓ Uploaded</span>
                     </div>
                   </div>
-                ))
-              )}
+                ) : uploadingRulesVideo ? (
+                  <div className="rounded-lg border border-gray-700 p-3 bg-gray-900/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Loader2 className="h-3.5 w-3.5 text-purple-400 animate-spin" />
+                      <span className="text-xs text-gray-400">Uploading...</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-purple-500 rounded-full"
+                        animate={{ width: `${rulesUploadProgress}%` }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center h-16 rounded-lg border-2 border-dashed border-gray-700 hover:border-purple-500/50 bg-gray-900/30 cursor-pointer transition-colors">
+                    <Upload className="h-4 w-4 text-gray-500 mb-1" />
+                    <span className="text-xs text-gray-500">Upload video</span>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleRulesVideoUpload(file)
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
-          </ScrollArea>
+          </div>
+
+
         </div>
 
         {/* Round Details / Questions */}
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0 relative z-10">
           {expandedRound !== null && episode.rounds[expandedRound] ? (
             <>
               {/* Round Settings */}
@@ -504,7 +655,7 @@ function RoundSettings({ round, onUpdate }: RoundSettingsProps) {
   const hasPendingChangesRef = useRef(false)
   const onUpdateRef = useRef(onUpdate)
   const currentValuesRef = useRef({ timer, scoringMode, negativeScoring, pointPool })
-  
+
   onUpdateRef.current = onUpdate
   currentValuesRef.current = { timer, scoringMode, negativeScoring, pointPool }
 
@@ -558,12 +709,12 @@ function RoundSettings({ round, onUpdate }: RoundSettingsProps) {
   }, [])
 
   return (
-    <div className="p-4 border-b border-gray-800 bg-gray-900/30">
-      <div className="flex flex-wrap items-center gap-4">
+    <div className="p-3 sm:p-4 border-b border-gray-800 bg-gray-900 overflow-x-auto">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4 min-w-0">
         <h3 className="font-semibold text-white text-base">Round {round.RoundNumber}</h3>
-        
+
         <div className="h-5 w-px bg-gray-700 hidden sm:block" />
-        
+
         {/* Timer */}
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-gray-500" />
@@ -572,11 +723,10 @@ function RoundSettings({ round, onUpdate }: RoundSettingsProps) {
               <button
                 key={t}
                 onClick={() => setTimer(t)}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-                  timer === t
-                    ? "bg-purple-600 text-white"
-                    : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                }`}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${timer === t
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                  }`}
               >
                 {t}s
               </button>
@@ -596,11 +746,10 @@ function RoundSettings({ round, onUpdate }: RoundSettingsProps) {
             <button
               key={mode.value}
               onClick={() => setScoringMode(mode.value as ScoringMode)}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-all flex items-center gap-1.5 ${
-                scoringMode === mode.value
-                  ? "bg-purple-600 text-white"
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              }`}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-all flex items-center gap-1.5 ${scoringMode === mode.value
+                ? "bg-purple-600 text-white"
+                : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                }`}
             >
               <mode.Icon className="h-4 w-4" />
               <span>{mode.label}</span>
@@ -612,24 +761,27 @@ function RoundSettings({ round, onUpdate }: RoundSettingsProps) {
 
         {/* Point Pool */}
         <div className="flex gap-1.5">
-          {[
-            { values: [1, 2, 3, 4] },
-            { values: [2, 4, 6, 8] },
-            { values: [5, 10, 15, 20] },
-            { values: [1, 3, 5, 10] },
-          ].map((preset) => (
-            <button
-              key={preset.values.join("-")}
-              onClick={() => setPointPool(preset.values)}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-                JSON.stringify(pointPool) === JSON.stringify(preset.values)
+          {(() => {
+            const qCount = Math.max(round.questions.length, 1)
+            const presets = [
+              { values: Array.from({ length: qCount }, (_, i) => i + 1) },
+              { values: Array.from({ length: qCount }, (_, i) => (i + 1) * 2) },
+              { values: Array.from({ length: qCount }, (_, i) => (i + 1) * 5) },
+              { values: Array.from({ length: qCount }, (_, i) => (i + 1) * 2 - 1) },
+            ]
+            return presets.map((preset, idx) => (
+              <button
+                key={`${idx}-${preset.values.join("-")}`}
+                onClick={() => setPointPool(preset.values)}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${JSON.stringify(pointPool) === JSON.stringify(preset.values)
                   ? "bg-purple-600 text-white"
                   : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              }`}
-            >
-              {preset.values.join(",")}
-            </button>
-          ))}
+                  }`}
+              >
+                {preset.values.join(",")}
+              </button>
+            ))
+          })()}
         </div>
 
         <div className="h-5 w-px bg-gray-700 hidden sm:block" />
@@ -667,6 +819,13 @@ function QuestionCard({
   const [category, setCategory] = useState(question.Category || "")
   const [type, setType] = useState(question.QuestionType)
   const [options, setOptions] = useState(question.Options || ["", "", "", ""])
+  const [questionVideoUrl, setQuestionVideoUrl] = useState(question.QuestionVideoUrl)
+  const [answerVideoUrl, setAnswerVideoUrl] = useState(question.AnswerVideoUrl)
+  const [questionVideoFileName, setQuestionVideoFileName] = useState<string | null>(null)
+  const [answerVideoFileName, setAnswerVideoFileName] = useState<string | null>(null)
+  const [uploadingVideo, setUploadingVideo] = useState<"question" | "answer" | null>(null)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadStage, setUploadStage] = useState<"reading" | "optimizing" | "uploading" | null>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const initializedRef = useRef(false)
   const onUpdateRef = useRef(onUpdate)
@@ -701,6 +860,56 @@ function QuestionCard({
     }
   }, [text, answer, category, type, options])
 
+  // Video upload handler
+  const handleVideoUpload = async (file: File, videoType: "question" | "answer") => {
+    setUploadingVideo(videoType)
+    setUploadProgress(0)
+    setUploadStage("uploading")
+
+    // Track file name
+    if (videoType === "question") {
+      setQuestionVideoFileName(file.name)
+    } else {
+      setAnswerVideoFileName(file.name)
+    }
+
+    try {
+      setUploadProgress(10)
+
+      const result = await questionsApi.uploadVideo({
+        question_id: question.IDQuestion,
+        video_type: videoType,
+        file,
+      })
+
+      setUploadProgress(100)
+      await new Promise(r => setTimeout(r, 300))
+
+      if (videoType === "question") {
+        setQuestionVideoUrl(result.QuestionVideoUrl)
+      } else {
+        setAnswerVideoUrl(result.AnswerVideoUrl)
+      }
+
+      const { toast } = await import("sonner")
+      toast.success(`${videoType === "question" ? "Question" : "Answer"} video uploaded!`)
+    } catch (err) {
+      console.error("Video upload failed:", err)
+      const { toast } = await import("sonner")
+      toast.error(`Failed to upload ${videoType} video`)
+      // Clear file name on error
+      if (videoType === "question") {
+        setQuestionVideoFileName(null)
+      } else {
+        setAnswerVideoFileName(null)
+      }
+    } finally {
+      setUploadingVideo(null)
+      setUploadProgress(0)
+      setUploadStage(null)
+    }
+  }
+
   return (
     <Card className="bg-gray-800/50 border-gray-700 overflow-hidden">
       {/* Header */}
@@ -720,6 +929,14 @@ function QuestionCard({
               {question.Category}
             </span>
           )}
+          <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${question.QuestionType === "multiple_choice"
+            ? "bg-blue-500/20 text-blue-300"
+            : question.QuestionType === "true_false"
+              ? "bg-green-500/20 text-green-300"
+              : "bg-yellow-500/20 text-yellow-300"
+            }`}>
+            {question.QuestionType === "multiple_choice" ? "MCQ" : question.QuestionType === "true_false" ? "T/F" : "OPEN"}
+          </span>
           <span className="text-white truncate">{question.QuestionText}</span>
         </div>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -766,11 +983,10 @@ function QuestionCard({
                           setOptions([])
                         }
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
-                        type === qType.value
-                          ? "bg-purple-600 text-white"
-                          : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${type === qType.value
+                        ? "bg-purple-600 text-white"
+                        : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                        }`}
                     >
                       <qType.Icon className="h-4 w-4" />
                       <span>{qType.label}</span>
@@ -809,18 +1025,17 @@ function QuestionCard({
                       <button
                         key={ans}
                         onClick={() => setAnswer(ans)}
-                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                          answer === ans
-                            ? ans === "True" ? "bg-green-600 text-white" : "bg-red-600 text-white"
-                            : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                        }`}
+                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${answer === ans
+                          ? ans === "True" ? "bg-green-600 text-white" : "bg-red-600 text-white"
+                          : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                          }`}
                       >
                         {ans}
                       </button>
                     ))}
                   </div>
                 </div>
-              ) : (
+              ) : type === "open_ended" ? (
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Correct Answer *</label>
                   <Input
@@ -830,28 +1045,219 @@ function QuestionCard({
                     className="bg-gray-900 border-gray-600"
                   />
                 </div>
-              )}
+              ) : null}
 
               {type === "multiple_choice" && (
                 <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Answer Options</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {options.map((opt, i) => (
-                      <Input
-                        key={i}
-                        value={opt}
-                        onChange={(e) => {
-                          const newOpts = [...options]
-                          newOpts[i] = e.target.value
-                          setOptions(newOpts)
-                        }}
-                        placeholder={`Option ${String.fromCharCode(65 + i)}`}
-                        className="bg-gray-900 border-gray-600"
-                      />
-                    ))}
+                  <label className="text-xs text-gray-400 mb-2 block">
+                    Options <span className="text-gray-500">— click a letter to mark correct answer</span>
+                  </label>
+                  <div className="space-y-2">
+                    {options.map((opt, i) => {
+                      const letter = String.fromCharCode(65 + i)
+                      const isCorrect = answer === opt && opt.trim() !== ""
+                      return (
+                        <div key={i} className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (opt.trim()) setAnswer(opt)
+                            }}
+                            title={isCorrect ? "Correct answer" : "Mark as correct"}
+                            className={`w-8 h-8 rounded flex items-center justify-center text-sm font-semibold flex-shrink-0 transition-colors ${isCorrect
+                              ? "bg-green-600 text-white"
+                              : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                              }`}
+                          >
+                            {letter}
+                          </button>
+                          <Input
+                            value={opt}
+                            onChange={(e) => {
+                              const newOpts = [...options]
+                              const oldVal = newOpts[i]
+                              newOpts[i] = e.target.value
+                              setOptions(newOpts)
+                              // If this was the correct answer, update to new value
+                              if (answer === oldVal && oldVal.trim()) {
+                                setAnswer(e.target.value)
+                              }
+                            }}
+                            placeholder={`Option ${letter}`}
+                            className="bg-gray-900 border-gray-600 flex-1"
+                          />
+                          {options.length > 2 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const removed = options[i]
+                                const newOpts = options.filter((_, idx) => idx !== i)
+                                setOptions(newOpts)
+                                if (answer === removed) setAnswer("")
+                              }}
+                              className="w-8 h-8 rounded flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-colors flex-shrink-0"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="flex justify-center mt-3">
+                    <button
+                      type="button"
+                      onClick={() => setOptions([...options, ""])}
+                      className="px-3 py-1.5 rounded-lg text-sm text-gray-400 bg-gray-800 hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Option
+                    </button>
                   </div>
                 </div>
               )}
+
+              {/* Video Upload Section */}
+              <div className="border-t border-gray-700 pt-4">
+                <label className="text-xs text-gray-400 mb-3 block flex items-center gap-1.5">
+                  <Video className="h-3.5 w-3.5" /> Video Attachments
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Question Video */}
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">Question Video</p>
+                    {questionVideoUrl ? (
+                      <div className="relative rounded-lg overflow-hidden bg-black border border-gray-700">
+                        <video
+                          src={getMediaUrl(questionVideoUrl)!}
+                          className="w-full h-32 object-contain bg-black"
+                          controls
+                          playsInline
+                          muted
+                        />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={async () => {
+                              setQuestionVideoUrl(null)
+                              setQuestionVideoFileName(null)
+                            }}
+                            className="px-2 py-1 bg-red-500/80 rounded text-xs text-white"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between">
+                          {questionVideoFileName && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-900/80 text-gray-300 truncate max-w-[60%]">
+                              {questionVideoFileName}
+                            </span>
+                          )}
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/80 text-white ml-auto">✓ Uploaded</span>
+                        </div>
+                      </div>
+                    ) : uploadingVideo === "question" ? (
+                      <div className="rounded-lg border border-gray-700 p-3 bg-gray-900/50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Loader2 className="h-3.5 w-3.5 text-purple-400 animate-spin" />
+                          <span className="text-xs text-gray-400 capitalize">
+                            {uploadStage === "reading" ? "Reading file..." : uploadStage === "optimizing" ? "Optimizing..." : "Uploading..."}
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                          <motion.div
+                            className="h-full bg-purple-500 rounded-full"
+                            animate={{ width: `${uploadProgress}%` }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-gray-600 mt-1 text-right">{uploadProgress}%</p>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center h-20 rounded-lg border-2 border-dashed border-gray-700 hover:border-purple-500/50 bg-gray-900/30 cursor-pointer transition-colors">
+                        <Upload className="h-4 w-4 text-gray-500 mb-1" />
+                        <span className="text-xs text-gray-500">Upload video</span>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            handleVideoUpload(file, "question")
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  {/* Answer Video */}
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">Answer Video</p>
+                    {answerVideoUrl ? (
+                      <div className="relative rounded-lg overflow-hidden bg-black border border-gray-700">
+                        <video
+                          src={getMediaUrl(answerVideoUrl)!}
+                          className="w-full h-32 object-contain bg-black"
+                          controls
+                          playsInline
+                          muted
+                        />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={async () => {
+                              setAnswerVideoUrl(null)
+                              setAnswerVideoFileName(null)
+                            }}
+                            className="px-2 py-1 bg-red-500/80 rounded text-xs text-white"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between">
+                          {answerVideoFileName && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-900/80 text-gray-300 truncate max-w-[60%]">
+                              {answerVideoFileName}
+                            </span>
+                          )}
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/80 text-white ml-auto">✓ Uploaded</span>
+                        </div>
+                      </div>
+                    ) : uploadingVideo === "answer" ? (
+                      <div className="rounded-lg border border-gray-700 p-3 bg-gray-900/50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Loader2 className="h-3.5 w-3.5 text-green-400 animate-spin" />
+                          <span className="text-xs text-gray-400 capitalize">
+                            {uploadStage === "reading" ? "Reading file..." : uploadStage === "optimizing" ? "Optimizing..." : "Uploading..."}
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                          <motion.div
+                            className="h-full bg-green-500 rounded-full"
+                            animate={{ width: `${uploadProgress}%` }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-gray-600 mt-1 text-right">{uploadProgress}%</p>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center h-20 rounded-lg border-2 border-dashed border-gray-700 hover:border-green-500/50 bg-gray-900/30 cursor-pointer transition-colors">
+                        <Upload className="h-4 w-4 text-gray-500 mb-1" />
+                        <span className="text-xs text-gray-500">Upload video</span>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            handleVideoUpload(file, "answer")
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
@@ -859,3 +1265,4 @@ function QuestionCard({
     </Card>
   )
 }
+

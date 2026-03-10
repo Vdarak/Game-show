@@ -284,7 +284,6 @@ function TriviaDisplayContent() {
                 animate={{ scale: 1, opacity: 1 }}
                 className="text-center mb-12"
               >
-                <Trophy className="h-24 w-24 text-yellow-400 mx-auto mb-6" />
                 <h1 className="font-display text-6xl font-bold text-white mb-4">
                   Game Over!
                 </h1>
@@ -304,11 +303,10 @@ function TriviaDisplayContent() {
                       animate={{ x: 0, opacity: 1 }}
                       transition={{ delay: index * 0.15, type: "spring" }}
                       style={{ transform: `scale(${scale})` }}
-                      className={`flex items-center gap-4 p-4 rounded-xl mb-3 ${
-                        isTopThree
+                      className={`flex items-center gap-4 p-4 rounded-xl mb-3 ${isTopThree
                           ? "bg-yellow-900/30 border border-yellow-600/30"
                           : "bg-gray-800/50"
-                      }`}
+                        }`}
                     >
                       <div className="w-16 text-center">
                         {isTopThree ? (

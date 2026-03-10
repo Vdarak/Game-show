@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { sessionsApi, ApiClientError } from "@/lib/api-client"
 import type {
   Team,
@@ -16,28 +16,67 @@ interface PlayerSessionState {
   // Connection info
   roomCode: string | null
   gameSessionId: string | null
-  
+
   // Team info
   team: Team | null
-  
+
   // Game state
   sessionStatus: SessionStatusResponse | null
   currentQuestion: CurrentQuestionResponse | null
   availableWagers: number[]
-  
+
   // Submission state
   lastSubmission: SubmitAnswerResponse | null
   hasSubmittedCurrentQuestion: boolean
-  
+
   // Leaderboard
   leaderboard: LeaderboardResponse | null
-  
+
   // UI state
   isLoading: boolean
   error: string | null
 }
 
+
 const STORAGE_KEY = "trivitime_player_session"
+const ERROR_DISMISS_MS = 4000
+
+// Map raw API errors to player-friendly messages
+function friendlyError(raw: string): string {
+  const lower = raw.toLowerCase()
+
+  // Timer / submission
+  if (lower.includes("timer_ended") || lower.includes("timer must be running"))
+    return "⏰ Time's up! Your answer wasn't submitted in time."
+  if (lower.includes("already submitted") || lower.includes("duplicate"))
+    return "✅ You already submitted an answer for this question."
+  if (lower.includes("cannot submit"))
+    return "🚫 Submissions are closed for this question."
+
+  // Joining
+  if (lower.includes("room code") || lower.includes("room not found") || lower.includes("invalid room"))
+    return "🔍 That room code doesn't exist. Check the code and try again."
+  if (lower.includes("team name") && lower.includes("taken"))
+    return "👥 That team name is already taken. Pick a different one!"
+  if (lower.includes("team name"))
+    return "✏️ Please enter a valid team name."
+  if (lower.includes("session") && (lower.includes("not active") || lower.includes("not found")))
+    return "🚪 This game session isn't active. Ask the host for the right code."
+  if (lower.includes("avatar"))
+    return "🎨 There was a problem with your avatar. Try a different one."
+
+  // Network
+  if (lower.includes("network") || lower.includes("fetch") || lower.includes("failed to fetch"))
+    return "📶 Connection lost. Check your internet and try again."
+  if (lower.includes("timeout"))
+    return "⏳ The server took too long to respond. Try again."
+
+  // Fallback: if it looks like a technical error, hide the details
+  if (lower.includes("error") || lower.includes("fail") || lower.includes("cannot"))
+    return "😕 Something went wrong. Please try again."
+
+  return raw
+}
 
 // -------------------- Hook --------------------
 export function usePlayerSession() {
@@ -54,9 +93,27 @@ export function usePlayerSession() {
     isLoading: false,
     error: null,
   })
-  
+
   // Track whether localStorage has been loaded
   const [isHydrated, setIsHydrated] = useState(false)
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Set error with auto-dismiss
+  const setErrorWithAutoDismiss = useCallback((message: string) => {
+    const friendly = friendlyError(message)
+    setState((prev) => ({ ...prev, error: friendly }))
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    errorTimerRef.current = setTimeout(() => {
+      setState((prev) => ({ ...prev, error: null }))
+    }, ERROR_DISMISS_MS)
+  }, [])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    }
+  }, [])
 
   // Restore session from localStorage on mount
   useEffect(() => {
@@ -94,7 +151,7 @@ export function usePlayerSession() {
   // Join a game session
   const joinSession = useCallback(async (roomCode: string, teamName: string, avatarBase64?: string) => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }))
-    
+
     try {
       const team = await sessionsApi.join({
         RoomCode: roomCode.toUpperCase(),
@@ -125,7 +182,8 @@ export function usePlayerSession() {
       return team
     } catch (err) {
       const message = err instanceof ApiClientError ? err.detail : "Failed to join session"
-      setState((prev) => ({ ...prev, isLoading: false, error: message }))
+      setErrorWithAutoDismiss(message)
+      setState((prev) => ({ ...prev, isLoading: false }))
       throw err
     }
   }, [persistSession])
@@ -140,7 +198,7 @@ export function usePlayerSession() {
       return status
     } catch (err) {
       const message = err instanceof ApiClientError ? err.detail : "Failed to get session status"
-      setState((prev) => ({ ...prev, error: message }))
+      setErrorWithAutoDismiss(message)
       return null
     }
   }, [state.gameSessionId])
@@ -156,7 +214,7 @@ export function usePlayerSession() {
       })
 
       // Check if this is a new question (different from previous)
-      const isNewQuestion = !state.currentQuestion || 
+      const isNewQuestion = !state.currentQuestion ||
         state.currentQuestion.IDQuestion !== question.IDQuestion
 
       setState((prev) => ({
@@ -175,7 +233,7 @@ export function usePlayerSession() {
         return null
       }
       const message = err instanceof ApiClientError ? err.detail : "Failed to get question"
-      setState((prev) => ({ ...prev, error: message }))
+      setErrorWithAutoDismiss(message)
       return null
     }
   }, [state.gameSessionId, state.team, state.currentQuestion])
@@ -230,7 +288,8 @@ export function usePlayerSession() {
       return response
     } catch (err) {
       const message = err instanceof ApiClientError ? err.detail : "Failed to submit answer"
-      setState((prev) => ({ ...prev, isLoading: false, error: message }))
+      setErrorWithAutoDismiss(message)
+      setState((prev) => ({ ...prev, isLoading: false }))
       throw err
     }
   }, [state.gameSessionId, state.team, state.currentQuestion])

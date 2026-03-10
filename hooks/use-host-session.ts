@@ -15,22 +15,24 @@ import type {
   TeamResponse,
   LeaderboardResponse,
   GradeResponse,
+  GradeOverrideItem,
+  GradeOverrideResponse,
 } from "@/lib/api-types"
 
 // -------------------- Types --------------------
 interface HostSessionState {
   // Episode info
   episode: EpisodeWithRounds | null
-  
+
   // Session info
   session: Session | null
   sessionStatus: SessionStatusResponse | null
-  
+
   // Teams & Responses
   teams: Team[]
   responses: TeamResponse[]
   leaderboard: LeaderboardResponse | null
-  
+
   // UI state
   isLoading: boolean
   error: string | null
@@ -112,7 +114,7 @@ export function useHostSession() {
       }
 
       const session = await sessionsApi.create({ IDEpisode: episodeId })
-      
+
       setState((prev) => ({
         ...prev,
         episode,
@@ -243,13 +245,37 @@ export function useHostSession() {
         IDGameSession: state.session.IDGameSession,
       })
       setState((prev) => ({ ...prev, isLoading: false }))
-      
+
       // Refresh leaderboard after grading
       await refreshLeaderboard()
-      
+
       return result
     } catch (err) {
       const message = err instanceof ApiClientError ? err.detail : "Failed to grade responses"
+      setState((prev) => ({ ...prev, isLoading: false, error: message }))
+      throw err
+    }
+  }, [state.session, refreshLeaderboard])
+
+  // Grade override (manual grading for open_ended)
+  const gradeOverride = useCallback(async (overrides: GradeOverrideItem[]): Promise<GradeOverrideResponse | null> => {
+    if (!state.session) throw new Error("No session")
+
+    setState((prev) => ({ ...prev, isLoading: true, error: null }))
+
+    try {
+      const result = await sessionsApi.gradeOverride({
+        IDGameSession: state.session.IDGameSession,
+        overrides,
+      })
+      setState((prev) => ({ ...prev, isLoading: false }))
+
+      // Refresh leaderboard and responses after override
+      await refreshLeaderboard()
+
+      return result
+    } catch (err) {
+      const message = err instanceof ApiClientError ? err.detail : "Failed to submit grade override"
       setState((prev) => ({ ...prev, isLoading: false, error: message }))
       throw err
     }
@@ -340,7 +366,7 @@ export function useHostSession() {
   // Get current question from episode
   const getCurrentQuestion = useCallback(() => {
     if (!state.episode || !state.session) return null
-    
+
     const { CurrentRound, CurrentQuestion } = state.session
     if (CurrentRound === null || CurrentQuestion === null) return null
 
@@ -354,7 +380,7 @@ export function useHostSession() {
   // Get current round from episode
   const getCurrentRound = useCallback(() => {
     if (!state.episode || !state.session) return null
-    
+
     const { CurrentRound } = state.session
     if (CurrentRound === null) return null
 
@@ -366,7 +392,7 @@ export function useHostSession() {
     ...state,
     isAuthenticated,
     hasSession: !!state.session,
-    
+
     // Computed
     currentQuestion: getCurrentQuestion(),
     currentRound: getCurrentRound(),
@@ -381,6 +407,7 @@ export function useHostSession() {
     startSession,
     nextQuestion,
     gradeResponses,
+    gradeOverride,
     kickTeam,
     endSession,
     restartSession,

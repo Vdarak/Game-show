@@ -1,0 +1,95 @@
+# Game State Machine — Walkthrough
+
+## What Was Built
+
+A server-side game state machine for Trivi Time that synchronizes all clients (gameboard, player phones, host controller) via the status API. The host advances states with a "Next" button; the backend determines the next valid state automatically.
+
+## State Flow
+
+```
+lobby → welcome → rules → get_ready → announced
+                                         │
+                         ┌───────────────┤
+                         ▼               ▼
+                 options_revealed  video_playing
+                         │               │
+                    [start-timer]    options_revealed
+                         │               │
+                   timer_running    [start-timer]
+                         │
+                    timer_ended (automatic)
+                         │
+                   answer_reveal
+                         │
+                    [next-question]
+                         │
+                     get_ready → ... (loop) or completed
+```
+
+## Files Changed
+
+### New Files
+| File | Description |
+|------|-------------|
+| [add_game_state_columns.py](file:///d:/Career/freelance/trivi-time/alembic/versions/a1b2c3d4e5f6_add_game_state_columns.py) | Alembic migration: 4 new columns |
+| [test_state_machine.py](file:///d:/Career/freelance/trivi-time/tests/test_state_machine.py) | 18 integration tests for state machine |
+
+### Modified Files
+| File | Changes |
+|------|---------|
+| [game_session.py](file:///d:/Career/freelance/trivi-time/app/models/game_session.py) | Added `GameState`, `PreBreakState`, `TimerFrozenRemaining`, `TimerTotal` columns |
+| [session.py](file:///d:/Career/freelance/trivi-time/app/schemas/session.py) | Added fields to [SessionOut](file:///d:/Career/freelance/trivi-time/app/schemas/session.py#44-59)/[SessionStatusOut](file:///d:/Career/freelance/trivi-time/app/schemas/session.py#61-66), 3 new request schemas |
+| [session_service.py](file:///d:/Career/freelance/trivi-time/app/services/session_service.py) | Full state machine logic: transitions, timer, break/resume |
+| [sessions.py](file:///d:/Career/freelance/trivi-time/app/routers/sessions.py) | 3 new endpoints, updated [_enrich_session](file:///d:/Career/freelance/trivi-time/app/routers/sessions.py#143-159) |
+| [play_service.py](file:///d:/Career/freelance/trivi-time/app/services/play_service.py) | Submission gating on `GameState == "timer_running"` |
+| [test_integration.py](file:///d:/Career/freelance/trivi-time/tests/test_integration.py) | Updated to include state machine flow before submissions |
+| [pytest.ini](file:///d:/Career/freelance/trivi-time/pytest.ini) | Fixed pytest-asyncio v1.3.0 loop scope config |
+| [conftest.py](file:///d:/Career/freelance/trivi-time/tests/conftest.py) | Removed deprecated `event_loop` fixture |
+
+## New API Endpoints
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `POST /sessions/advance-state` | 🔒 | Advance the state machine by one step |
+| `POST /sessions/start-timer` | 🔒 | Start the question timer (from [options_revealed](file:///d:/Career/freelance/trivi-time/tests/test_state_machine.py#154-171)) |
+| `POST /sessions/set-break` | 🔒 | Trigger a break from any active state |
+
+## Test Results
+
+All tests pass (integration + state machine + scoring):
+
+```
+tests/test_integration.py::TestAuthFlow::test_login_success PASSED
+tests/test_integration.py::TestAuthFlow::test_login_wrong_password PASSED
+tests/test_integration.py::TestAuthFlow::test_protected_route_no_auth PASSED
+tests/test_integration.py::TestEpisodeCRUD::test_create_and_get_episode PASSED
+tests/test_integration.py::TestEpisodeCRUD::test_update_episode PASSED
+tests/test_integration.py::TestEpisodeCRUD::test_delete_episode PASSED
+tests/test_integration.py::TestFullGameFlow::test_complete_game PASSED
+tests/test_scoring.py::TestScoringModes::test_both_mode_scoring PASSED
+tests/test_scoring.py::TestScoringModes::test_wager_only_scoring PASSED
+tests/test_scoring.py::TestScoringModes::test_bonus_only_scoring PASSED
+tests/test_state_machine.py::test_create_session_has_lobby_state PASSED
+tests/test_state_machine.py::test_start_session_sets_welcome PASSED
+tests/test_state_machine.py::test_full_state_progression_no_video PASSED
+tests/test_state_machine.py::test_advance_from_options_revealed_blocked PASSED
+tests/test_state_machine.py::test_start_timer PASSED
+tests/test_state_machine.py::test_timer_remaining_computed PASSED
+tests/test_state_machine.py::test_advance_from_timer_running_blocked PASSED
+tests/test_state_machine.py::test_timer_auto_expiry PASSED
+tests/test_state_machine.py::test_timer_ended_to_answer_reveal PASSED
+tests/test_state_machine.py::test_answer_reveal_blocks_advance PASSED
+tests/test_state_machine.py::test_next_question_sets_get_ready PASSED
+tests/test_state_machine.py::test_video_question_state_flow PASSED
+tests/test_state_machine.py::test_set_break_and_resume PASSED
+tests/test_state_machine.py::test_break_from_invalid_state PASSED
+tests/test_state_machine.py::test_submit_blocked_before_timer PASSED
+tests/test_state_machine.py::test_submit_allowed_during_timer PASSED
+tests/test_state_machine.py::test_end_session_sets_completed_state PASSED
+tests/test_state_machine.py::test_restart_resets_game_state PASSED
+```
+
+## Deployment Note
+
+> [!IMPORTANT]
+> Run `alembic upgrade head` on the production database to add the 4 new columns before deploying the updated code. The migration is non-destructive (adds nullable columns with defaults).

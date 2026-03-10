@@ -16,7 +16,7 @@ export default function GameBoardPage() {
   const { state, clearWrongAnswerTrigger, videoEnded } = useGameState()
   const [animatingBoxIndex, setAnimatingBoxIndex] = useState<number>(-1)
   const [sponsorVideoData, setSponsorVideoData] = useState<string | null>(null)
-  
+
   // Get current survey footer text
   const currentFooterText = state.surveyFooterTexts[state.currentQuestionIndex] || ""
 
@@ -35,16 +35,16 @@ export default function GameBoardPage() {
   useEffect(() => {
     const toggleFullscreen = () => {
       if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {})
+        document.exitFullscreen().catch(() => { })
       } else {
-        document.documentElement.requestFullscreen().catch(() => {})
+        document.documentElement.requestFullscreen().catch(() => { })
       }
     }
 
     // Keyboard handler
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {})
+        document.exitFullscreen().catch(() => { })
       }
 
       if (e.key === "f" || e.key === "F") {
@@ -73,20 +73,20 @@ export default function GameBoardPage() {
   // Trigger sequential answer box animations when entering preview state
   useEffect(() => {
     if (
-      state.orchestration.microState === "preview" && 
+      state.orchestration.microState === "preview" &&
       state.orchestration.macroState === "questions" &&
       state.currentQuestion
     ) {
       // Reset animation
       setAnimatingBoxIndex(-1)
-      
+
       // Get total number of answers
       const totalAnswers = state.currentQuestion.answers.length
-      
+
       // Start sequential animation after a small delay
       const startTimer = setTimeout(() => {
         let currentIndex = 0
-        
+
         const animateNextBox = () => {
           if (currentIndex < totalAnswers) {
             setAnimatingBoxIndex(currentIndex)
@@ -94,21 +94,21 @@ export default function GameBoardPage() {
             setTimeout(animateNextBox, 250) // 250ms between each box
           }
         }
-        
+
         animateNextBox()
       }, 300)
-      
+
       return () => clearTimeout(startTimer)
     } else if (
-      state.orchestration.microState === "reveal-question" || 
+      state.orchestration.microState === "reveal-question" ||
       state.orchestration.microState === "playing"
     ) {
       // Show all boxes immediately when revealing question
       setAnimatingBoxIndex(9999) // Large number to show all
     }
   }, [
-    state.orchestration.microState, 
-    state.orchestration.macroState, 
+    state.orchestration.microState,
+    state.orchestration.macroState,
     state.currentQuestionIndex,
     state.currentQuestion
   ])
@@ -127,14 +127,14 @@ export default function GameBoardPage() {
   const renderAnswerBox = (answer: AnswerType, index: number, isPreview: boolean) => {
     const isVisible = index <= animatingBoxIndex
     const shouldAnimate = isPreview && index === animatingBoxIndex
-    
+
     return (
       <motion.div
         key={`${state.currentQuestionIndex}-${answer.id}`}
         initial={{ x: -200, opacity: 0 }}
         animate={isVisible ? { x: 0, opacity: 1 } : { x: -200, opacity: 0 }}
-        transition={{ 
-          type: "spring", 
+        transition={{
+          type: "spring",
           stiffness: 120,
           damping: 25,
           duration: 0.4
@@ -205,7 +205,7 @@ export default function GameBoardPage() {
 
   if (orchestration.macroState === "lightning-round") {
     return (
-      <LightningRoundScreen 
+      <LightningRoundScreen
         contestant1={state.lightningRound.contestant1}
         contestant2={state.lightningRound.contestant2}
         revealTrigger={state.lightningRound.revealTrigger}
@@ -234,20 +234,20 @@ export default function GameBoardPage() {
     const handleVideoEnd = () => {
       videoEnded()
     }
-    
+
     return (
-      <SponsorVideoScreen 
-        videoUrl={sponsorVideoData} 
-        sponsorLogo={state.sponsorLogo} 
+      <SponsorVideoScreen
+        videoUrl={sponsorVideoData}
+        sponsorLogo={state.sponsorLogo}
         footerText={currentFooterText}
         onVideoEnd={handleVideoEnd}
       />
     )
   }
-  
+
   const isPreviewMode = orchestration.microState === "preview"
   const showQuestion = orchestration.microState === "reveal-question" || orchestration.microState === "playing"
-  
+
   // Use currentQuestion for display as it has the revealed state
   const displayQuestion = state.currentQuestion
 
@@ -344,22 +344,26 @@ export default function GameBoardPage() {
       {/* Answers Board - Family Feud Style */}
       <div className="relative z-10 w-full max-w-[90vw]">
         {displayQuestion ? (
-          displayQuestion.answers.length < 6 ? (
-            /* Single Column for < 6 answers */
+          displayQuestion.answers.length <= 5 ? (
+            /* Single Column for ≤ 5 answers */
             <div className="flex flex-col gap-2 sm:gap-3">
               {displayQuestion.answers.map((answer, index) => renderAnswerBox(answer, index, isPreviewMode))}
             </div>
-          ) : (
-            /* Two Columns for 6+ answers */
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              <div className="flex flex-col gap-2 sm:gap-3">
-                {displayQuestion.answers.slice(0, 5).map((answer, index) => renderAnswerBox(answer, index, isPreviewMode))}
+          ) : (() => {
+            /* Two Columns for 6+ answers — balanced for odd/even */
+            const total = displayQuestion.answers.length
+            const leftCount = Math.ceil(total / 2)
+            return (
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                <div className="flex flex-col gap-2 sm:gap-3">
+                  {displayQuestion.answers.slice(0, leftCount).map((answer, index) => renderAnswerBox(answer, index, isPreviewMode))}
+                </div>
+                <div className="flex flex-col gap-2 sm:gap-3">
+                  {displayQuestion.answers.slice(leftCount).map((answer, index) => renderAnswerBox(answer, index + leftCount, isPreviewMode))}
+                </div>
               </div>
-              <div className="flex flex-col gap-2 sm:gap-3">
-                {displayQuestion.answers.slice(5, 10).map((answer, index) => renderAnswerBox(answer, index + 5, isPreviewMode))}
-              </div>
-            </div>
-          )
+            )
+          })()
         ) : (
           <div className="text-center text-lg text-gray-400 sm:text-xl">No question loaded</div>
         )}

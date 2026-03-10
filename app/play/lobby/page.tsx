@@ -7,7 +7,7 @@ import { usePlayerSession } from "@/hooks/use-player-session"
 import { sessionsApi } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Loader2, Users, LogOut, Clock, Wifi, QrCode } from "lucide-react"
-import { DitherBackground } from "@/components/game/dither-background"
+import { GrainGradient } from "@paper-design/shaders-react"
 import { TeamAvatar } from "@/components/game/team-avatar"
 import type { Team } from "@/lib/api-types"
 
@@ -91,36 +91,17 @@ export default function LobbyPage() {
 
   return (
     <div className="fixed inset-0 bg-gray-950 overflow-hidden">
-      {/* Dither Background */}
-      <div className="absolute inset-0 z-0 pointer-events-none opacity-20">
-        <DitherBackground
-          colorBack="#00000000"
-          colorFront="#6C5CE7"
-          speed={0.03}
+      {/* Background */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <GrainGradient
+          colors={["#002185", "#faaf00", "#089659"]}
+          colorBack="#740fa3"
           shape="wave"
-          type="4x4"
-          pxSize={2}
-          scale={1}
-        />
-      </div>
-
-      {/* Animated background elements */}
-      <div className="pointer-events-none fixed inset-0 opacity-15">
-        <motion.div
-          className="absolute left-1/3 top-1/4 h-80 w-80 rounded-full bg-purple-600 blur-3xl"
-          animate={{
-            scale: [1, 1.2, 1],
-            rotate: [0, 180, 360],
-          }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-        />
-        <motion.div
-          className="absolute right-1/3 bottom-1/4 h-80 w-80 rounded-full bg-green-600 blur-3xl"
-          animate={{
-            scale: [1, 1.3, 1],
-            rotate: [360, 180, 0],
-          }}
-          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+          softness={0.68}
+          intensity={0}
+          noise={0}
+          speed={0.3}
+          style={{ width: "100%", height: "100%" }}
         />
       </div>
 
@@ -138,7 +119,7 @@ export default function LobbyPage() {
             variant="ghost"
             size="sm"
             onClick={handleLeave}
-            className="text-gray-400 hover:text-white hover:bg-gray-800"
+            className="text-gray-200 hover:text-white hover:bg-gray-800"
           >
             <LogOut className="h-4 w-4 mr-2" />
             Leave
@@ -149,7 +130,7 @@ export default function LobbyPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gray-900/60 backdrop-blur-lg rounded-2xl p-6 border border-gray-800 mb-6"
+          className="bg-gray-950/80 backdrop-blur-lg rounded-2xl p-6 border border-gray-700 mb-6"
         >
           <div className="flex items-center gap-4">
             <TeamAvatar avatarPath={team.AvatarBlobPath} teamName={team.TeamName} size="xl" />
@@ -158,8 +139,8 @@ export default function LobbyPage() {
                 {team.TeamName}
               </h2>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-gray-400 text-sm">Room:</span>
-                <span className="font-display font-bold text-purple-400 tracking-wider">
+                <span className="text-gray-200 text-sm">Room:</span>
+                <span className="font-display font-bold text-purple-300 tracking-wider">
                   {roomCode}
                 </span>
               </div>
@@ -174,20 +155,11 @@ export default function LobbyPage() {
           transition={{ delay: 0.2 }}
           className="flex-1 flex flex-col items-center justify-center"
         >
-          <motion.div
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            className="mb-6"
-          >
-            <div className="p-6 rounded-full bg-purple-600/20 border border-purple-500/30">
-              <Clock className="h-12 w-12 text-purple-400" />
-            </div>
-          </motion.div>
 
           <h3 className="text-2xl font-display font-bold text-white mb-2 text-center">
             Waiting for Host
           </h3>
-          <p className="text-gray-400 text-center max-w-xs">
+          <p className="text-gray-200 text-center max-w-xs">
             The game will start automatically when the host begins
           </p>
 
@@ -236,7 +208,7 @@ export default function LobbyPage() {
                 <div className="bg-gray-900 p-4 rounded-xl">
                   <img src={qrCodeUrl} alt="QR Code" className="w-40 h-40" />
                 </div>
-                <p className="text-xs text-gray-500 mt-2 text-center">
+                <p className="text-xs text-gray-300 mt-2 text-center">
                   Scan to join room <span className="text-purple-400 font-bold">{roomCode}</span>
                 </p>
               </motion.div>
@@ -249,11 +221,11 @@ export default function LobbyPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-gray-900/60 backdrop-blur-lg rounded-2xl p-4 border border-gray-800"
+          className="bg-gray-950/80 backdrop-blur-lg rounded-2xl p-4 border border-gray-700"
         >
           <div className="flex items-center gap-2 mb-3">
-            <Users className="h-4 w-4 text-gray-400" />
-            <span className="text-sm text-gray-400">
+            <Users className="h-4 w-4 text-gray-200" />
+            <span className="text-sm text-gray-200">
               {teams.length} {teams.length === 1 ? "team" : "teams"} joined
             </span>
           </div>
@@ -266,11 +238,10 @@ export default function LobbyPage() {
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-2 ${
-                    t.IDTeam === team.IDTeam
-                      ? "bg-purple-600/30 border border-purple-500/50 text-purple-300"
-                      : "bg-gray-800 text-gray-300"
-                  }`}
+                  className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-2 ${t.IDTeam === team.IDTeam
+                    ? "bg-purple-600/30 border border-purple-500/50 text-purple-300"
+                    : "bg-gray-950/70 text-gray-100"
+                    }`}
                 >
                   <TeamAvatar avatarPath={t.AvatarBlobPath} teamName={t.TeamName} size="sm" />
                   <span className="truncate max-w-[120px]">{t.TeamName}</span>

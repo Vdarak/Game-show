@@ -10,15 +10,12 @@ import {
   Clock,
   Users,
   Award,
-  RefreshCw,
   Loader2,
   ChevronRight,
   AlertCircle,
   Zap,
-  Eye,
-  EyeOff,
 } from "lucide-react"
-import type { Team, TeamResponse, Question, Round } from "@/lib/api-types"
+import type { Team, TeamResponse, Question, Round, GradeOverrideItem } from "@/lib/api-types"
 import { TeamAvatar } from "./team-avatar"
 
 interface IncomingAnswersPanelProps {
@@ -29,6 +26,7 @@ interface IncomingAnswersPanelProps {
   currentRound: Round | null
   isGrading: boolean
   onGrade: () => Promise<void>
+  onGradeOverride?: (overrides: GradeOverrideItem[]) => Promise<void>
   onNextQuestion: () => Promise<void>
   onRefresh: () => Promise<void>
   onKickTeam: (teamId: string) => Promise<void>
@@ -42,59 +40,20 @@ export function IncomingAnswersPanel({
   currentRound,
   isGrading,
   onGrade,
+  onGradeOverride,
   onNextQuestion,
   onRefresh,
   onKickTeam,
 }: IncomingAnswersPanelProps) {
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [autoRefresh, setAutoRefresh] = useState(true)
-  const [showAnswer, setShowAnswer] = useState(false)
-  const broadcastChannelRef = useRef<BroadcastChannel | null>(null)
+  const [manualOverrides, setManualOverrides] = useState<Map<string, boolean>>(new Map())
+  const [isOverriding, setIsOverriding] = useState(false)
 
-  // Setup BroadcastChannel to communicate with gameboard
+  // Reset manual overrides when question changes
   useEffect(() => {
-    if (typeof window === "undefined" || !sessionId) return
-
-    try {
-      broadcastChannelRef.current = new BroadcastChannel(`trivitime-host-${sessionId}`)
-    } catch (err) {
-      console.log("BroadcastChannel not supported")
-    }
-
-    return () => {
-      broadcastChannelRef.current?.close()
-    }
-  }, [sessionId])
-
-  // Reset showAnswer when question changes
-  useEffect(() => {
-    setShowAnswer(false)
-    // Broadcast reset to gameboard
-    broadcastChannelRef.current?.postMessage({ type: "SHOW_ANSWER", payload: false })
+    setManualOverrides(new Map())
   }, [currentQuestion?.IDQuestion])
 
-  const handleToggleShowAnswer = useCallback(() => {
-    const newValue = !showAnswer
-    setShowAnswer(newValue)
-    broadcastChannelRef.current?.postMessage({ type: "SHOW_ANSWER", payload: newValue })
-  }, [showAnswer])
 
-  // Auto-refresh responses
-  useEffect(() => {
-    if (!autoRefresh || !currentQuestion) return
-
-    const interval = setInterval(() => {
-      onRefresh()
-    }, 2000)
-
-    return () => clearInterval(interval)
-  }, [autoRefresh, currentQuestion, onRefresh])
-
-  const handleManualRefresh = useCallback(async () => {
-    setIsRefreshing(true)
-    await onRefresh()
-    setIsRefreshing(false)
-  }, [onRefresh])
 
   // Get response for a team
   const getTeamResponse = useCallback(
@@ -122,6 +81,40 @@ export function IncomingAnswersPanel({
     [currentQuestion]
   )
 
+  // Toggle manual override for a response
+  const toggleOverride = useCallback((responseId: string, isCorrect: boolean) => {
+    setManualOverrides(prev => {
+      const next = new Map(prev)
+      const current = next.get(responseId)
+      if (current === isCorrect) {
+        // Toggle off if already set to same value
+        next.delete(responseId)
+      } else {
+        next.set(responseId, isCorrect)
+      }
+      return next
+    })
+  }, [])
+
+  // Submit manual overrides
+  const handleSubmitOverrides = useCallback(async () => {
+    if (!onGradeOverride || manualOverrides.size === 0) return
+    setIsOverriding(true)
+    try {
+      const overrides: GradeOverrideItem[] = Array.from(manualOverrides.entries()).map(
+        ([IDResponse, IsCorrect]) => ({ IDResponse, IsCorrect })
+      )
+      await onGradeOverride(overrides)
+      setManualOverrides(new Map())
+    } catch (err) {
+      // Error handled upstream
+    }
+    setIsOverriding(false)
+  }, [onGradeOverride, manualOverrides])
+
+  const isOpenEnded = currentQuestion?.QuestionType === "open_ended"
+  const hasOverrides = manualOverrides.size > 0
+
   if (!currentQuestion) {
     return (
       <Card className="bg-gray-800 border-gray-700 p-4">
@@ -142,32 +135,6 @@ export function IncomingAnswersPanel({
             <Users className="h-4 w-4 text-purple-400" />
             Incoming Answers
           </h3>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`p-1.5 rounded-md transition-colors ${
-                autoRefresh
-                  ? "bg-green-600/20 text-green-400"
-                  : "bg-gray-700 text-gray-400"
-              }`}
-              title={autoRefresh ? "Auto-refresh ON" : "Auto-refresh OFF"}
-            >
-              <RefreshCw className={`h-4 w-4 ${autoRefresh ? "animate-spin" : ""}`} />
-            </button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleManualRefresh}
-              disabled={isRefreshing}
-              className="text-gray-400 hover:text-white"
-            >
-              {isRefreshing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
         </div>
 
         {/* Progress bar */}
@@ -199,6 +166,11 @@ export function IncomingAnswersPanel({
               {currentQuestion.Category}
             </span>
           )}
+          {isOpenEnded && (
+            <span className="px-2 py-0.5 rounded bg-yellow-600/20 text-yellow-400">
+              Manual Grading
+            </span>
+          )}
         </div>
         <p className="text-sm text-white truncate">{currentQuestion.QuestionText}</p>
         <p className="text-xs text-green-400 mt-1">
@@ -224,19 +196,21 @@ export function IncomingAnswersPanel({
                 const response = getTeamResponse(team.IDTeam)
                 const hasResponded = !!response
                 const isCorrect = response ? isCorrectAnswer(response.AnswerText) : false
+                const overrideValue = response ? manualOverrides.get(response.IDResponse) : undefined
+                // Use override if set, otherwise use auto-graded result
+                const displayCorrect = overrideValue !== undefined ? overrideValue : isCorrect
 
                 return (
                   <motion.tr
                     key={team.IDTeam}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`border-b border-gray-700/50 ${
-                      hasResponded
-                        ? isCorrect
-                          ? "bg-green-900/10"
-                          : "bg-red-900/10"
-                        : ""
-                    }`}
+                    className={`border-b border-gray-700/50 ${hasResponded
+                      ? displayCorrect
+                        ? "bg-green-900/10"
+                        : "bg-red-900/10"
+                      : ""
+                      }`}
                   >
                     <td className="p-3">
                       <div className="flex items-center gap-2">
@@ -253,9 +227,8 @@ export function IncomingAnswersPanel({
                     <td className="p-3">
                       {hasResponded ? (
                         <span
-                          className={`text-sm font-medium ${
-                            isCorrect ? "text-green-400" : "text-red-400"
-                          }`}
+                          className={`text-sm font-medium ${displayCorrect ? "text-green-400" : "text-red-400"
+                            }`}
                         >
                           {response.AnswerText}
                         </span>
@@ -292,14 +265,41 @@ export function IncomingAnswersPanel({
                     </td>
                     <td className="p-3 text-center">
                       {hasResponded ? (
-                        response.WasOnTime ? (
-                          isCorrect ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-400 mx-auto" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-red-400 mx-auto" />
-                          )
+                        isOpenEnded && onGradeOverride ? (
+                          // Manual grading toggle buttons for open_ended
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => toggleOverride(response.IDResponse, true)}
+                              title="Mark correct"
+                              className={`p-1 rounded transition-colors ${overrideValue === true
+                                ? "bg-green-600 text-white"
+                                : "text-gray-500 hover:text-green-400 hover:bg-green-600/20"
+                                }`}
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => toggleOverride(response.IDResponse, false)}
+                              title="Mark wrong"
+                              className={`p-1 rounded transition-colors ${overrideValue === false
+                                ? "bg-red-600 text-white"
+                                : "text-gray-500 hover:text-red-400 hover:bg-red-600/20"
+                                }`}
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </button>
+                          </div>
                         ) : (
-                          <span className="text-xs text-orange-400">Late</span>
+                          // Auto-graded status icon
+                          response.WasOnTime ? (
+                            isCorrect ? (
+                              <CheckCircle2 className="h-5 w-5 text-green-400 mx-auto" />
+                            ) : (
+                              <XCircle className="h-5 w-5 text-red-400 mx-auto" />
+                            )
+                          ) : (
+                            <span className="text-xs text-orange-400">Late</span>
+                          )
                         )
                       ) : (
                         <Clock className="h-4 w-4 text-gray-500 mx-auto animate-pulse" />
@@ -324,42 +324,37 @@ export function IncomingAnswersPanel({
 
       {/* Actions Footer */}
       <div className="p-4 border-t border-gray-700 bg-gray-900/50 space-y-2">
-        {/* Show Answer Toggle */}
-        <Button
-          onClick={handleToggleShowAnswer}
-          variant="outline"
-          className={`w-full ${
-            showAnswer
-              ? "border-green-500 text-green-400 bg-green-500/10"
-              : "border-gray-600 text-gray-400"
-          }`}
-        >
-          {showAnswer ? (
-            <>
-              <EyeOff className="h-4 w-4 mr-2" />
-              Hide Answer on Display
-            </>
-          ) : (
-            <>
-              <Eye className="h-4 w-4 mr-2" />
-              Show Answer on Display
-            </>
-          )}
-        </Button>
+
 
         <div className="flex gap-2">
-          <Button
-            onClick={onGrade}
-            disabled={isGrading || submittedCount === 0}
-            className="flex-1 bg-green-600 hover:bg-green-700"
-          >
-            {isGrading ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Award className="h-4 w-4 mr-2" />
-            )}
-            Grade All ({submittedCount})
-          </Button>
+          {/* Manual Grade Override button (for open_ended) */}
+          {isOpenEnded && onGradeOverride && hasOverrides ? (
+            <Button
+              onClick={handleSubmitOverrides}
+              disabled={isOverriding}
+              className="flex-1 bg-yellow-600 hover:bg-yellow-700"
+            >
+              {isOverriding ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Award className="h-4 w-4 mr-2" />
+              )}
+              Grade Selected ({manualOverrides.size})
+            </Button>
+          ) : (
+            <Button
+              onClick={onGrade}
+              disabled={isGrading || submittedCount === 0}
+              className="flex-1 bg-green-600 hover:bg-green-700"
+            >
+              {isGrading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Award className="h-4 w-4 mr-2" />
+              )}
+              Grade All ({submittedCount})
+            </Button>
+          )}
           <Button
             onClick={onNextQuestion}
             variant="secondary"

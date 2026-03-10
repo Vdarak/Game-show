@@ -17,12 +17,16 @@ import type {
   Question,
   MoveQuestionRequest,
   UploadVideoRequest,
+  UploadRulesVideoRequest,
   CreateSessionRequest,
   Session,
   SessionStatusResponse,
   GenerateHostLinkRequest,
   HostLinkResponse,
   ValidateHostLinkRequest,
+  HostLinkListRequest,
+  HostLinkListItem,
+  HostLinkRevokeRequest,
   JoinSessionRequest,
   Team,
   CurrentQuestionRequest,
@@ -33,6 +37,8 @@ import type {
   PointPoolResponse,
   GradeRequest,
   GradeResponse,
+  GradeOverrideRequest,
+  GradeOverrideResponse,
   LeaderboardResponse,
   ListResponsesRequest,
   TeamResponse,
@@ -48,7 +54,13 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ""
 // Debug: Log API URL on startup (client-side only)
 if (typeof window !== "undefined") {
   console.log("[API Client] Base URL:", API_BASE_URL || "(empty - check NEXT_PUBLIC_API_URL)")
-} 
+}
+
+export function getMediaUrl(path: string | null | undefined): string | undefined {
+  if (!path) return undefined
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) return path
+  return `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`
+}
 
 // -------------------- Token Management --------------------
 let authToken: string | null = null
@@ -165,6 +177,47 @@ export const episodesApi = {
 
   delete: (IDEpisode: string): Promise<DeleteResponse> =>
     apiRequest("/episodes/delete", { body: { IDEpisode }, requiresAuth: true }),
+
+  uploadRulesVideo: async (data: UploadRulesVideoRequest): Promise<Episode> => {
+    const token = getAuthToken()
+    if (!token) {
+      throw new ApiClientError(401, "No authentication token available")
+    }
+
+    const formData = new FormData()
+    formData.append("file", data.file)
+    formData.append("episode_id", data.episode_id)
+
+    const url = `${API_BASE_URL}/episodes/upload-rules-video`
+    console.log(`[API] POST ${url} (multipart)`)
+
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      })
+    } catch (err) {
+      console.error(`[API] Network error:`, err)
+      throw new ApiClientError(0, `Network error: ${err instanceof Error ? err.message : "Failed to fetch"}`)
+    }
+
+    if (!response.ok) {
+      let detail = "Unknown error"
+      try {
+        const errorData: ApiError = await response.json()
+        detail = errorData.detail
+      } catch {
+        detail = response.statusText
+      }
+      throw new ApiClientError(response.status, detail)
+    }
+
+    return response.json()
+  },
 }
 
 // -------------------- Rounds API --------------------
@@ -193,8 +246,47 @@ export const questionsApi = {
   move: (data: MoveQuestionRequest): Promise<Question> =>
     apiRequest("/questions/move", { body: data, requiresAuth: true }),
 
-  uploadVideo: (data: UploadVideoRequest): Promise<Question> =>
-    apiRequest("/questions/upload-video", { body: data, requiresAuth: true }),
+  uploadVideo: async (data: UploadVideoRequest): Promise<Question> => {
+    const token = getAuthToken()
+    if (!token) {
+      throw new ApiClientError(401, "No authentication token available")
+    }
+
+    const formData = new FormData()
+    formData.append("file", data.file)
+    formData.append("question_id", data.question_id)
+    formData.append("video_type", data.video_type)
+
+    const url = `${API_BASE_URL}/questions/upload-video`
+    console.log(`[API] POST ${url} (multipart)`)
+
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      })
+    } catch (err) {
+      console.error(`[API] Network error:`, err)
+      throw new ApiClientError(0, `Network error: ${err instanceof Error ? err.message : "Failed to fetch"}`)
+    }
+
+    if (!response.ok) {
+      let detail = "Unknown error"
+      try {
+        const errorData: ApiError = await response.json()
+        detail = errorData.detail
+      } catch {
+        detail = response.statusText
+      }
+      throw new ApiClientError(response.status, detail)
+    }
+
+    return response.json()
+  },
 }
 
 // -------------------- Sessions API --------------------
@@ -218,11 +310,23 @@ export const sessionsApi = {
   grade: (data: GradeRequest): Promise<GradeResponse> =>
     apiRequest("/sessions/grade", { body: data, requiresAuth: true }),
 
+  gradeOverride: (data: GradeOverrideRequest): Promise<GradeOverrideResponse> =>
+    apiRequest("/sessions/grade-override", { body: data, requiresAuth: true }),
+
   responses: (data: ListResponsesRequest): Promise<TeamResponse[]> =>
     apiRequest("/sessions/responses", { body: data, requiresAuth: true }),
 
   kick: (data: KickTeamRequest): Promise<KickTeamResponse> =>
     apiRequest("/sessions/kick", { body: data, requiresAuth: true }),
+
+  advanceState: (IDGameSession: string): Promise<Session> =>
+    apiRequest("/sessions/advance-state", { body: { IDGameSession }, requiresAuth: true }),
+
+  startTimer: (IDGameSession: string): Promise<Session> =>
+    apiRequest("/sessions/start-timer", { body: { IDGameSession }, requiresAuth: true }),
+
+  setBreak: (IDGameSession: string): Promise<Session> =>
+    apiRequest("/sessions/set-break", { body: { IDGameSession }, requiresAuth: true }),
 
   // Public endpoints (no auth)
   status: (IDGameSession: string): Promise<SessionStatusResponse> =>
@@ -254,6 +358,12 @@ export const hostLinksApi = {
 
   validate: (data: ValidateHostLinkRequest): Promise<Session> =>
     apiRequest("/host-link/validate", { body: data }),
+
+  list: (data?: HostLinkListRequest): Promise<HostLinkListItem[]> =>
+    apiRequest("/host-link/list", { body: data || {}, requiresAuth: true }),
+
+  revoke: (data: HostLinkRevokeRequest): Promise<string> =>
+    apiRequest("/host-link/revoke", { body: data, requiresAuth: true }),
 }
 
 // -------------------- Export Error Class --------------------

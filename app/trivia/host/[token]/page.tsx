@@ -1,28 +1,26 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useParams, useRouter } from "next/navigation"
 import { hostLinksApi, sessionsApi, episodesApi } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { RoomCodePanel } from "@/components/game/room-code-panel"
 import { IncomingAnswersPanel } from "@/components/game/incoming-answers-panel"
-import { LeaderboardPanel } from "@/components/game/leaderboard-panel"
+import { QuestionOrchestrationControls } from "@/components/game/question-orchestration-controls"
+import { MacroPhaseBar } from "@/components/game/macro-phase-bar"
 import { Toaster } from "@/components/ui/sonner"
 import { toast } from "sonner"
 import {
   Loader2,
   AlertCircle,
-  Play,
-  QrCode,
-  Users,
-  Trophy,
-  Clock,
-  StopCircle,
+  Lock,
+  Monitor,
   RefreshCw,
-  Copy,
-  Check,
-  ExternalLink,
+  Play,
+  CheckCircle2,
 } from "lucide-react"
 import type {
   Session,
@@ -33,6 +31,7 @@ import type {
   Question,
   Round,
   EpisodeWithRounds,
+  GradeOverrideItem,
 } from "@/lib/api-types"
 
 export default function HostTokenPage() {
@@ -40,9 +39,13 @@ export default function HostTokenPage() {
   const router = useRouter()
   const token = params.token as string
 
-  // State
-  const [isValidating, setIsValidating] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // PIN gate state
+  const [pin, setPin] = useState("")
+  const [isPinValidated, setIsPinValidated] = useState(false)
+  const [pinError, setPinError] = useState<string | null>(null)
+  const [isValidating, setIsValidating] = useState(false)
+
+  // Session state
   const [session, setSession] = useState<Session | null>(null)
   const [sessionStatus, setSessionStatus] = useState<SessionStatusResponse | null>(null)
   const [episode, setEpisode] = useState<EpisodeWithRounds | null>(null)
@@ -53,32 +56,76 @@ export default function HostTokenPage() {
   const [currentRound, setCurrentRound] = useState<Round | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isGrading, setIsGrading] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [isRestarting, setIsRestarting] = useState(false)
 
-  // Validate token on mount
+  // Gameboard controls
+  const [showVideo, setShowVideo] = useState(true)
+  const [musicEnabled, setMusicEnabled] = useState(true)
+  const gameboardWindowRef = useRef<Window | null>(null)
+  const [isGameboardOpen, setIsGameboardOpen] = useState(false)
+
+  // --------------- PIN VALIDATION ---------------
+  const handlePinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!pin.trim()) {
+      setPinError("Please enter the PIN")
+      return
+    }
+    setIsValidating(true)
+    setPinError(null)
+    try {
+      const validatedSession = await hostLinksApi.validate({ Token: token, PIN: pin.trim() })
+      setSession(validatedSession)
+
+      const ep = await episodesApi.get(validatedSession.IDEpisode)
+      setEpisode(ep)
+
+      setIsPinValidated(true)
+    } catch {
+      setPinError("Invalid PIN or expired link")
+    }
+    setIsValidating(false)
+  }
+
+  // --------------- REFRESH STATUS ---------------
+  const refreshSessionStatus = useCallback(async () => {
+    if (!session) return
+    try {
+      const status = await sessionsApi.status(session.IDGameSession)
+      setSessionStatus(status)
+    } catch (err) {
+      console.error("Failed to refresh status:", err)
+    }
+  }, [session])
+
+  // --------------- GAMEBOARD WINDOW TRACKING ---------------
   useEffect(() => {
-    const validateToken = async () => {
-      try {
-        const validatedSession = await hostLinksApi.validate({ Token: token })
-        setSession(validatedSession)
-        
-        // Load episode details
-        const ep = await episodesApi.get(validatedSession.IDEpisode)
-        setEpisode(ep)
-        
-        setIsValidating(false)
-      } catch (err) {
-        setError("Invalid or expired host link")
-        setIsValidating(false)
+    const interval = setInterval(() => {
+      if (gameboardWindowRef.current && !gameboardWindowRef.current.closed) {
+        setIsGameboardOpen(true)
+      } else {
+        setIsGameboardOpen(false)
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const openGameboard = () => {
+    if (session) {
+      // If gameboard is already open, just focus it
+      if (gameboardWindowRef.current && !gameboardWindowRef.current.closed) {
+        gameboardWindowRef.current.focus()
+        return
+      }
+      const win = window.open(`/trivia/display/gameboard?session=${session.IDGameSession}`, "_blank")
+      if (win) {
+        gameboardWindowRef.current = win
+        setIsGameboardOpen(true)
       }
     }
+  }
 
-    if (token) {
-      validateToken()
-    }
-  }, [token])
-
-  // Poll for updates when session is active
+  // --------------- POLLING ---------------
   useEffect(() => {
     if (!session) return
 
@@ -86,11 +133,10 @@ export default function HostTokenPage() {
       try {
         const status = await sessionsApi.status(session.IDGameSession)
         setSessionStatus(status)
-        
+
         const teamsList = await sessionsApi.teams(session.IDGameSession)
         setTeams(teamsList)
 
-        // Find current question/round from episode
         if (status.CurrentRound && status.CurrentQuestion && episode) {
           const round = episode.rounds.find(r => r.RoundNumber === status.CurrentRound)
           if (round) {
@@ -98,7 +144,6 @@ export default function HostTokenPage() {
             const question = round.questions.find(q => q.QuestionOrder === status.CurrentQuestion)
             if (question) {
               setCurrentQuestion(question)
-              // Get responses for current question
               const resps = await sessionsApi.responses({
                 IDGameSession: session.IDGameSession,
                 IDQuestion: question.IDQuestion,
@@ -120,7 +165,7 @@ export default function HostTokenPage() {
     return () => clearInterval(interval)
   }, [session, episode])
 
-  // Handlers
+  // --------------- HANDLERS ---------------
   const handleStartSession = async () => {
     if (!session) return
     setIsLoading(true)
@@ -128,7 +173,7 @@ export default function HostTokenPage() {
       const updated = await sessionsApi.start(session.IDGameSession)
       setSession(updated)
       toast.success("Game started!")
-    } catch (err) {
+    } catch {
       toast.error("Failed to start game")
     }
     setIsLoading(false)
@@ -140,7 +185,7 @@ export default function HostTokenPage() {
     try {
       const result = await sessionsApi.grade({ IDGameSession: session.IDGameSession })
       toast.success(`Graded ${result.total_graded} responses`)
-    } catch (err) {
+    } catch {
       toast.error("Failed to grade responses")
     }
     setIsGrading(false)
@@ -155,7 +200,7 @@ export default function HostTokenPage() {
       if (updated.Status === "completed") {
         toast.info("Game completed!")
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to advance")
     }
     setIsLoading(false)
@@ -166,7 +211,7 @@ export default function HostTokenPage() {
     try {
       await sessionsApi.kick({ IDGameSession: session.IDGameSession, IDTeam: teamId })
       toast.success("Team removed")
-    } catch (err) {
+    } catch {
       toast.error("Failed to remove team")
     }
   }
@@ -178,7 +223,7 @@ export default function HostTokenPage() {
       const updated = await sessionsApi.end(session.IDGameSession)
       setSession(updated)
       toast.info("Game ended")
-    } catch (err) {
+    } catch {
       toast.error("Failed to end game")
     }
     setIsLoading(false)
@@ -187,15 +232,15 @@ export default function HostTokenPage() {
   const handleRestartSession = async () => {
     if (!session) return
     if (!confirm("Restart the game? This will reset to Round 1, Question 1.")) return
-    setIsLoading(true)
+    setIsRestarting(true)
     try {
       const updated = await sessionsApi.restart(session.IDGameSession)
       setSession(updated)
       toast.success("Game restarted!")
-    } catch (err) {
+    } catch {
       toast.error("Failed to restart game")
     }
-    setIsLoading(false)
+    setIsRestarting(false)
   }
 
   const handleRefreshResponses = async () => {
@@ -208,272 +253,268 @@ export default function HostTokenPage() {
     }
   }
 
-  const handleCopyRoomCode = async () => {
+  const handleGradeOverride = async (overrides: GradeOverrideItem[]) => {
     if (!session) return
     try {
-      await navigator.clipboard.writeText(session.RoomCode)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      toast.error("Failed to copy")
+      const result = await sessionsApi.gradeOverride({
+        IDGameSession: session.IDGameSession,
+        overrides,
+      })
+      toast.success(`Graded ${result.updated} responses`)
+      await handleRefreshResponses()
+    } catch {
+      toast.error("Failed to grade responses")
     }
   }
 
-  // Loading state
-  if (isValidating) {
+  const handleToggleShowAnswer = () => {
+    // Orchestration handles answer reveal via server state now
+  }
+
+  const handleToggleShowVideo = () => {
+    setShowVideo(prev => !prev)
+  }
+
+  const refreshTeams = async () => {
+    if (!session) return
+    const teamsList = await sessionsApi.teams(session.IDGameSession)
+    setTeams(teamsList)
+  }
+
+  const refreshLeaderboard = async () => {
+    if (!session) return
+    const lb = await sessionsApi.leaderboard(session.IDGameSession)
+    setLeaderboard(lb)
+  }
+
+  // =============== PIN GATE ===============
+  if (!isPinValidated) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-purple-500 mx-auto mb-4" />
-          <p className="text-gray-400">Validating host link...</p>
-        </div>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Card className="bg-gray-800 border-gray-700 p-8 max-w-sm w-full text-center">
+            <div className="p-4 rounded-full bg-purple-600/20 border border-purple-500/30 w-fit mx-auto mb-6">
+              <Lock className="h-8 w-8 text-purple-400" />
+            </div>
+            <h1 className="text-xl font-display font-bold text-white mb-2">Host PIN Required</h1>
+            <p className="text-gray-400 text-sm mb-6">
+              Enter the PIN provided by the game admin to access host controls.
+            </p>
+            <form onSubmit={handlePinSubmit} className="space-y-4">
+              <Input
+                type="text"
+                value={pin}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setPin(e.target.value)
+                  setPinError(null)
+                }}
+                placeholder="Enter PIN"
+                autoFocus
+                className="bg-gray-900 border-gray-700 text-white text-center text-2xl tracking-[0.3em] font-display h-14 placeholder:text-gray-600 placeholder:text-base placeholder:tracking-normal"
+              />
+              {pinError && (
+                <div className="flex items-center justify-center gap-2 text-red-400 text-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  {pinError}
+                </div>
+              )}
+              <Button
+                type="submit"
+                disabled={isValidating || !pin.trim()}
+                className="w-full bg-purple-600 hover:bg-purple-700"
+              >
+                {isValidating ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Lock className="h-4 w-4 mr-2" />
+                )}
+                {isValidating ? "Validating..." : "Enter"}
+              </Button>
+            </form>
+          </Card>
+        </motion.div>
       </div>
     )
   }
 
-  // Error state
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <Card className="bg-gray-800 border-gray-700 p-8 max-w-md text-center">
-          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-          <h1 className="text-xl font-semibold text-white mb-2">Link Invalid</h1>
-          <p className="text-gray-400 mb-6">{error}</p>
-          <Button onClick={() => router.push("/trivia")} variant="outline">
-            Go to Login
-          </Button>
-        </Card>
-      </div>
-    )
-  }
+  // Compute grading stats
+  const totalTeams = teams.length
+  const respondedCount = responses.length
+  const gradedCount = responses.filter(r => r.IsCorrect !== null).length
+  const correctCount = responses.filter(r => r.IsCorrect === true).length
 
-  const isInLobby = sessionStatus?.Status === "lobby"
+  // =============== MAIN HOST CONTROLLER ===============
   const isActive = sessionStatus?.Status === "active"
   const isCompleted = sessionStatus?.Status === "completed"
-  const roomCode = session?.RoomCode || ""
-  const joinUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/play/join?code=${roomCode}`
-    : ""
-  const qrCodeUrl = roomCode
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}&bgcolor=1f2937&color=ffffff`
-    : ""
 
   return (
     <div className="min-h-screen bg-gray-900">
       <Toaster position="top-right" />
 
-      {/* Header */}
+      {/* Header — clean, minimal */}
       <header className="bg-gray-800 border-b border-gray-700 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <h1 className="font-display text-xl font-bold text-white">
               Trivi-Time
             </h1>
-            <span className="px-2 py-1 rounded bg-purple-600/20 text-purple-400 text-xs font-medium">
-              Host Mode
+            <span className="px-2 py-0.5 rounded bg-purple-600/20 text-purple-400 text-xs font-medium">
+              Host
             </span>
             {episode && (
-              <span className="text-gray-400 text-sm">{episode.Title}</span>
+              <>
+                <span className="text-gray-600">/</span>
+                <span className="text-gray-400 text-sm">{episode.Title}</span>
+              </>
             )}
           </div>
-          {isActive && (
-            <div className="flex items-center gap-2">
+        </div>
+      </header>
+
+      {/* Main Content — 2-column layout */}
+      <main className="max-w-7xl mx-auto p-4">
+        {/* Macro Phase Bar — full width at top */}
+        {session && (
+          <div className="mb-4">
+            <MacroPhaseBar
+              sessionStatus={sessionStatus}
+              sessionId={session.IDGameSession}
+              leaderboard={leaderboard}
+              onRefreshStatus={refreshSessionStatus}
+              hasRulesVideo={!!episode?.RulesVideoUrl}
+            />
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          {/* Left Column (3/5) — Game Navigation */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* Current Question Card */}
+            {isActive && currentQuestion ? (
+              <>
+                <QuestionOrchestrationControls
+                  currentQuestion={currentQuestion}
+                  currentRound={currentRound}
+                  sessionStatus={sessionStatus}
+                  teams={teams}
+                  responses={responses}
+                  showVideo={showVideo}
+                  sessionId={session!.IDGameSession}
+                  isGrading={isGrading}
+                  onGrade={handleGrade}
+                  onNextQuestion={handleNextQuestion}
+                  onRefreshStatus={refreshSessionStatus}
+                  isLoading={isLoading}
+                />
+                {/* Player Responses */}
+                <IncomingAnswersPanel
+                  sessionId={session!.IDGameSession}
+                  teams={teams}
+                  responses={responses}
+                  currentQuestion={currentQuestion}
+                  currentRound={currentRound}
+                  isGrading={isGrading}
+                  onGrade={handleGrade}
+                  onGradeOverride={handleGradeOverride}
+                  onNextQuestion={handleNextQuestion}
+                  onRefresh={handleRefreshResponses}
+                  onKickTeam={handleKickTeam}
+                />
+              </>
+            ) : isCompleted ? (
+              <Card className="bg-gray-800 border-gray-700 overflow-hidden">
+                <div className="p-5">
+                  <div className="py-8 text-center">
+                    <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto mb-3" />
+                    <p className="text-lg font-semibold text-white">Game Over!</p>
+                    <p className="text-sm text-gray-400 mt-1">All rounds completed</p>
+                  </div>
+                </div>
+                <div className="px-5 py-3 border-t border-gray-700 bg-gray-900/50 flex items-center gap-3">
+                  <Button
+                    onClick={handleRestartSession}
+                    disabled={isLoading || isRestarting}
+                    variant="outline"
+                    className="border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10"
+                  >
+                    {isRestarting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Restart Game
+                  </Button>
+                </div>
+              </Card>
+            ) : (
+              <Card className="bg-gray-800 border-gray-700 overflow-hidden">
+                <div className="p-5">
+                  <div className="py-6 text-center">
+                    <Play className="h-10 w-10 text-gray-600 mx-auto mb-3" />
+                    <p className="text-base font-semibold text-gray-400">Waiting for Game Start</p>
+                    <p className="text-sm text-gray-500 mt-1">Use the phase controls above to advance through the game</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+
+          {/* Right Column (2/5) — Session Info */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Open Gameboard */}
+            <Button
+              variant="outline"
+              onClick={openGameboard}
+              className={`w-full h-11 ${isGameboardOpen
+                ? "border-green-500/50 text-green-400 hover:bg-green-500/10"
+                : "border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+                }`}
+            >
+              <Monitor className="h-4 w-4 mr-2" />
+              {isGameboardOpen ? (
+                <>
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-400 mr-1.5 animate-pulse" />
+                  Gameboard Live
+                </>
+              ) : (
+                "Open Gameboard"
+              )}
+            </Button>
+
+            {/* Room Code Panel (with teams) */}
+            <RoomCodePanel
+              session={session}
+              sessionStatus={sessionStatus}
+              teams={teams}
+              isLoading={isLoading}
+              onStartSession={handleStartSession}
+              onStopSession={handleEndSession}
+              showVideo={showVideo}
+              onToggleShowVideo={handleToggleShowVideo}
+              musicEnabled={musicEnabled}
+              onToggleMusic={() => setMusicEnabled(!musicEnabled)}
+            />
+
+            {/* Restart — active only */}
+            {isActive && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleRestartSession}
-                disabled={isLoading}
-                className="border-yellow-500/50 text-yellow-400"
+                disabled={isLoading || isRestarting}
+                className="w-full border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10"
               >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Restart
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleEndSession}
-                disabled={isLoading}
-              >
-                <StopCircle className="h-4 w-4 mr-2" />
-                End Game
-              </Button>
-            </div>
-          )}
-          {isCompleted && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRestartSession}
-              disabled={isLoading}
-              className="border-yellow-500/50 text-yellow-400"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Restart Game
-            </Button>
-          )}
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Left Column - Room Info */}
-          <div className="lg:col-span-1 space-y-4">
-            <Card className="bg-gray-800 border-gray-700 overflow-hidden">
-              {/* Status */}
-              <div className="p-4 border-b border-gray-700">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-white flex items-center gap-2">
-                    <QrCode className="h-4 w-4 text-purple-400" />
-                    Game Session
-                  </h3>
-                  <div
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      isActive
-                        ? "bg-green-600/20 text-green-400"
-                        : isInLobby
-                        ? "bg-yellow-600/20 text-yellow-400"
-                        : "bg-gray-600/20 text-gray-400"
-                    }`}
-                  >
-                    {isActive ? "Active" : isInLobby ? "Lobby" : isCompleted ? "Ended" : "Unknown"}
-                  </div>
-                </div>
-              </div>
-
-              {/* QR & Room Code */}
-              <div className="p-6 flex flex-col items-center">
-                {qrCodeUrl && (
-                  <div className="bg-gray-900 p-4 rounded-xl mb-4">
-                    <img src={qrCodeUrl} alt="QR Code" className="w-40 h-40" />
-                  </div>
+                {isRestarting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
                 )}
-
-                <div className="text-center mb-4">
-                  <p className="text-xs text-gray-400 mb-1">ROOM CODE</p>
-                  <div className="flex items-center gap-2">
-                    <span className="font-display text-4xl font-bold text-white tracking-[0.3em]">
-                      {roomCode}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleCopyRoomCode}
-                      className="text-gray-400 hover:text-white"
-                    >
-                      {copied ? (
-                        <Check className="h-4 w-4 text-green-400" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                <a
-                  href={joinUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  Player Join Link
-                </a>
-              </div>
-
-              {/* Team Count */}
-              <div className="px-4 pb-4">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-900/50">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-300">
-                      {teams.length} {teams.length === 1 ? "team" : "teams"} joined
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Start Button */}
-              {isInLobby && (
-                <div className="p-4 border-t border-gray-700 bg-gray-900/50">
-                  <Button
-                    onClick={handleStartSession}
-                    disabled={isLoading || teams.length === 0}
-                    className="w-full bg-green-600 hover:bg-green-700"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <Play className="h-4 w-4 mr-2" />
-                    )}
-                    Start Game
-                  </Button>
-                  {teams.length === 0 && (
-                    <p className="text-xs text-gray-500 text-center mt-2">
-                      Wait for teams to join before starting
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Active Status */}
-              {isActive && sessionStatus && (
-                <div className="p-4 border-t border-gray-700 bg-gray-900/50">
-                  <div className="text-center text-sm text-gray-400">
-                    Round {sessionStatus.CurrentRound || "-"} • Question{" "}
-                    {sessionStatus.CurrentQuestion || "-"}
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            {/* Quick Stats */}
-            <Card className="bg-gray-800 border-gray-700 p-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-display font-bold text-white">
-                    {teams.length}
-                  </div>
-                  <div className="text-xs text-gray-400">Teams</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-display font-bold text-white">
-                    {responses.length}
-                  </div>
-                  <div className="text-xs text-gray-400">Responses</div>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* Middle Column - Incoming Answers */}
-          <div className="lg:col-span-1">
-            <IncomingAnswersPanel
-              sessionId={session?.IDGameSession || ""}
-              teams={teams}
-              responses={responses}
-              currentQuestion={currentQuestion}
-              currentRound={currentRound}
-              isGrading={isGrading}
-              onGrade={handleGrade}
-              onNextQuestion={handleNextQuestion}
-              onRefresh={handleRefreshResponses}
-              onKickTeam={handleKickTeam}
-            />
-          </div>
-
-          {/* Right Column - Leaderboard */}
-          <div className="lg:col-span-1">
-            <LeaderboardPanel
-              leaderboard={leaderboard}
-              isLoading={isLoading}
-              onRefresh={async () => {
-                if (session) {
-                  const lb = await sessionsApi.leaderboard(session.IDGameSession)
-                  setLeaderboard(lb)
-                }
-              }}
-            />
+                Restart Game
+              </Button>
+            )}
           </div>
         </div>
       </main>

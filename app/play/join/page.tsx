@@ -7,7 +7,7 @@ import { usePlayerSession } from "@/hooks/use-player-session"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, Users, ArrowRight, AlertCircle, QrCode } from "lucide-react"
-import { DitherBackground } from "@/components/game/dither-background"
+import { GrainGradient } from "@paper-design/shaders-react"
 
 // Avatars for selection
 const AVATARS = ["🦊", "🐻", "🦁", "🐼", "🐸", "🐵", "🐯", "🦄", "🐲", "🦅", "🐺", "🦈"]
@@ -19,13 +19,16 @@ function emojiToBase64(emoji: string): string {
   canvas.height = 128
   const ctx = canvas.getContext("2d")
   if (!ctx) return ""
-  
-  // Draw emoji on canvas
-  ctx.font = "100px serif"
+
+  // Clear canvas
+  ctx.clearRect(0, 0, 128, 128)
+
+  // Use emoji-specific font stack so the correct glyph is rendered
+  ctx.font = '100px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif'
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"
-  ctx.fillText(emoji, 64, 70)
-  
+  ctx.fillText(emoji, 64, 68)
+
   // Get base64 data (strip the data:image/png;base64, prefix)
   const dataUrl = canvas.toDataURL("image/png")
   return dataUrl.split(",")[1] || ""
@@ -69,7 +72,7 @@ function JoinPageContent() {
     if (codeFromUrl) {
       return
     }
-    
+
     if (isHydrated && isInSession && team) {
       router.push("/play/lobby")
     }
@@ -99,38 +102,17 @@ function JoinPageContent() {
 
   return (
     <div className="fixed inset-0 bg-gray-950 overflow-hidden">
-      {/* Dither Background */}
-      <div className="absolute inset-0 z-0 pointer-events-none opacity-30">
-        <DitherBackground
-          colorBack="#00000000"
-          colorFront="#6C5CE7"
-          speed={0.05}
+      {/* Background */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <GrainGradient
+          colors={["#002185", "#faaf00", "#089659"]}
+          colorBack="#740fa3"
           shape="wave"
-          type="4x4"
-          pxSize={2}
-          scale={1}
-        />
-      </div>
-
-      {/* Animated background elements */}
-      <div className="pointer-events-none fixed inset-0 opacity-20">
-        <motion.div
-          className="absolute left-1/4 top-1/3 h-64 w-64 rounded-full bg-purple-600 blur-3xl"
-          animate={{
-            scale: [1, 1.3, 1],
-            x: [0, 30, 0],
-            y: [0, -20, 0],
-          }}
-          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          className="absolute right-1/4 bottom-1/3 h-64 w-64 rounded-full bg-blue-600 blur-3xl"
-          animate={{
-            scale: [1, 1.2, 1],
-            x: [0, -30, 0],
-            y: [0, 20, 0],
-          }}
-          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+          softness={0.68}
+          intensity={0}
+          noise={0}
+          speed={0.3}
+          style={{ width: "100%", height: "100%" }}
         />
       </div>
 
@@ -145,7 +127,7 @@ function JoinPageContent() {
           <h1 className="font-display text-5xl font-bold text-white mb-2">
             Trivi-Time
           </h1>
-          <p className="text-purple-400 text-lg">Join the Game</p>
+          <p className="text-purple-200 text-lg">Join the Game</p>
         </motion.div>
 
         {/* Error Display */}
@@ -174,7 +156,7 @@ function JoinPageContent() {
               onSubmit={handleRoomCodeSubmit}
               className="w-full max-w-md"
             >
-              <div className="bg-gray-900/60 backdrop-blur-lg rounded-2xl p-8 border border-gray-800">
+              <div className="bg-gray-950/80 backdrop-blur-lg rounded-2xl p-8 border border-gray-700">
                 <div className="flex items-center justify-center mb-6">
                   <div className="p-3 rounded-full bg-purple-600/20">
                     <QrCode className="h-8 w-8 text-purple-400" />
@@ -191,7 +173,7 @@ function JoinPageContent() {
                   onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
                   placeholder="ABCDEF"
                   maxLength={8}
-                  className="text-center text-3xl font-display tracking-[0.5em] bg-gray-800 border-gray-700 text-white placeholder:text-gray-600 h-16 mb-6"
+                  className="text-center text-3xl font-display tracking-[0.5em] bg-gray-950/90 border-gray-600 text-white placeholder:text-gray-500 h-16 mb-6"
                   autoFocus
                 />
 
@@ -214,7 +196,7 @@ function JoinPageContent() {
               onSubmit={handleJoinSubmit}
               className="w-full max-w-md"
             >
-              <div className="bg-gray-900/60 backdrop-blur-lg rounded-2xl p-8 border border-gray-800">
+              <div className="bg-gray-950/80 backdrop-blur-lg rounded-2xl p-8 border border-gray-700">
                 {/* Room code badge */}
                 <div className="flex justify-center mb-6">
                   <div className="px-4 py-2 rounded-full bg-purple-600/20 border border-purple-500/30">
@@ -229,7 +211,7 @@ function JoinPageContent() {
 
                 {/* Avatar Selection */}
                 <div className="mb-6">
-                  <label className="text-sm text-gray-400 mb-3 block text-center">
+                  <label className="text-sm text-gray-200 mb-3 block text-center">
                     Choose Your Avatar
                   </label>
                   <div className="grid grid-cols-6 gap-2">
@@ -240,11 +222,10 @@ function JoinPageContent() {
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setSelectedAvatar(avatar)}
-                        className={`p-3 text-2xl rounded-xl transition-colors ${
-                          selectedAvatar === avatar
-                            ? "bg-purple-600 ring-2 ring-purple-400"
-                            : "bg-gray-800 hover:bg-gray-700"
-                        }`}
+                        className={`p-3 text-2xl rounded-xl transition-colors ${selectedAvatar === avatar
+                          ? "bg-purple-600 ring-2 ring-purple-400"
+                          : "bg-gray-950/70 hover:bg-gray-800"
+                          }`}
                       >
                         {avatar}
                       </motion.button>
@@ -254,7 +235,7 @@ function JoinPageContent() {
 
                 {/* Team Name */}
                 <div className="mb-6">
-                  <label className="text-sm text-gray-400 mb-2 block">
+                  <label className="text-sm text-gray-200 mb-2 block">
                     Team Name
                   </label>
                   <Input
@@ -263,7 +244,7 @@ function JoinPageContent() {
                     onChange={(e) => setTeamName(e.target.value)}
                     placeholder="The Trivia Kings"
                     maxLength={30}
-                    className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 h-12"
+                    className="bg-gray-950/90 border-gray-600 text-white placeholder:text-gray-400 h-12"
                     autoFocus
                   />
                 </div>
@@ -291,7 +272,7 @@ function JoinPageContent() {
                 <button
                   type="button"
                   onClick={() => setStep("room")}
-                  className="w-full mt-4 text-gray-400 hover:text-white text-sm transition-colors"
+                  className="w-full mt-4 text-gray-200 hover:text-white text-sm transition-colors"
                 >
                   ← Change room code
                 </button>
