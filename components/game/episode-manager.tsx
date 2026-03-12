@@ -89,7 +89,7 @@ export function EpisodeManager({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-400 mb-1">Current Episode</p>
-            <h3 className="text-xl font-bold text-purple-300">{currentEpisodeName || "Unsaved Episode"}</h3>
+            <h3 className="font-display text-xl font-bold text-purple-300">{currentEpisodeName || "Unsaved Episode"}</h3>
           </div>
           <Play className="h-8 w-8 text-purple-400" />
         </div>
@@ -97,7 +97,7 @@ export function EpisodeManager({
 
       {/* Save Episode Section */}
       <div className="space-y-3">
-        <h3 className="text-base sm:text-lg font-semibold text-white">Save Current Configuration</h3>
+        <h3 className="font-display text-base sm:text-lg font-semibold text-white">Save Current Configuration</h3>
         <div className="flex flex-col sm:flex-row gap-2">
           <Input
             value={newEpisodeName}
@@ -118,7 +118,7 @@ export function EpisodeManager({
 
       {/* Saved Episodes List */}
       <div className="space-y-3">
-        <h3 className="text-lg font-semibold text-white">Saved Episodes ({episodes.length})</h3>
+        <h3 className="font-display text-lg font-semibold text-white">Saved Episodes ({episodes.length})</h3>
         
         {episodes.length === 0 ? (
           <Card className="bg-gray-700/50 border-gray-600 p-6 text-center">
@@ -172,7 +172,7 @@ export function EpisodeManager({
                 ) : (
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-white truncate">{episode.name}</h4>
+                      <h4 className="font-display font-semibold text-white truncate">{episode.name}</h4>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400 mt-1">
                         <span>Created: {formatDate(episode.createdAt)}</span>
                         {episode.updatedAt !== episode.createdAt && (

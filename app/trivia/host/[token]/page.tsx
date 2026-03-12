@@ -60,7 +60,6 @@ export default function HostTokenPage() {
 
   // Gameboard controls
   const [showVideo, setShowVideo] = useState(true)
-  const [musicEnabled, setMusicEnabled] = useState(true)
   const gameboardWindowRef = useRef<Window | null>(null)
   const [isGameboardOpen, setIsGameboardOpen] = useState(false)
 
@@ -271,10 +270,6 @@ export default function HostTokenPage() {
     // Orchestration handles answer reveal via server state now
   }
 
-  const handleToggleShowVideo = () => {
-    setShowVideo(prev => !prev)
-  }
-
   const refreshTeams = async () => {
     if (!session) return
     const teamsList = await sessionsApi.teams(session.IDGameSession)
@@ -429,7 +424,7 @@ export default function HostTokenPage() {
                 <div className="p-5">
                   <div className="py-8 text-center">
                     <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto mb-3" />
-                    <p className="text-lg font-semibold text-white">Game Over!</p>
+                    <p className="font-display text-lg font-semibold text-white">Game Over!</p>
                     <p className="text-sm text-gray-400 mt-1">All rounds completed</p>
                   </div>
                 </div>
@@ -454,7 +449,7 @@ export default function HostTokenPage() {
                 <div className="p-5">
                   <div className="py-6 text-center">
                     <Play className="h-10 w-10 text-gray-600 mx-auto mb-3" />
-                    <p className="text-base font-semibold text-gray-400">Waiting for Game Start</p>
+                    <p className="font-display text-base font-semibold text-gray-400">Waiting for Game Start</p>
                     <p className="text-sm text-gray-500 mt-1">Use the phase controls above to advance through the game</p>
                   </div>
                 </div>
@@ -492,29 +487,9 @@ export default function HostTokenPage() {
               isLoading={isLoading}
               onStartSession={handleStartSession}
               onStopSession={handleEndSession}
-              showVideo={showVideo}
-              onToggleShowVideo={handleToggleShowVideo}
-              musicEnabled={musicEnabled}
-              onToggleMusic={() => setMusicEnabled(!musicEnabled)}
+              onRestartSession={handleRestartSession}
+              isRestarting={isRestarting}
             />
-
-            {/* Restart — active only */}
-            {isActive && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRestartSession}
-                disabled={isLoading || isRestarting}
-                className="w-full border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10"
-              >
-                {isRestarting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Restart Game
-              </Button>
-            )}
           </div>
         </div>
       </main>

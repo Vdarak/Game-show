@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation"
 import { useAuth, useRequireAuth } from "@/hooks/use-auth"
 import { useHostSession } from "@/hooks/use-host-session"
 import { episodesApi, hostLinksApi } from "@/lib/api-client"
+import { useSound } from "@/lib/use-sound"
 import { createDemoGame } from "@/lib/demo-game-generator"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { RoomCodePanel } from "@/components/game/room-code-panel"
 import { EpisodeEditor } from "@/components/game/episode-editor"
 import { IncomingAnswersPanel } from "@/components/game/incoming-answers-panel"
+import { SoundBoardPanel } from "@/components/game/sound-board-panel"
 import { QuestionOrchestrationControls } from "@/components/game/question-orchestration-controls"
 import { MacroPhaseBar } from "@/components/game/macro-phase-bar"
 import { Toaster } from "@/components/ui/sonner"
@@ -81,15 +83,76 @@ export default function TriviaControllerPage() {
   const [isCreatingDemo, setIsCreatingDemo] = useState(false)
   const [isRestarting, setIsRestarting] = useState(false)
   const [showVideo, setShowVideo] = useState(true)
-  const [musicEnabled, setMusicEnabled] = useState(true)
-  
+  const [introMusicPaused, setIntroMusicPaused] = useState(false)
+  const [introMusicPlaying, setIntroMusicPlaying] = useState(false)
+
+  // Sound effects (play in the controller tab)
+  const introMusic = useSound("/sounds/intro-music.wav", { loop: true, volume: 0.5 })
+  const answerRevealSound = useSound("/sounds/answer-reveal.wav")
+  const timerSound = useSound("/sounds/timer.wav", { loop: true })
+  const timeUpSound = useSound("/sounds/time-up.wav")
+
+  // Derive gameState for sound triggers
+  const gameState = sessionStatus?.GameState || null
+  const prevGameStateRef = useRef<string | null>(null)
+
+  // Intro music — auto-plays during lobby/welcome/rules, user can also manually play/stop anytime
+  const isInLobbyState = !!gameState && ["lobby", "welcome", "rules"].includes(gameState)
+
+  useEffect(() => {
+    if (isInLobbyState && !introMusicPaused) {
+      introMusic.play()
+      setIntroMusicPlaying(true)
+    } else if (!introMusicPaused && !isInLobbyState && introMusicPlaying) {
+      // Left lobby states naturally — stop
+      introMusic.stop()
+      setIntroMusicPlaying(false)
+    }
+  }, [gameState])
+
+  const handleToggleIntroMusic = useCallback(() => {
+    if (introMusicPlaying) {
+      introMusic.stop()
+      setIntroMusicPlaying(false)
+      setIntroMusicPaused(true)
+    } else {
+      introMusic.play()
+      setIntroMusicPlaying(true)
+      setIntroMusicPaused(false)
+    }
+  }, [introMusic, introMusicPlaying])
+
+  // Timer sounds + answer-reveal
+  useEffect(() => {
+    const prev = prevGameStateRef.current
+
+    // Timer start
+    if (gameState === "timer_running" && prev !== "timer_running") {
+      timerSound.play()
+    }
+    // Timer stop
+    if (prev === "timer_running" && gameState !== "timer_running") {
+      timerSound.stop()
+    }
+    // Time's up
+    if (gameState === "timer_ended" && prev !== "timer_ended") {
+      setTimeout(() => timeUpSound.play(), 50)
+    }
+    // Answer reveal
+    if (gameState === "answer_reveal" && prev !== "answer_reveal") {
+      answerRevealSound.play()
+    }
+
+    prevGameStateRef.current = gameState
+  }, [gameState])
+
   // Host link management state
   const [allHostLinks, setAllHostLinks] = useState<HostLinkListItem[]>([])
   const [isLoadingLinks, setIsLoadingLinks] = useState(false)
   const [showLinksModal, setShowLinksModal] = useState(false)
   const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null)
-  const [revokePin, setRevokePin] = useState("")
-  const [pinInputForLink, setPinInputForLink] = useState<string | null>(null)
+  const [revokeConfirmText, setRevokeConfirmText] = useState("")
+  const [confirmInputForLink, setConfirmInputForLink] = useState<string | null>(null)
 
   // Per-episode link expansion state
   const [expandedEpisodeLinks, setExpandedEpisodeLinks] = useState<string | null>(null)
@@ -101,13 +164,8 @@ export default function TriviaControllerPage() {
   const [customExpiryDate, setCustomExpiryDate] = useState("")
   const [isCreatingLink, setIsCreatingLink] = useState(false)
   const [episodeRevokingId, setEpisodeRevokingId] = useState<string | null>(null)
-  const [episodeRevokePin, setEpisodeRevokePin] = useState("")
-  const [episodePinInputForLink, setEpisodePinInputForLink] = useState<string | null>(null)
-
-  // Toggle video display
-  const handleToggleShowVideo = () => {
-    setShowVideo(prev => !prev)
-  }
+  const [episodeRevokeConfirmText, setEpisodeRevokeConfirmText] = useState("")
+  const [episodeConfirmInputForLink, setEpisodeConfirmInputForLink] = useState<string | null>(null)
 
   // Load episodes on mount
   useEffect(() => {
@@ -184,19 +242,19 @@ export default function TriviaControllerPage() {
 
   // Revoke a host link
   const handleRevokeLink = async (linkId: string) => {
-    if (!revokePin || revokePin.length !== 4) {
-      toast.error("Please enter a 4-digit PIN")
+    if (revokeConfirmText.toLowerCase() !== "revoke") {
+      toast.error("Type 'revoke' to confirm")
       return
     }
     setRevokingLinkId(linkId)
     try {
-      await hostLinksApi.revoke({ IDGameSession: linkId, PIN: revokePin })
+      await hostLinksApi.revoke({ IDGameSession: linkId })
       toast.success("Host link revoked")
-      setRevokePin("")
-      setPinInputForLink(null)
+      setRevokeConfirmText("")
+      setConfirmInputForLink(null)
       await loadAllHostLinks()
     } catch (err) {
-      toast.error("Failed to revoke link - invalid PIN?")
+      toast.error("Failed to revoke link")
     }
     setRevokingLinkId(null)
   }
@@ -257,20 +315,20 @@ export default function TriviaControllerPage() {
 
   // Revoke a host link from episode view
   const handleRevokeEpisodeLink = async (linkId: string, episodeId: string) => {
-    if (!episodeRevokePin || episodeRevokePin.length !== 4) {
-      toast.error("Please enter a 4-digit PIN")
+    if (episodeRevokeConfirmText.toLowerCase() !== "revoke") {
+      toast.error("Type 'revoke' to confirm")
       return
     }
     setEpisodeRevokingId(linkId)
     try {
-      await hostLinksApi.revoke({ IDGameSession: linkId, PIN: episodeRevokePin })
+      await hostLinksApi.revoke({ IDGameSession: linkId })
       toast.success("Host link revoked")
-      setEpisodeRevokePin("")
-      setEpisodePinInputForLink(null)
+      setEpisodeRevokeConfirmText("")
+      setEpisodeConfirmInputForLink(null)
       await loadEpisodeLinks(episodeId)
       await loadAllHostLinks()
     } catch (err) {
-      toast.error("Failed to revoke link - invalid PIN?")
+      toast.error("Failed to revoke link")
     }
     setEpisodeRevokingId(null)
   }
@@ -482,11 +540,10 @@ export default function TriviaControllerPage() {
                 loadAllHostLinks()
               }}
               disabled={allHostLinks.length === 0 && !isLoadingLinks}
-              className={`${
-                allHostLinks.length > 0
-                  ? "border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
-                  : "border-gray-600 text-gray-500"
-              }`}
+              className={`${allHostLinks.length > 0
+                ? "border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+                : "border-gray-600 text-gray-500"
+                }`}
             >
               <LinkIcon className="h-4 w-4 mr-1.5" />
               Link Status: {isLoadingLinks ? "..." : allHostLinks.length}
@@ -519,7 +576,7 @@ export default function TriviaControllerPage() {
               {/* Episodes List */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <h2 className="font-display text-lg font-semibold text-white flex items-center gap-2">
                     <Folder className="h-5 w-5 text-purple-400" />
                     Select Episode
                   </h2>
@@ -663,7 +720,7 @@ export default function TriviaControllerPage() {
                             disabled={isLoading}
                             className="flex-1 text-left hover:opacity-80 transition-opacity"
                           >
-                            <h3 className="font-semibold text-white">
+                            <h3 className="font-display font-semibold text-white">
                               {ep.Title}
                             </h3>
                             {ep.Description && (
@@ -687,11 +744,10 @@ export default function TriviaControllerPage() {
                                   loadEpisodeLinks(ep.IDEpisode)
                                 }
                               }}
-                              className={`h-8 w-8 p-0 ${
-                                expandedEpisodeLinks === ep.IDEpisode
-                                  ? "text-purple-400 bg-purple-500/10"
-                                  : "text-gray-400 hover:text-purple-400 hover:bg-purple-500/10"
-                              }`}
+                              className={`h-8 w-8 p-0 ${expandedEpisodeLinks === ep.IDEpisode
+                                ? "text-purple-400 bg-purple-500/10"
+                                : "text-gray-400 hover:text-purple-400 hover:bg-purple-500/10"
+                                }`}
                               title="Manage Host Links"
                             >
                               <Share2 className="h-4 w-4" />
@@ -757,11 +813,10 @@ export default function TriviaControllerPage() {
                                         {i > 0 && <span className="text-gray-600 mx-1">|</span>}
                                         <button
                                           onClick={() => setValidityDuration(opt.value)}
-                                          className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
-                                            validityDuration === opt.value
-                                              ? "bg-purple-500 text-white"
-                                              : "text-gray-400 hover:text-white"
-                                          }`}
+                                          className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${validityDuration === opt.value
+                                            ? "bg-purple-500 text-white"
+                                            : "text-gray-400 hover:text-white"
+                                            }`}
                                         >
                                           {opt.label}
                                         </button>
@@ -793,43 +848,43 @@ export default function TriviaControllerPage() {
                                   />
                                 )}
 
-                                  {/* New link result */}
-                                  {newLinkResult && (
-                                    <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-sm">
-                                      <p className="text-green-400 font-medium mb-1">Link Created!</p>
-                                      <div className="flex items-center gap-2 text-gray-300 text-xs">
-                                        <span>Room: <span className="text-purple-400 font-mono">{newLinkResult.RoomCode}</span></span>
-                                        <span className="text-gray-600">|</span>
-                                        <span>PIN: <span className="text-yellow-400 font-mono">{newLinkResult.PIN}</span></span>
-                                      </div>
-                                      <button
-                                        onClick={() => {
-                                          const url = `${window.location.origin}/trivia/host/${newLinkResult.token}`
-                                          if (navigator.clipboard?.writeText) {
-                                            navigator.clipboard.writeText(url).then(() => toast.success("Link copied!"))
-                                          } else {
-                                            const ta = document.createElement("textarea")
-                                            ta.value = url
-                                            ta.style.position = "fixed"
-                                            ta.style.opacity = "0"
-                                            document.body.appendChild(ta)
-                                            ta.select()
-                                            document.execCommand("copy")
-                                            document.body.removeChild(ta)
-                                            toast.success("Link copied!")
-                                          }
-                                        }}
-                                        className="mt-2 flex items-center gap-1 text-purple-400 hover:text-purple-300 text-xs"
-                                      >
-                                        <Copy className="h-3 w-3" />
-                                        Copy Link URL
-                                      </button>
+                                {/* New link result */}
+                                {newLinkResult && (
+                                  <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-sm">
+                                    <p className="text-green-400 font-medium mb-1">Link Created!</p>
+                                    <div className="flex items-center gap-2 text-gray-300 text-xs">
+                                      <span>Room: <span className="text-purple-400 font-mono">{newLinkResult.RoomCode}</span></span>
+                                      <span className="text-gray-600">|</span>
+                                      <span>PIN: <span className="text-yellow-400 font-mono">{newLinkResult.PIN}</span></span>
                                     </div>
-                                  )}
+                                    <button
+                                      onClick={() => {
+                                        const url = `${window.location.origin}/trivia/host/${newLinkResult.token}`
+                                        if (navigator.clipboard?.writeText) {
+                                          navigator.clipboard.writeText(url).then(() => toast.success("Link copied!"))
+                                        } else {
+                                          const ta = document.createElement("textarea")
+                                          ta.value = url
+                                          ta.style.position = "fixed"
+                                          ta.style.opacity = "0"
+                                          document.body.appendChild(ta)
+                                          ta.select()
+                                          document.execCommand("copy")
+                                          document.body.removeChild(ta)
+                                          toast.success("Link copied!")
+                                        }
+                                      }}
+                                      className="mt-2 flex items-center gap-1 text-purple-400 hover:text-purple-300 text-xs"
+                                    >
+                                      <Copy className="h-3 w-3" />
+                                      Copy Link URL
+                                    </button>
+                                  </div>
+                                )}
 
                                 {/* Active Links for this Episode */}
                                 <div className="space-y-2">
-                                  <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                                  <h4 className="font-display text-sm font-semibold text-white flex items-center gap-2">
                                     <LinkIcon className="h-3.5 w-3.5 text-purple-400" />
                                     Active Links
                                     {(episodeLinks[ep.IDEpisode]?.length ?? 0) > 0 && (
@@ -867,31 +922,39 @@ export default function TriviaControllerPage() {
                                                 {new Date(link.CreatedAt).toLocaleDateString()}
                                               </td>
                                               <td className="py-2 pr-3">
-                                                <span className={`flex items-center gap-1 ${
-                                                  getTimeRemaining(link.ValidTo) === "Expired"
-                                                    ? "text-red-400"
-                                                    : "text-green-400"
-                                                }`}>
+                                                <span className={`flex items-center gap-1 ${getTimeRemaining(link.ValidTo) === "Expired"
+                                                  ? "text-red-400"
+                                                  : "text-green-400"
+                                                  }`}>
                                                   <Clock className="h-3 w-3" />
                                                   {getTimeRemaining(link.ValidTo)}
                                                 </span>
                                               </td>
                                               <td className="py-2 text-right">
-                                                {episodePinInputForLink === link.IDGameSession ? (
+                                                {link.Status?.toLowerCase() === "revoked" ? (
+                                                  <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    disabled
+                                                    className="text-red-500 font-semibold h-6 px-3 opacity-100 cursor-not-allowed"
+                                                  >
+                                                    Revoked
+                                                  </Button>
+                                                ) : episodeConfirmInputForLink === link.IDGameSession ? (
                                                   <div className="flex items-center gap-1.5 justify-end">
                                                     <input
                                                       type="text"
-                                                      placeholder="PIN"
-                                                      value={episodeRevokePin}
-                                                      onChange={(e) => setEpisodeRevokePin(e.target.value.slice(0, 4))}
-                                                      className="w-14 px-2 py-1 rounded bg-gray-900 border border-gray-600 text-white text-xs text-center"
+                                                      placeholder="Type revoke"
+                                                      value={episodeRevokeConfirmText}
+                                                      onChange={(e) => setEpisodeRevokeConfirmText(e.target.value)}
+                                                      className="w-24 px-2 py-1 rounded bg-gray-900 border border-gray-600 text-white text-xs text-center"
                                                       autoFocus
                                                     />
                                                     <Button
                                                       size="sm"
                                                       variant="ghost"
                                                       onClick={() => handleRevokeEpisodeLink(link.IDGameSession, ep.IDEpisode)}
-                                                      disabled={episodeRevokingId === link.IDGameSession || episodeRevokePin.length !== 4}
+                                                      disabled={episodeRevokingId === link.IDGameSession || episodeRevokeConfirmText.toLowerCase() !== "revoke"}
                                                       className="text-red-400 hover:text-red-300 h-6 px-1.5"
                                                     >
                                                       {episodeRevokingId === link.IDGameSession ? (
@@ -904,8 +967,8 @@ export default function TriviaControllerPage() {
                                                       size="sm"
                                                       variant="ghost"
                                                       onClick={() => {
-                                                        setEpisodePinInputForLink(null)
-                                                        setEpisodeRevokePin("")
+                                                        setEpisodeConfirmInputForLink(null)
+                                                        setEpisodeRevokeConfirmText("")
                                                       }}
                                                       className="text-gray-400 h-6 px-1.5"
                                                     >
@@ -916,7 +979,7 @@ export default function TriviaControllerPage() {
                                                   <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    onClick={() => setEpisodePinInputForLink(link.IDGameSession)}
+                                                    onClick={() => setEpisodeConfirmInputForLink(link.IDGameSession)}
                                                     className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-6 px-2"
                                                   >
                                                     <Unlink className="h-3 w-3 mr-1" />
@@ -968,7 +1031,7 @@ export default function TriviaControllerPage() {
                 <Card className="bg-gray-800 border-gray-700 overflow-hidden">
                   <div className="p-10 text-center">
                     <Play className="h-16 w-16 text-purple-500/40 mx-auto mb-4" />
-                    <p className="text-xl font-semibold text-white mb-2">Ready to Host</p>
+                    <p className="font-display text-xl font-semibold text-white mb-2">Ready to Host</p>
                     <p className="text-sm text-gray-400 mb-6 max-w-md mx-auto">
                       Create a session to generate a QR code and room link for players to join.
                     </p>
@@ -1003,6 +1066,11 @@ export default function TriviaControllerPage() {
                     <div className="lg:col-span-3 space-y-4">
                       {sessionStatus?.Status === "active" && currentQuestion ? (
                         <>
+                          {/* Sound Board */}
+                          <SoundBoardPanel
+                            introMusicPlaying={introMusicPlaying}
+                            onToggleIntroMusic={handleToggleIntroMusic}
+                          />
                           <QuestionOrchestrationControls
                             currentQuestion={currentQuestion}
                             currentRound={currentRound}
@@ -1042,7 +1110,7 @@ export default function TriviaControllerPage() {
                           <div className="p-5">
                             <div className="py-8 text-center">
                               <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto mb-3" />
-                              <p className="text-lg font-semibold text-white">Game Over!</p>
+                              <p className="font-display text-lg font-semibold text-white">Game Over!</p>
                               <p className="text-sm text-gray-400 mt-1">All rounds completed</p>
                             </div>
                           </div>
@@ -1067,7 +1135,7 @@ export default function TriviaControllerPage() {
                           <div className="p-5">
                             <div className="py-6 text-center">
                               <Play className="h-10 w-10 text-gray-600 mx-auto mb-3" />
-                              <p className="text-base font-semibold text-gray-400">Waiting for Game Start</p>
+                              <p className="font-display text-base font-semibold text-gray-400">Waiting for Game Start</p>
                               <p className="text-sm text-gray-500 mt-1">Use the macro phase controls above to advance through the game phases</p>
                             </div>
                           </div>
@@ -1105,29 +1173,9 @@ export default function TriviaControllerPage() {
                         isLoading={isLoading}
                         onStartSession={handleStartSession}
                         onStopSession={handleEndSession}
-                        showVideo={showVideo}
-                        onToggleShowVideo={handleToggleShowVideo}
-                        musicEnabled={musicEnabled}
-                        onToggleMusic={() => setMusicEnabled(!musicEnabled)}
+                        onRestartSession={handleRestartSession}
+                        isRestarting={isRestarting}
                       />
-
-                      {/* Session controls — active only */}
-                      {sessionStatus?.Status === "active" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleRestartSession}
-                          disabled={isLoading || isRestarting}
-                          className="w-full border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10"
-                        >
-                          {isRestarting ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                          )}
-                          Restart Game
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -1163,11 +1211,11 @@ export default function TriviaControllerPage() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-gray-900 rounded-xl border border-gray-700 w-full max-w-2xl max-h-[80vh] overflow-hidden"
+              className="bg-gray-900 rounded-xl border border-gray-700 w-full max-w-5xl max-h-[80vh] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <h2 className="font-display text-lg font-semibold text-white flex items-center gap-2">
                   <LinkIcon className="h-5 w-5 text-purple-400" />
                   Active Host Links
                 </h2>
@@ -1208,10 +1256,9 @@ export default function TriviaControllerPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="text-left text-xs text-gray-500 border-b border-gray-800">
-                        <th className="pb-2 font-medium">Episode</th>
-                        <th className="pb-2 font-medium">Room Code</th>
                         <th className="pb-2 font-medium">Host</th>
-                        <th className="pb-2 font-medium">Status</th>
+                        <th className="pb-2 font-medium">Room Code</th>
+                        <th className="pb-2 font-medium">Episode</th>
                         <th className="pb-2 font-medium">Issued</th>
                         <th className="pb-2 font-medium">Valid Until</th>
                         <th className="pb-2 font-medium">Time Left</th>
@@ -1222,22 +1269,13 @@ export default function TriviaControllerPage() {
                       {allHostLinks.map((link) => (
                         <tr key={link.IDGameSession} className="border-b border-gray-800/50">
                           <td className="py-3 pr-3">
-                            <span className="text-white text-sm">{link.EpisodeTitle}</span>
+                            <span className="text-gray-300 text-sm">{link.HostName || "—"}</span>
                           </td>
                           <td className="py-3 pr-3">
                             <span className="text-purple-400 font-mono text-sm">{link.RoomCode}</span>
                           </td>
                           <td className="py-3 pr-3">
-                            <span className="text-gray-300 text-sm">{link.HostName || "—"}</span>
-                          </td>
-                          <td className="py-3 pr-3">
-                            <span className={`text-xs px-2 py-0.5 rounded ${
-                              link.Status === "active" 
-                                ? "bg-green-500/20 text-green-400" 
-                                : "bg-gray-700 text-gray-400"
-                            }`}>
-                              {link.Status}
-                            </span>
+                            <span className="text-white text-sm">{link.EpisodeTitle}</span>
                           </td>
                           <td className="py-3 pr-3">
                             <span className="text-gray-400 text-xs">
@@ -1250,31 +1288,39 @@ export default function TriviaControllerPage() {
                             </span>
                           </td>
                           <td className="py-3 pr-3">
-                            <span className={`text-xs flex items-center gap-1 ${
-                              getTimeRemaining(link.ValidTo) === "Expired"
-                                ? "text-red-400"
-                                : "text-green-400"
-                            }`}>
+                            <span className={`text-xs flex items-center gap-1 ${getTimeRemaining(link.ValidTo) === "Expired"
+                              ? "text-red-400"
+                              : "text-green-400"
+                              }`}>
                               <Clock className="h-3 w-3" />
                               {getTimeRemaining(link.ValidTo)}
                             </span>
                           </td>
                           <td className="py-3 text-right">
-                            {pinInputForLink === link.IDGameSession ? (
+                            {link.Status?.toLowerCase() === "revoked" ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled
+                                className="text-red-500 font-semibold h-7 px-3 opacity-100 cursor-not-allowed"
+                              >
+                                Revoked
+                              </Button>
+                            ) : confirmInputForLink === link.IDGameSession ? (
                               <div className="flex items-center gap-2 justify-end">
                                 <input
                                   type="text"
-                                  placeholder="PIN"
-                                  value={revokePin}
-                                  onChange={(e) => setRevokePin(e.target.value.slice(0, 4))}
-                                  className="w-16 px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs text-center"
+                                  placeholder="Type revoke"
+                                  value={revokeConfirmText}
+                                  onChange={(e) => setRevokeConfirmText(e.target.value)}
+                                  className="w-24 px-2 py-1 rounded bg-gray-800 border border-gray-600 text-white text-xs text-center"
                                   autoFocus
                                 />
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => handleRevokeLink(link.IDGameSession)}
-                                  disabled={revokingLinkId === link.IDGameSession || revokePin.length !== 4}
+                                  disabled={revokingLinkId === link.IDGameSession || revokeConfirmText.toLowerCase() !== "revoke"}
                                   className="text-red-400 hover:text-red-300 h-7 px-2"
                                 >
                                   {revokingLinkId === link.IDGameSession ? (
@@ -1287,8 +1333,8 @@ export default function TriviaControllerPage() {
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => {
-                                    setPinInputForLink(null)
-                                    setRevokePin("")
+                                    setConfirmInputForLink(null)
+                                    setRevokeConfirmText("")
                                   }}
                                   className="text-gray-400 h-7 px-2"
                                 >
@@ -1299,7 +1345,7 @@ export default function TriviaControllerPage() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => setPinInputForLink(link.IDGameSession)}
+                                onClick={() => setConfirmInputForLink(link.IDGameSession)}
                                 className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 px-2"
                               >
                                 <Unlink className="h-3 w-3 mr-1" />

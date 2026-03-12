@@ -154,15 +154,24 @@ export interface MoveQuestionRequest {
   NewIDRound: string
 }
 
-export interface UploadVideoRequest {
-  question_id: string
-  video_type: "question" | "answer"
-  file: File
+export interface RequestUploadUrlPayload {
+  question_id?: string
+  episode_id?: string
+  video_type: "question" | "answer" | "rules"
+  filename: string
 }
 
-export interface UploadRulesVideoRequest {
-  episode_id: string
-  file: File
+export interface RequestUploadUrlResponse {
+  upload_url: string
+  blob_path: string
+  expires_in: number
+}
+
+export interface ConfirmUploadPayload {
+  question_id?: string
+  episode_id?: string
+  video_type: "question" | "answer" | "rules"
+  blob_path: string
 }
 
 // -------------------- Sessions --------------------
@@ -248,7 +257,6 @@ export interface HostLinkListItem {
 
 export interface HostLinkRevokeRequest {
   IDGameSession: string
-  PIN: string
 }
 
 // -------------------- Teams --------------------

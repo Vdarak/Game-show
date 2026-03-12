@@ -14,6 +14,8 @@ import {
   Loader2,
   Coffee,
   Play,
+  Pause,
+  RotateCcw,
   BarChart3,
   Eye,
   X,
@@ -73,6 +75,7 @@ export function MacroPhaseBar({
   const [leaderboardVisible, setLeaderboardVisible] = useState(true)
   const [leaderboardRevealMode, setLeaderboardRevealMode] = useState(false)
   const [revealedRanks, setRevealedRanks] = useState<number[]>([])
+  const [rulesVideoPlaying, setRulesVideoPlaying] = useState(true)
 
   const gameState = sessionStatus?.GameState || null
   const currentPhase = getMacroPhase(gameState, sessionStatus?.Status)
@@ -138,7 +141,7 @@ export function MacroPhaseBar({
         </div>
 
         {/* Stepper */}
-        <div className="flex items-center gap-1">
+        <div className={`flex items-start ${currentPhase === "rules" && hasRulesVideo ? "pb-12" : ""}`}>
           {PHASES.map((phase, i) => {
             const Icon = phase.icon
             const isDone = i < phaseIndex
@@ -146,18 +149,17 @@ export function MacroPhaseBar({
             const isUpcoming = i > phaseIndex
 
             return (
-              <div key={phase.id} className="flex items-center flex-1">
+              <div key={phase.id} className="contents">
                 {/* Phase Step */}
-                <div className="flex flex-col items-center flex-1 min-w-0">
+                <div className="flex flex-col items-center flex-1 min-w-0 relative">
                   {/* Icon Circle */}
                   <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                      isDone
+                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${isDone
                         ? "bg-green-500/20 border-2 border-green-500/50"
                         : isActive
                           ? "bg-purple-500/20 border-2 border-purple-500 shadow-lg shadow-purple-500/20"
                           : "bg-gray-800 border-2 border-gray-700"
-                    }`}
+                      }`}
                   >
                     {isDone ? (
                       <CheckCircle2 className="h-4 w-4 text-green-400" />
@@ -174,24 +176,76 @@ export function MacroPhaseBar({
                   </div>
                   {/* Label */}
                   <span
-                    className={`text-[10px] mt-1.5 font-medium truncate ${
-                      isDone
+                    className={`text-[10px] mt-1.5 font-medium truncate ${isDone
                         ? "text-green-400"
                         : isActive
                           ? "text-purple-400"
                           : "text-gray-600"
-                    }`}
+                      }`}
                   >
                     {phase.label}
                   </span>
+
+                  {/* Rules Video Controls — positioned below without affecting layout */}
+                  {phase.id === "rules" && isActive && hasRulesVideo && (
+                    <div className="absolute top-full mt-1 flex flex-col items-center gap-0.5">
+                      <span className="text-[9px] text-gray-500 font-medium">Rules Video</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            if (rulesVideoPlaying) {
+                              setRulesVideoPlaying(false)
+                              try {
+                                const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+                                bc.postMessage({ type: "RULES_VIDEO_PAUSE" })
+                                bc.close()
+                              } catch { /* not supported */ }
+                            } else {
+                              setRulesVideoPlaying(true)
+                              try {
+                                const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+                                bc.postMessage({ type: "RULES_VIDEO_PLAY" })
+                                bc.close()
+                              } catch { /* not supported */ }
+                            }
+                          }}
+                          className={`w-7 h-7 rounded-full flex items-center justify-center border transition-colors ${
+                            rulesVideoPlaying
+                              ? "border-yellow-500/50 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+                              : "border-green-500/50 bg-green-500/10 text-green-400 hover:bg-green-500/20"
+                          }`}
+                          title={rulesVideoPlaying ? "Pause" : "Play"}
+                        >
+                          {rulesVideoPlaying ? (
+                            <Pause className="h-3 w-3" />
+                          ) : (
+                            <Play className="h-3 w-3" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setRulesVideoPlaying(true)
+                            try {
+                              const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+                              bc.postMessage({ type: "RULES_VIDEO_RESTART" })
+                              bc.close()
+                            } catch { /* not supported */ }
+                          }}
+                          className="w-7 h-7 rounded-full flex items-center justify-center border border-blue-500/50 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
+                          title="Restart"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Connector Line */}
                 {i < PHASES.length - 1 && (
                   <div
-                    className={`h-0.5 w-full min-w-3 mx-1 rounded-full transition-colors ${
-                      i < phaseIndex ? "bg-green-500/50" : "bg-gray-800"
-                    }`}
+                    className={`h-0.5 flex-1 min-w-4 mt-4 rounded-full transition-colors ${i < phaseIndex ? "bg-green-500/50" : "bg-gray-800"
+                      }`}
                   />
                 )}
               </div>
@@ -353,11 +407,10 @@ export function MacroPhaseBar({
                             bc.close()
                           } catch { /* not supported */ }
                         }}
-                        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
-                          isRevealed
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${isRevealed
                             ? "border-green-500/30 bg-green-500/10 opacity-60"
                             : "border-gray-700 bg-gray-800/60 hover:border-amber-500/50 hover:bg-amber-500/5 cursor-pointer"
-                        }`}
+                          }`}
                       >
                         <span className="w-8 text-center font-display font-bold text-sm text-gray-400">
                           #{entry.Rank}

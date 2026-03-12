@@ -117,7 +117,7 @@ export function LightningRoundController({
       <Card className="bg-blue-900/30 border-blue-600 p-4">
         <div className="mb-3 flex items-center gap-2">
           <Timer className="h-5 w-5 text-blue-400" />
-          <h3 className="text-lg font-bold">Timer Controls</h3>
+          <h3 className="font-display text-lg font-bold">Timer Controls</h3>
         </div>
         
         <div className="grid grid-cols-2 gap-2 mb-3">
@@ -201,7 +201,7 @@ export function LightningRoundController({
         <Card className="bg-gray-700/50 border-gray-600 p-4">
           <div className="mb-3 flex items-center gap-2">
             <Users className="h-5 w-5 text-blue-400" />
-            <h3 className="text-lg font-bold">Contestant 1</h3>
+            <h3 className="font-display text-lg font-bold">Contestant 1</h3>
           </div>
 
           {/* Contestant Name */}
@@ -335,7 +335,7 @@ export function LightningRoundController({
         <Card className="bg-gray-700/50 border-gray-600 p-4">
           <div className="mb-3 flex items-center gap-2">
             <Users className="h-5 w-5 text-purple-400" />
-            <h3 className="text-lg font-bold">Contestant 2</h3>
+            <h3 className="font-display text-lg font-bold">Contestant 2</h3>
           </div>
 
           {/* Contestant Name */}

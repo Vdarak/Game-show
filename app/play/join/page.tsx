@@ -163,7 +163,7 @@ function JoinPageContent() {
                   </div>
                 </div>
 
-                <h2 className="text-xl font-semibold text-white text-center mb-6">
+                <h2 className="font-display text-xl font-semibold text-white text-center mb-6">
                   Enter Room Code
                 </h2>
 
@@ -205,7 +205,7 @@ function JoinPageContent() {
                   </div>
                 </div>
 
-                <h2 className="text-xl font-semibold text-white text-center mb-6">
+                <h2 className="font-display text-xl font-semibold text-white text-center mb-6">
                   Create Your Team
                 </h2>
 

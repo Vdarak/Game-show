@@ -122,7 +122,7 @@ export function QuestionManager({ questions, onAddQuestion, onUpdateQuestion, on
         <div className="space-y-6">
           {/* Question List */}
           <div className="space-y-3">
-            <h3 className="text-lg font-semibold">Existing Questions</h3>
+            <h3 className="font-display text-lg font-semibold">Existing Questions</h3>
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {questions.map((question, idx) => (
                 <motion.div
@@ -163,7 +163,7 @@ export function QuestionManager({ questions, onAddQuestion, onUpdateQuestion, on
           {/* Add/Edit Form */}
           <div className="space-y-4 border-t border-gray-700 pt-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">
+              <h3 className="font-display text-lg font-semibold">
                 {editingId ? "Edit Question" : "Add New Question"}
               </h3>
               {editingId && (

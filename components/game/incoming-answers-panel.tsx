@@ -131,7 +131,7 @@ export function IncomingAnswersPanel({
       {/* Header */}
       <div className="p-4 border-b border-gray-700">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold text-white flex items-center gap-2">
+          <h3 className="font-display font-semibold text-white flex items-center gap-2">
             <Users className="h-4 w-4 text-purple-400" />
             Incoming Answers
           </h3>

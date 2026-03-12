@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { usePlayerSession } from "@/hooks/use-player-session"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -129,7 +130,8 @@ export default function GamePage() {
     setAnswer(option)
   }
 
-  const canSubmit = !hasSubmittedCurrentQuestion && !isTimerExpired && answer.trim() && selectedWager !== null
+  const isTimerActive = gameState === "timer_running"
+  const canSubmit = !hasSubmittedCurrentQuestion && !isTimerExpired && isTimerActive && answer.trim() && selectedWager !== null
 
   // Find team's rank
   const teamRank = useMemo(() => {
@@ -207,15 +209,28 @@ export default function GamePage() {
       switch (gameState) {
         case "welcome":
           return (
-            <div className="text-center">
-              <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }}
-                className="font-display text-4xl font-bold text-white mb-2">
+            <div className="text-center flex flex-col items-center gap-4">
+              <motion.p initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}
+                className="font-display text-xl sm:text-2xl font-semibold text-white tracking-wide">
                 Welcome to
-              </motion.h1>
-              <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }}
-                className="font-display text-5xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-yellow-400 bg-clip-text text-transparent">
-                Trivi Time!
-              </motion.h1>
+              </motion.p>
+              <motion.div
+                initial={{ y: 30, opacity: 0, scale: 0.8 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                transition={{ delay: 0.5, type: "spring", stiffness: 200, damping: 15 }}
+                className="w-[70vw] max-w-[350px]"
+              >
+                <Image src="/trivi-time-logo.png" alt="Trivi Time" width={350} height={100} className="w-full h-auto drop-shadow-2xl" priority />
+              </motion.div>
+              <motion.div
+                initial={{ y: 15, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.9 }}
+                className="flex flex-col items-center gap-2 mt-1"
+              >
+                <span className="text-sm text-white font-medium tracking-wider uppercase">presented by</span>
+                <Image src="/gate-logo.png" alt="GATE" width={80} height={28} className="h-7 w-auto" />
+              </motion.div>
             </div>
           )
 
@@ -298,7 +313,7 @@ export default function GamePage() {
               <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2, repeat: Infinity }}>
                 <Clock className="h-16 w-16 text-purple-400 mb-4 mx-auto" />
               </motion.div>
-              <h3 className="text-xl font-semibold text-white mb-2">Waiting for Question</h3>
+              <h3 className="font-display text-xl font-semibold text-white mb-2">Waiting for Question</h3>
               <p className="text-gray-200 text-center">The host will reveal the next question soon</p>
             </div>
           )
@@ -416,7 +431,7 @@ export default function GamePage() {
             className="flex-1 flex flex-col items-center justify-center"
           >
             <Eye className="h-12 w-12 text-green-400 mb-4" />
-            <h3 className="text-xl font-bold text-white mb-4">Answer Revealed</h3>
+            <h3 className="font-display text-xl font-bold text-white mb-4">Answer Revealed</h3>
             <p className="text-gray-200 mb-4">Look at the gameboard for the correct answer!</p>
             {hasSubmittedCurrentQuestion && lastSubmission && (
               <div className="bg-gray-950/80 rounded-xl p-4 border border-gray-700 w-full max-w-xs text-center">
@@ -465,7 +480,7 @@ export default function GamePage() {
                     className="flex-1 flex flex-col items-center justify-center"
                   >
                     <CheckCircle2 className="h-16 w-16 text-green-400 mb-4" />
-                    <h3 className="text-xl font-bold text-white mb-2">Submitted!</h3>
+                    <h3 className="font-display text-xl font-bold text-white mb-2">Submitted!</h3>
                     <div className="bg-gray-950/80 rounded-xl p-4 border border-gray-700 w-full max-w-xs">
                       <div className="text-center">
                         <p className="text-gray-200 text-sm mb-1">Your Answer</p>
@@ -634,7 +649,7 @@ export default function GamePage() {
                 <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2, repeat: Infinity }}>
                   <Clock className="h-16 w-16 text-purple-400 mb-4" />
                 </motion.div>
-                <h3 className="text-xl font-semibold text-white mb-2">Waiting for Question</h3>
+                <h3 className="font-display text-xl font-semibold text-white mb-2">Waiting for Question</h3>
                 <p className="text-gray-200 text-center">The host will reveal the next question soon</p>
               </motion.div>
             )}

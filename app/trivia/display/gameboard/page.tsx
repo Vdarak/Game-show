@@ -3,8 +3,8 @@
 import { useEffect, useState, useRef, Suspense, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useSearchParams } from "next/navigation"
+import Image from "next/image"
 import { sessionsApi, episodesApi, getMediaUrl } from "@/lib/api-client"
-import { useSound } from "@/lib/use-sound"
 import { DEFAULT_RULES } from "@/lib/constants"
 import { MeshGradient } from "@paper-design/shaders-react"
 import { TeamAvatar } from "@/components/game/team-avatar"
@@ -74,7 +74,7 @@ function GameBoardContent() {
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isMuted, setIsMuted] = useState(false)
-  const [showLeaderboard, setShowLeaderboard] = useState(true)
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [fullscreenLeaderboard, setFullscreenLeaderboard] = useState(false)
   const [revealedRanks, setRevealedRanks] = useState<number[]>([])
 
@@ -84,16 +84,14 @@ function GameBoardContent() {
   const prevQuestionIdRef = useRef<string | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
+  const rulesVideoRef = useRef<HTMLVideoElement>(null)
+
+  // Video frame visibility — toggled by controller
+  const [videoFrameHidden, setVideoFrameHidden] = useState(false)
 
   // Delayed question text reveal after video starts
   const [questionTextRevealed, setQuestionTextRevealed] = useState(false)
   const [isFlipping, setIsFlipping] = useState(false)
-
-  // Sound effects
-  const introMusic = useSound("/sounds/intro-music.wav", { loop: true, volume: 0.5 })
-  const answerRevealSound = useSound("/sounds/answer-reveal.wav")
-  const timerSound = useSound("/sounds/timer.wav", { loop: true })
-  const timeUpSound = useSound("/sounds/time-up.wav")
 
   // Derived from server state
   const gameState = sessionStatus?.GameState || null
@@ -159,48 +157,55 @@ function GameBoardContent() {
       setTimeout(() => setIsFlipping(false), 600)
     }
 
-    // Sound: answer-reveal
-    if (
-      gameState === "answer_reveal" &&
-      prevGameStateRef.current !== "answer_reveal"
-    ) {
-      answerRevealSound.play()
-    }
-
     prevGameStateRef.current = gameState
   }, [gameState, currentQuestion])
 
-  // Intro music — loop during lobby, welcome, rules
+  // Preload upcoming question videos to prevent freezing
+  const preloadedVideosRef = useRef<Set<string>>(new Set())
+
   useEffect(() => {
-    const lobbyStates = ["lobby", "welcome", "rules"]
-    if (gameState && lobbyStates.includes(gameState)) {
-      introMusic.play()
-    } else {
-      introMusic.stop()
+    if (!currentQuestion || !episode) return
+
+    const videosToPreload: string[] = []
+
+    // Preload current question's videos
+    if (currentQuestion.QuestionVideoUrl) {
+      const url = getMediaUrl(currentQuestion.QuestionVideoUrl)
+      if (url) videosToPreload.push(url)
     }
-  }, [gameState])
-
-  // Timer sounds — dedicated effect with its own prev-state tracking
-  const prevTimerStateRef = useRef<string | null>(null)
-  useEffect(() => {
-    const prev = prevTimerStateRef.current
-
-    // Start timer sound when entering timer_running
-    if (gameState === "timer_running" && prev !== "timer_running") {
-      timerSound.play()
+    if (currentQuestion.AnswerVideoUrl) {
+      const url = getMediaUrl(currentQuestion.AnswerVideoUrl)
+      if (url) videosToPreload.push(url)
     }
 
-    // Stop timer sound + play time-up when leaving timer_running → timer_ended
-    if (prev === "timer_running" && gameState !== "timer_running") {
-      timerSound.stop()
-    }
-    if (gameState === "timer_ended" && prev !== "timer_ended") {
-      // Small delay to let timer sound fully stop
-      setTimeout(() => timeUpSound.play(), 50)
+    // Also preload the NEXT question's videos
+    if (sessionStatus?.CurrentRound && sessionStatus?.CurrentQuestion) {
+      const round = episode.rounds.find(r => r.RoundNumber === sessionStatus.CurrentRound)
+      if (round) {
+        const nextQ = round.questions.find(q => q.QuestionOrder === (sessionStatus.CurrentQuestion! + 1))
+        if (nextQ?.QuestionVideoUrl) {
+          const url = getMediaUrl(nextQ.QuestionVideoUrl)
+          if (url) videosToPreload.push(url)
+        }
+        if (nextQ?.AnswerVideoUrl) {
+          const url = getMediaUrl(nextQ.AnswerVideoUrl)
+          if (url) videosToPreload.push(url)
+        }
+      }
     }
 
-    prevTimerStateRef.current = gameState
-  }, [gameState])
+    // Prefetch each video via hidden <link rel="prefetch"> or fetch API
+    videosToPreload.forEach(url => {
+      if (preloadedVideosRef.current.has(url)) return
+      preloadedVideosRef.current.add(url)
+
+      const link = document.createElement("link")
+      link.rel = "prefetch"
+      link.as = "video"
+      link.href = url
+      document.head.appendChild(link)
+    })
+  }, [currentQuestion, episode, sessionStatus?.CurrentRound, sessionStatus?.CurrentQuestion])
 
   // Poll for updates — faster during timer_running
   useEffect(() => {
@@ -270,11 +275,42 @@ function GameBoardContent() {
           case "REVEAL_RANK":
             if (typeof rank === "number") {
               setRevealedRanks(prev => prev.includes(rank) ? prev : [...prev, rank])
+              try {
+                const audio = new Audio("/sounds/point-reveal.wav")
+                audio.play()
+              } catch { /* ignore autoplay errors */ }
             }
             break
           case "EXIT_FULLSCREEN_LEADERBOARD":
             setFullscreenLeaderboard(false)
             setRevealedRanks([])
+            break
+          case "RULES_VIDEO_PLAY":
+            rulesVideoRef.current?.play()
+            break
+          case "RULES_VIDEO_PAUSE":
+            rulesVideoRef.current?.pause()
+            break
+          case "RULES_VIDEO_RESTART":
+            if (rulesVideoRef.current) {
+              rulesVideoRef.current.currentTime = 0
+              rulesVideoRef.current.play()
+            }
+            break
+          case "QUESTION_VIDEO_PLAY":
+            videoRef.current?.play()
+            break
+          case "QUESTION_VIDEO_PAUSE":
+            videoRef.current?.pause()
+            break
+          case "QUESTION_VIDEO_RESTART":
+            if (videoRef.current) {
+              videoRef.current.currentTime = 0
+              videoRef.current.play()
+            }
+            break
+          case "TOGGLE_VIDEO_FRAME":
+            setVideoFrameHidden(prev => !prev)
             break
         }
       }
@@ -319,7 +355,7 @@ function GameBoardContent() {
     gameState !== "answer_reveal" &&
     (gameState === "video_playing" || gameState === "options_revealed" || gameState === "timer_running" || gameState === "timer_ended")
   const showAnswerVideo = hasAnswerVideo && gameState === "answer_reveal"
-  const showAnyVideo = showQuestionVideo || showAnswerVideo
+  const showAnyVideo = (showQuestionVideo || showAnswerVideo) && !videoFrameHidden
   const isShowingAnswer = gameState === "answer_reveal"
 
   // States that show question content (after announcement)
@@ -476,23 +512,24 @@ function GameBoardContent() {
                 transition={{ type: "spring", stiffness: 200, damping: 20 }}
                 className="flex-1 flex items-center justify-center"
               >
-                <div className="text-center">
-                  <motion.h1
-                    initial={{ y: 30, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.4 }}
-                    className="font-display text-6xl lg:text-8xl font-bold text-white mb-4"
+                <div className="text-center flex flex-col items-center gap-6">
+                  <motion.div
+                    initial={{ y: 40, opacity: 0, scale: 0.8 }}
+                    animate={{ y: 0, opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.5, type: "spring", stiffness: 200, damping: 15 }}
+                    className="w-[50vw] max-w-[700px]"
                   >
-                    Welcome to
-                  </motion.h1>
-                  <motion.h1
-                    initial={{ y: 30, opacity: 0 }}
+                    <Image src="/trivi-time-logo.png" alt="Trivi Time" width={700} height={200} className="w-full h-auto drop-shadow-2xl" priority />
+                  </motion.div>
+                  <motion.div
+                    initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.6 }}
-                    className="font-display text-7xl lg:text-9xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-yellow-400 bg-clip-text text-transparent"
+                    transition={{ delay: 0.9 }}
+                    className="flex flex-col items-center gap-2 mt-2"
                   >
-                    Trivi Time!
-                  </motion.h1>
+                    <span className="text-lg lg:text-xl text-white font-medium tracking-wider uppercase">presented by</span>
+                    <Image src="/gate-logo.png" alt="GATE" width={120} height={56} className="h-10 lg:h-14 w-auto" />
+                  </motion.div>
                 </div>
               </motion.div>
             )}
@@ -512,38 +549,63 @@ function GameBoardContent() {
                   const hasVideo = !!episode?.RulesVideoUrl
 
                   return (
-                    <div className={`${hasVideo ? "w-full max-w-6xl flex gap-8" : "w-[75vw] mx-auto"}`}>
-                      {/* Video Section (if available) */}
+                    <div className={`${hasVideo ? "w-[90vw] flex flex-col items-center gap-4 max-h-full overflow-hidden" : "w-[90vw] mx-auto"}`}>
+                      {/* Video Section (if available) — stacked above rules */}
                       {hasVideo && (
-                        <div className="flex-1">
+                        <div className="flex-shrink-0 w-full flex justify-center">
                           <video
+                            ref={rulesVideoRef}
                             src={getMediaUrl(episode?.RulesVideoUrl)!}
-                            className="w-full rounded-xl border border-gray-700"
-                            controls
+                            className="max-h-[35vh] w-auto object-contain rounded-xl border border-gray-700"
                             autoPlay
-                            muted
+                            playsInline
                           />
                         </div>
                       )}
 
                       {/* Rules Text Section */}
-                      <div className={hasVideo ? "flex-1" : "w-full"}>
+                      <div className={`${hasVideo ? "w-full overflow-y-auto max-h-[45vh]" : "w-full"}`}>
                         <div className="flex items-center gap-3 mb-4 justify-center">
                           <h2 className="font-display text-4xl font-bold text-yellow-400 underline" style={{ textShadow: '2px 2px 6px rgba(0,0,0,0.7)' }}>RULES</h2>
                         </div>
-                        <div className="space-y-1">
-                          {rulesContent.map((rule, i) => (
-                            <motion.div
-                              key={i}
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: 0.15 + i * 0.1 }}
-                              className="py-1.5 px-2 flex items-start gap-3"
-                            >
-                              <span className="flex-shrink-0 font-display text-xl font-bold text-purple-400" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.8)' }}>&gt;</span>
-                              <p className="font-display text-lg text-white leading-snug" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.7)' }}>{rule}</p>
-                            </motion.div>
-                          ))}
+                        <div className="grid grid-cols-2 gap-x-8 gap-y-1">
+                          {(() => {
+                            const mid = Math.ceil(rulesContent.length / 2)
+                            const leftCol = rulesContent.slice(0, mid)
+                            const rightCol = rulesContent.slice(mid)
+                            return (
+                              <>
+                                <div className="space-y-1">
+                                  {leftCol.map((rule, i) => (
+                                    <motion.div
+                                      key={i}
+                                      initial={{ opacity: 0, x: -20 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: 0.15 + i * 0.1 }}
+                                      className="py-1.5 px-2 flex items-start gap-3"
+                                    >
+                                      <span className="flex-shrink-0 font-display text-xl font-bold text-purple-400" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.8)' }}>&gt;</span>
+                                      <p className="font-display text-lg text-white leading-snug" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.7)' }}>{rule}</p>
+                                    </motion.div>
+                                  ))}
+                                </div>
+                                <div className="space-y-1">
+                                  {rightCol.map((rule, i) => (
+                                    <motion.div
+                                      key={i + mid}
+                                      initial={{ opacity: 0, x: -20 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: 0.15 + (i + mid) * 0.1 }}
+                                      className="py-1.5 px-2 flex items-start gap-3"
+                                    >
+                                      <span className="flex-shrink-0 font-display text-xl font-bold text-purple-400" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.8)' }}>&gt;</span>
+                                      <p className="font-display text-lg text-white leading-snug" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.7)' }}>{rule}</p>
+                                    </motion.div>
+                                  ))}
+                                </div>
+                              </>
+                            )
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -676,6 +738,7 @@ function GameBoardContent() {
                             muted={isMuted}
                             autoPlay
                             playsInline
+                            preload="auto"
                           />
                         </motion.div>
                       </motion.div>
@@ -710,31 +773,29 @@ function GameBoardContent() {
                   </motion.div>
                 </motion.div>
 
-                {/* Timer Bar — full width separator between question and options */}
-                {(gameState === "timer_running" || gameState === "timer_ended") && (
-                  <div className="flex-shrink-0">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <Clock className={`h-5 w-5 ${gameState === "timer_ended" ? 'text-red-400' : timerRemaining !== null && timerRemaining <= 5 ? 'text-red-400' : timerRemaining !== null && timerRemaining <= 10 ? 'text-yellow-400' : 'text-purple-400'}`} />
-                        <span className={`font-display text-2xl font-bold tabular-nums ${gameState === "timer_ended" ? 'text-red-400' : 'text-white'}`}>
-                          {gameState === "timer_ended" ? "TIME'S UP!" : `${timerRemaining ?? 0}s`}
-                        </span>
-                      </div>
-                      <div className="flex-1 h-3 bg-gray-800 rounded-full overflow-hidden">
-                        <motion.div
-                          className={`h-full rounded-full ${gameState === "timer_ended" || (timerRemaining !== null && timerRemaining <= 5)
-                            ? 'bg-red-500'
-                            : timerRemaining !== null && timerRemaining <= 10
-                              ? 'bg-yellow-500'
-                              : 'bg-purple-500'
-                            }`}
-                          animate={{ width: `${gameState === "timer_ended" ? 0 : timerTotal && timerRemaining !== null ? (timerRemaining / timerTotal) * 100 : 0}%` }}
-                          transition={{ duration: 0.5 }}
-                        />
-                      </div>
+                {/* Timer Bar — always visible during question content */}
+                <div className="flex-shrink-0">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Clock className={`h-5 w-5 ${gameState === "timer_ended" ? 'text-red-400' : timerRemaining !== null && timerRemaining <= 5 ? 'text-red-400' : timerRemaining !== null && timerRemaining <= 10 ? 'text-yellow-400' : 'text-purple-400'}`} />
+                      <span className={`font-display text-2xl font-bold tabular-nums ${gameState === "timer_ended" ? 'text-red-400' : 'text-white'}`}>
+                        {gameState === "timer_ended" ? "TIME'S UP!" : gameState === "timer_running" ? `${timerRemaining ?? 0}s` : `${timerTotal ?? 0}s`}
+                      </span>
+                    </div>
+                    <div className="flex-1 h-3 bg-gray-800 rounded-full overflow-hidden">
+                      <motion.div
+                        className={`h-full rounded-full ${gameState === "timer_ended" || (timerRemaining !== null && timerRemaining <= 5)
+                          ? 'bg-red-500'
+                          : timerRemaining !== null && timerRemaining <= 10
+                            ? 'bg-yellow-500'
+                            : 'bg-purple-500'
+                          }`}
+                        animate={{ width: `${gameState === "timer_ended" ? 0 : gameState === "timer_running" && timerTotal && timerRemaining !== null ? (timerRemaining / timerTotal) * 100 : 100}%` }}
+                        transition={{ duration: 0.5 }}
+                      />
                     </div>
                   </div>
-                )}
+                </div>
                 {/* Answer Options — Sequential Reveal */}
                 {(() => {
                   const isTrueFalse = currentQuestion.QuestionType === "true_false" ||
@@ -1006,7 +1067,7 @@ function GameBoardContent() {
                 transition={{ delay: 0.2 }}
                 className="text-center"
               >
-                <h1 className="font-display text-5xl lg:text-7xl font-bold bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 bg-clip-text text-transparent">
+                <h1 className="font-display text-5xl lg:text-7xl font-bold bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 bg-clip-text text-transparent drop-shadow-[0_4px_8px_rgba(0,0,0,0.6)]" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.4)' }}>
                   Leaderboard
                 </h1>
               </motion.div>
@@ -1036,7 +1097,7 @@ function GameBoardContent() {
                               initial={{ opacity: 0, scale: 0.8, y: 20 }}
                               animate={{ opacity: 1, scale: 1, y: 0 }}
                               transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                              className={`flex items-center gap-4 p-5 rounded-2xl border-2 ${isTop3 ? bgColors[entry.Rank - 1] : "bg-gray-800/60 border-gray-700/50"
+                              className={`flex items-center gap-4 p-5 rounded-2xl border-2 shadow-[0_8px_32px_rgba(0,0,0,0.5),0_4px_12px_rgba(0,0,0,0.3)] ${isTop3 ? bgColors[entry.Rank - 1] : "bg-gray-800/60 border-gray-700/50"
                                 }`}
                             >
                               <div className="w-14 text-center flex-shrink-0">
@@ -1052,15 +1113,15 @@ function GameBoardContent() {
                                 size="lg"
                               />
                               <div className="flex-1 min-w-0">
-                                <p className={`font-display text-2xl font-bold truncate ${isTop3 ? "text-white" : "text-gray-200"}`}>
+                                <p className={`font-display text-2xl font-bold truncate ${isTop3 ? "text-white" : "text-gray-200"}`} style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
                                   {entry.TeamName}
                                 </p>
                               </div>
                               <div className="text-right flex-shrink-0">
-                                <span className={`font-display text-3xl font-bold ${isTop3 ? rankColors[entry.Rank - 1] : "text-purple-400"}`}>
+                                <span className={`font-display text-3xl font-bold ${isTop3 ? rankColors[entry.Rank - 1] : "text-purple-400"}`} style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
                                   {entry.TotalScore}
                                 </span>
-                                <p className="text-xs text-gray-500 uppercase tracking-wider">pts</p>
+                                <p className="text-xs text-gray-500 uppercase tracking-wider" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>pts</p>
                               </div>
                             </motion.div>
                           ) : (

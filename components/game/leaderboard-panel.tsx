@@ -29,7 +29,7 @@ export function LeaderboardPanel({
       {/* Header */}
       <div className="p-4 border-b border-gray-700">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-white flex items-center gap-2">
+          <h3 className="font-display font-semibold text-white flex items-center gap-2">
             <Trophy className="h-4 w-4 text-yellow-400" />
             Leaderboard
           </h3>

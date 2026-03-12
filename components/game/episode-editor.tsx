@@ -40,7 +40,7 @@ import {
   BookOpen,
 
 } from "lucide-react"
-import { episodesApi, roundsApi, questionsApi, getMediaUrl } from "@/lib/api-client"
+import { episodesApi, roundsApi, questionsApi, mediaApi, getMediaUrl } from "@/lib/api-client"
 import type {
   Episode,
   EpisodeWithRounds,
@@ -113,14 +113,32 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
     setRulesVideoFileName(file.name)
 
     try {
-      setRulesUploadProgress(30)
-      const result = await episodesApi.uploadRulesVideo({
+      // Step 1: Request presigned upload URL
+      setRulesUploadProgress(15)
+      const { upload_url, blob_path } = await mediaApi.requestUploadUrl({
         episode_id: episode.IDEpisode,
-        file,
+        video_type: "rules",
+        filename: file.name,
       })
+
+      // Step 2: Upload file directly to S3
+      setRulesUploadProgress(30)
+      await mediaApi.uploadFileToS3(upload_url, file)
+
+      // Step 3: Confirm upload with backend
+      setRulesUploadProgress(80)
+      await mediaApi.confirmUpload({
+        episode_id: episode.IDEpisode,
+        video_type: "rules",
+        blob_path,
+      })
+
+      // Re-fetch episode to get updated video URL
+      setRulesUploadProgress(95)
+      const updated = await episodesApi.get(episode.IDEpisode)
       setRulesUploadProgress(100)
       await new Promise(r => setTimeout(r, 300))
-      setRulesVideoUrl(result.RulesVideoUrl)
+      setRulesVideoUrl(updated.RulesVideoUrl)
       toast.success("Rules video uploaded!")
     } catch (err) {
       console.error("Rules video upload failed:", err)
@@ -378,7 +396,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
             ) : (
               <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                 <Folder className="h-5 w-5 text-purple-400 flex-shrink-0" />
-                <h1 className="text-lg sm:text-xl font-bold text-white truncate">{episode.Title}</h1>
+                <h1 className="font-display text-lg sm:text-xl font-bold text-white truncate">{episode.Title}</h1>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -414,7 +432,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
         <div className="w-full md:w-64 bg-gray-900/50 md:border-r border-b md:border-b-0 border-gray-800 flex flex-col">
           <div className="p-3 sm:p-4 border-b border-gray-800">
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-white flex items-center gap-2 text-sm sm:text-base">
+              <h2 className="font-display font-semibold text-white flex items-center gap-2 text-sm sm:text-base">
                 <Layers className="h-4 w-4 text-purple-400" />
                 Rounds
               </h2>
@@ -473,7 +491,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
           <div className="border-t border-gray-800 p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-3">
               <BookOpen className="h-4 w-4 text-purple-400" />
-              <h3 className="text-sm font-semibold text-white">Rules</h3>
+              <h3 className="font-display text-sm font-semibold text-white">Rules</h3>
             </div>
             <div className="space-y-3">
               <div>
@@ -568,7 +586,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
               {/* Questions */}
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                 <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-                  <h3 className="font-semibold text-white flex items-center gap-2">
+                  <h3 className="font-display font-semibold text-white flex items-center gap-2">
                     <HelpCircle className="h-4 w-4 text-purple-400" />
                     Questions
                   </h3>
@@ -609,6 +627,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
                           question={question}
                           index={qIndex}
                           isExpanded={expandedQuestion === question.IDQuestion}
+                          episodeId={episode.IDEpisode}
                           onToggle={() =>
                             setExpandedQuestion(
                               expandedQuestion === question.IDQuestion ? null : question.IDQuestion
@@ -711,7 +730,7 @@ function RoundSettings({ round, onUpdate }: RoundSettingsProps) {
   return (
     <div className="p-3 sm:p-4 border-b border-gray-800 bg-gray-900 overflow-x-auto">
       <div className="flex flex-wrap items-center gap-2 sm:gap-4 min-w-0">
-        <h3 className="font-semibold text-white text-base">Round {round.RoundNumber}</h3>
+        <h3 className="font-display font-semibold text-white text-base">Round {round.RoundNumber}</h3>
 
         <div className="h-5 w-px bg-gray-700 hidden sm:block" />
 
@@ -801,6 +820,7 @@ interface QuestionCardProps {
   question: Question
   index: number
   isExpanded: boolean
+  episodeId: string
   onToggle: () => void
   onUpdate: (updates: Partial<Question>) => void
   onDelete: () => void
@@ -810,6 +830,7 @@ function QuestionCard({
   question,
   index,
   isExpanded,
+  episodeId,
   onToggle,
   onUpdate,
   onDelete,
@@ -874,21 +895,45 @@ function QuestionCard({
     }
 
     try {
+      // Step 1: Request presigned upload URL
       setUploadProgress(10)
-
-      const result = await questionsApi.uploadVideo({
+      const { upload_url, blob_path } = await mediaApi.requestUploadUrl({
         question_id: question.IDQuestion,
         video_type: videoType,
-        file,
+        filename: file.name,
       })
+
+      // Step 2: Upload file directly to S3
+      setUploadProgress(40)
+      await mediaApi.uploadFileToS3(upload_url, file)
+
+      // Step 3: Confirm upload with backend
+      setUploadProgress(75)
+      await mediaApi.confirmUpload({
+        question_id: question.IDQuestion,
+        video_type: videoType,
+        blob_path,
+      })
+
+      // Re-fetch to get updated video URL
+      setUploadProgress(90)
+      const updatedEpisode = await episodesApi.get(episodeId)
+      // Find the updated question in the episode rounds
+      let updatedQuestion: typeof question | undefined
+      for (const round of updatedEpisode.rounds || []) {
+        updatedQuestion = round.questions?.find(q => q.IDQuestion === question.IDQuestion)
+        if (updatedQuestion) break
+      }
 
       setUploadProgress(100)
       await new Promise(r => setTimeout(r, 300))
 
-      if (videoType === "question") {
-        setQuestionVideoUrl(result.QuestionVideoUrl)
-      } else {
-        setAnswerVideoUrl(result.AnswerVideoUrl)
+      if (updatedQuestion) {
+        if (videoType === "question") {
+          setQuestionVideoUrl(updatedQuestion.QuestionVideoUrl)
+        } else {
+          setAnswerVideoUrl(updatedQuestion.AnswerVideoUrl)
+        }
       }
 
       const { toast } = await import("sonner")

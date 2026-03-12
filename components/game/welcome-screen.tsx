@@ -134,7 +134,7 @@ export function WelcomeScreen() {
           }}
           className="mt-2 text-center text-white"
         >
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4 tracking-wide">
+          <h2 className="font-display text-3xl sm:text-4xl font-bold mb-4 tracking-wide">
             A Head-To-Head Party Game
           </h2>
           <div className="text-xl sm:text-2xl font-light mt-6">

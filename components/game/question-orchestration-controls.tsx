@@ -12,10 +12,13 @@ import {
     CheckCircle2,
     Clock,
     Video,
+    VideoOff,
     SkipForward,
     Loader2,
-    Bell,
     Monitor,
+    Play,
+    Pause,
+    RotateCcw,
 } from "lucide-react"
 import { sessionsApi } from "@/lib/api-client"
 import type { Question, Round, TeamResponse, Team, GameState, SessionStatusResponse } from "@/lib/api-types"
@@ -62,6 +65,9 @@ export function QuestionOrchestrationControls({
     isLoading,
 }: QuestionOrchestrationControlsProps) {
     const [advancing, setAdvancing] = useState(false)
+    const [questionVideoPlaying, setQuestionVideoPlaying] = useState(true)
+    const [answerVideoPlaying, setAnswerVideoPlaying] = useState(true)
+    const [videoFrameVisible, setVideoFrameVisible] = useState(true)
 
     // Current game state from server
     const gameState = sessionStatus?.GameState || null
@@ -120,6 +126,15 @@ export function QuestionOrchestrationControls({
         await onRefreshStatus()
     }, [onNextQuestion, onRefreshStatus])
 
+    // BroadcastChannel video control helpers
+    const sendVideoMessage = useCallback((type: string) => {
+        try {
+            const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+            bc.postMessage({ type })
+            bc.close()
+        } catch { /* not supported */ }
+    }, [sessionId])
+
     // ---- Step Definitions ----
     const getSteps = () => {
         const steps: {
@@ -141,7 +156,7 @@ export function QuestionOrchestrationControls({
             if (showVideoSteps) {
                 steps.push({
                     id: "playVideo",
-                    label: "Play Video",
+                    label: "Video + Question",
                     icon: Video,
                     action: handleAdvanceState,
                     canActivate: gameState === "announced",
@@ -160,7 +175,7 @@ export function QuestionOrchestrationControls({
             if (showVideoSteps) {
                 steps.push({
                     id: "playVideo",
-                    label: "Video & Question",
+                    label: "Video + Question",
                     icon: Video,
                     action: handleAdvanceState,
                     canActivate: gameState === "announced",
@@ -197,7 +212,7 @@ export function QuestionOrchestrationControls({
 
         steps.push({
             id: "revealAnswer",
-            label: "Reveal Answer",
+            label: "Answer + Video",
             icon: Eye,
             action: handleAdvanceState,
             canActivate: gameState === "timer_ended",
@@ -387,6 +402,84 @@ export function QuestionOrchestrationControls({
                             const status = getStepStatus(s)
                             const Icon = s.icon
 
+                            // Video step with active controls (question video playing)
+                            const isVideoStepActive = s.id === "playVideo" && status === "active" && !s.canActivate &&
+                                (gameState === "video_playing" || gameState === "options_revealed" || gameState === "timer_running" || gameState === "timer_ended")
+                            // Answer step with active controls
+                            const isAnswerStepActive = s.id === "revealAnswer" && status === "done" && gameState === "answer_reveal" && hasAnswerVideo
+
+                            if (isVideoStepActive) {
+                                return (
+                                    <div key={s.id} className="flex items-center gap-1">
+                                        <span className="text-[10px] text-blue-400 font-medium mr-1 flex items-center gap-1">
+                                            <Video className="h-3 w-3" />
+                                            {questionVideoPlaying ? "Playing" : "Paused"}
+                                        </span>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => {
+                                                if (questionVideoPlaying) {
+                                                    setQuestionVideoPlaying(false)
+                                                    sendVideoMessage("QUESTION_VIDEO_PAUSE")
+                                                } else {
+                                                    setQuestionVideoPlaying(true)
+                                                    sendVideoMessage("QUESTION_VIDEO_PLAY")
+                                                }
+                                            }}
+                                            className="h-7 w-7 p-0 bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700"
+                                        >
+                                            {questionVideoPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => {
+                                                setQuestionVideoPlaying(true)
+                                                sendVideoMessage("QUESTION_VIDEO_RESTART")
+                                            }}
+                                            className="h-7 w-7 p-0 bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700"
+                                        >
+                                            <RotateCcw className="h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                )
+                            }
+
+                            if (isAnswerStepActive) {
+                                return (
+                                    <div key={s.id} className="flex items-center gap-1">
+                                        <span className="text-[10px] text-green-400 font-medium mr-1 flex items-center gap-1">
+                                            <Video className="h-3 w-3" />
+                                            {answerVideoPlaying ? "Playing" : "Paused"}
+                                        </span>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => {
+                                                if (answerVideoPlaying) {
+                                                    setAnswerVideoPlaying(false)
+                                                    sendVideoMessage("QUESTION_VIDEO_PAUSE")
+                                                } else {
+                                                    setAnswerVideoPlaying(true)
+                                                    sendVideoMessage("QUESTION_VIDEO_PLAY")
+                                                }
+                                            }}
+                                            className="h-7 w-7 p-0 bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700"
+                                        >
+                                            {answerVideoPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => {
+                                                setAnswerVideoPlaying(true)
+                                                sendVideoMessage("QUESTION_VIDEO_RESTART")
+                                            }}
+                                            className="h-7 w-7 p-0 bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700"
+                                        >
+                                            <RotateCcw className="h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                )
+                            }
+
                             return (
                                 <Button
                                     key={s.id}
@@ -471,22 +564,21 @@ export function QuestionOrchestrationControls({
                                     </div>
                                 </div>
                             ) : gameState === "timer_ended" ? (
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-1.5 rounded-full bg-red-500/20 border border-red-500/40">
-                                            <Bell className="h-4 w-4 text-red-400 animate-pulse" />
+                                <div>
+                                    <div className="flex items-center gap-4 mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <Clock className="h-5 w-5 text-red-400" />
+                                            <span className="font-display text-3xl font-bold tabular-nums text-red-400">
+                                                TIME&apos;S UP!
+                                            </span>
                                         </div>
-                                        <div>
-                                            <p className="text-sm font-semibold text-red-400">⏰ Time&apos;s Up!</p>
-                                            <p className="text-xs text-gray-500">{respondedCount}/{totalTeams} submitted</p>
-                                        </div>
+                                        {gradedCount > 0 && (
+                                            <span className="text-sm font-bold text-green-400 ml-auto">{correctCount}/{gradedCount} correct</span>
+                                        )}
                                     </div>
-                                    {gradedCount > 0 && (
-                                        <div className="text-right">
-                                            <span className="text-sm font-bold text-green-400">{correctCount}/{gradedCount}</span>
-                                            <span className="block text-[10px] text-gray-500">correct</span>
-                                        </div>
-                                    )}
+                                    <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                                        <div className="h-full rounded-full bg-red-500 w-0" />
+                                    </div>
                                 </div>
                             ) : null}
                         </div>
@@ -495,20 +587,46 @@ export function QuestionOrchestrationControls({
 
                 {/* Action Bar — Grade + Next Question only */}
                 <div className="px-4 py-2.5 border-t border-gray-700 bg-gray-900/50 flex items-center justify-between">
-                    <Button
-                        onClick={onGrade}
-                        disabled={isGrading || respondedCount === 0}
-                        variant="outline"
-                        size="sm"
-                        className="border-green-500/50 text-green-400 hover:bg-green-500/10 h-8 text-xs"
-                    >
-                        {isGrading ? (
-                            <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                        ) : (
-                            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                    <div className="flex items-center gap-2">
+                        <Button
+                            onClick={onGrade}
+                            disabled={isGrading || respondedCount === 0}
+                            variant="outline"
+                            size="sm"
+                            className="border-green-500/50 text-green-400 hover:bg-green-500/10 h-8 text-xs"
+                        >
+                            {isGrading ? (
+                                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                            ) : (
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                            )}
+                            Grade ({respondedCount})
+                        </Button>
+
+                        {/* Toggle Video Frame on/off */}
+                        {(hasQuestionVideo || hasAnswerVideo) && (
+                            <Button
+                                onClick={() => {
+                                    setVideoFrameVisible(prev => !prev)
+                                    sendVideoMessage("TOGGLE_VIDEO_FRAME")
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className={`h-8 text-xs ${
+                                    videoFrameVisible
+                                        ? "border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+                                        : "border-gray-600 text-gray-500 hover:bg-gray-700/50"
+                                }`}
+                            >
+                                {videoFrameVisible ? (
+                                    <Video className="h-3.5 w-3.5 mr-1.5" />
+                                ) : (
+                                    <VideoOff className="h-3.5 w-3.5 mr-1.5" />
+                                )}
+                                {videoFrameVisible ? "Video On" : "Video Off"}
+                            </Button>
                         )}
-                        Grade ({respondedCount})
-                    </Button>
+                    </div>
 
                     <div className="flex items-center gap-2">
                         {gradedCount > 0 && (

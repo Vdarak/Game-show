@@ -16,8 +16,9 @@ import type {
   UpdateQuestionRequest,
   Question,
   MoveQuestionRequest,
-  UploadVideoRequest,
-  UploadRulesVideoRequest,
+  RequestUploadUrlPayload,
+  RequestUploadUrlResponse,
+  ConfirmUploadPayload,
   CreateSessionRequest,
   Session,
   SessionStatusResponse,
@@ -177,47 +178,6 @@ export const episodesApi = {
 
   delete: (IDEpisode: string): Promise<DeleteResponse> =>
     apiRequest("/episodes/delete", { body: { IDEpisode }, requiresAuth: true }),
-
-  uploadRulesVideo: async (data: UploadRulesVideoRequest): Promise<Episode> => {
-    const token = getAuthToken()
-    if (!token) {
-      throw new ApiClientError(401, "No authentication token available")
-    }
-
-    const formData = new FormData()
-    formData.append("file", data.file)
-    formData.append("episode_id", data.episode_id)
-
-    const url = `${API_BASE_URL}/episodes/upload-rules-video`
-    console.log(`[API] POST ${url} (multipart)`)
-
-    let response: Response
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      })
-    } catch (err) {
-      console.error(`[API] Network error:`, err)
-      throw new ApiClientError(0, `Network error: ${err instanceof Error ? err.message : "Failed to fetch"}`)
-    }
-
-    if (!response.ok) {
-      let detail = "Unknown error"
-      try {
-        const errorData: ApiError = await response.json()
-        detail = errorData.detail
-      } catch {
-        detail = response.statusText
-      }
-      throw new ApiClientError(response.status, detail)
-    }
-
-    return response.json()
-  },
 }
 
 // -------------------- Rounds API --------------------
@@ -245,47 +205,28 @@ export const questionsApi = {
 
   move: (data: MoveQuestionRequest): Promise<Question> =>
     apiRequest("/questions/move", { body: data, requiresAuth: true }),
+}
 
-  uploadVideo: async (data: UploadVideoRequest): Promise<Question> => {
-    const token = getAuthToken()
-    if (!token) {
-      throw new ApiClientError(401, "No authentication token available")
-    }
+// -------------------- Media API (Presigned Upload) --------------------
+export const mediaApi = {
+  requestUploadUrl: (data: RequestUploadUrlPayload): Promise<RequestUploadUrlResponse> =>
+    apiRequest("/media/request-upload-url", { body: data, requiresAuth: true }),
 
-    const formData = new FormData()
-    formData.append("file", data.file)
-    formData.append("question_id", data.question_id)
-    formData.append("video_type", data.video_type)
+  confirmUpload: (data: ConfirmUploadPayload): Promise<string> =>
+    apiRequest("/media/confirm-upload", { body: data, requiresAuth: true }),
 
-    const url = `${API_BASE_URL}/questions/upload-video`
-    console.log(`[API] POST ${url} (multipart)`)
-
-    let response: Response
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      })
-    } catch (err) {
-      console.error(`[API] Network error:`, err)
-      throw new ApiClientError(0, `Network error: ${err instanceof Error ? err.message : "Failed to fetch"}`)
-    }
+  uploadFileToS3: async (uploadUrl: string, file: File): Promise<void> => {
+    const response = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": file.type,
+      },
+      body: file,
+    })
 
     if (!response.ok) {
-      let detail = "Unknown error"
-      try {
-        const errorData: ApiError = await response.json()
-        detail = errorData.detail
-      } catch {
-        detail = response.statusText
-      }
-      throw new ApiClientError(response.status, detail)
+      throw new Error(`Failed to upload file to storage (${response.status})`)
     }
-
-    return response.json()
   },
 }
 

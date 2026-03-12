@@ -432,7 +432,7 @@ export default function ControllerPage() {
             <details className="group">
               <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-purple-900/50 to-purple-800/50 border border-purple-500/30 p-3 hover:bg-purple-700/30 transition-colors">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-bold text-purple-300">📋 STEP 1: Initial Setup (Do This FIRST)</span>
+                  <span className="font-display text-xs sm:text-sm font-bold text-purple-300">📋 STEP 1: Initial Setup (Do This FIRST)</span>
                 </div>
               </summary>
               <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
@@ -474,16 +474,16 @@ export default function ControllerPage() {
             <details className="group">
               <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-cyan-900/50 to-cyan-800/50 border border-cyan-500/30 p-3 hover:bg-cyan-700/30 transition-colors">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-bold text-cyan-300">🎮 Understanding the Game Orchestration Panel</span>
+                  <span className="font-display text-xs sm:text-sm font-bold text-cyan-300">🎮 Understanding the Game Orchestration Panel</span>
                 </div>
               </summary>
               <div className="mt-2 ml-4 space-y-3 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
                 <div>
-                  <p className="text-cyan-300 font-semibold mb-1">📍 Timeline Navigation:</p>
+                  <p className="font-display text-cyan-300 font-semibold mb-1">📍 Timeline Navigation:</p>
                   <p className="ml-3">Click timeline buttons (Welcome → Rules → Questions → Lightning → Ending) to navigate between game phases. The active phase is highlighted in green.</p>
                 </div>
                 <div>
-                  <p className="text-cyan-300 font-semibold mb-1">❓ Survey Questions Section:</p>
+                  <p className="font-display text-cyan-300 font-semibold mb-1">❓ Survey Questions Section:</p>
                   <p className="ml-3">• Lists all questions with Preview/Reveal buttons</p>
                   <p className="ml-3">• Click "Reveal Question" to show the question to audience</p>
                   <p className="ml-3">• Click individual answers to reveal them one by one</p>
@@ -491,7 +491,7 @@ export default function ControllerPage() {
                   <p className="ml-3">• Navigate with ← → buttons between questions</p>
                 </div>
                 <div>
-                  <p className="text-cyan-300 font-semibold mb-1">🎬 Sponsor Video Controls:</p>
+                  <p className="font-display text-cyan-300 font-semibold mb-1">🎬 Sponsor Video Controls:</p>
                   <p className="ml-3 text-yellow-300">These controls ONLY appear if you upload a sponsor video!</p>
                   <p className="ml-3">• "Go to Sponsor Video" - Navigate to video screen</p>
                   <p className="ml-3">• "Play Video" - Start video playback</p>
@@ -499,7 +499,7 @@ export default function ControllerPage() {
                   <p className="ml-3">• "Stop Video" - Stop and reset video</p>
                 </div>
                 <div>
-                  <p className="text-cyan-300 font-semibold mb-1">⚡ Lightning Round Section:</p>
+                  <p className="font-display text-cyan-300 font-semibold mb-1">⚡ Lightning Round Section:</p>
                   <p className="ml-3">• Update contestant names before they come on stage</p>
                   <p className="ml-3">• Edit lightning questions if needed</p>
                   <p className="ml-3">• Reveal answers one by one as contestants respond</p>
@@ -507,7 +507,7 @@ export default function ControllerPage() {
                   <p className="ml-3">• Start/stop timer for timed rounds</p>
                 </div>
                 <div>
-                  <p className="text-cyan-300 font-semibold mb-1">🔊 Sound Effects & Score Control:</p>
+                  <p className="font-display text-cyan-300 font-semibold mb-1">🔊 Sound Effects & Score Control:</p>
                   <p className="ml-3">• Test all sound buttons (Ding, Ring In, Duplicate, Wrong, Whoosh)</p>
                   <p className="ml-3">• Play background music (Intro/Excitement)</p>
                   <p className="ml-3">• Adjust team scores with +/- buttons</p>
@@ -520,7 +520,7 @@ export default function ControllerPage() {
             <details className="group">
               <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-green-900/50 to-green-800/50 border border-green-500/30 p-3 hover:bg-green-700/30 transition-colors">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-bold text-green-300">🧪 STEP 2: Dry Run Testing (Side-by-Side)</span>
+                  <span className="font-display text-xs sm:text-sm font-bold text-green-300">🧪 STEP 2: Dry Run Testing (Side-by-Side)</span>
                 </div>
               </summary>
               <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
@@ -574,7 +574,7 @@ export default function ControllerPage() {
             <details className="group">
               <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-yellow-900/50 to-yellow-800/50 border border-yellow-500/30 p-3 hover:bg-yellow-700/30 transition-colors">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-bold text-yellow-300">🔊 STEP 3: Audio/Visual Check (Before Connecting Speaker)</span>
+                  <span className="font-display text-xs sm:text-sm font-bold text-yellow-300">🔊 STEP 3: Audio/Visual Check (Before Connecting Speaker)</span>
                 </div>
               </summary>
               <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
@@ -612,7 +612,7 @@ export default function ControllerPage() {
             <details className="group">
               <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-red-900/50 to-red-800/50 border border-red-500/30 p-3 hover:bg-red-700/30 transition-colors">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-bold text-red-300">✅ STEP 4: Pre-Show Checklist (Before Audience)</span>
+                  <span className="font-display text-xs sm:text-sm font-bold text-red-300">✅ STEP 4: Pre-Show Checklist (Before Audience)</span>
                 </div>
               </summary>
               <div className="mt-2 ml-4 space-y-2 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
@@ -683,12 +683,12 @@ export default function ControllerPage() {
             <details className="group">
               <summary className="cursor-pointer rounded-lg bg-gradient-to-r from-blue-900/50 to-blue-800/50 border border-blue-500/30 p-3 hover:bg-blue-700/30 transition-colors">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-bold text-blue-300">🎬 During the Show: Game Flow Instructions</span>
+                  <span className="font-display text-xs sm:text-sm font-bold text-blue-300">🎬 During the Show: Game Flow Instructions</span>
                 </div>
               </summary>
               <div className="mt-2 ml-4 space-y-3 text-xs sm:text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg">
                 <div>
-                  <p className="text-blue-300 font-semibold mb-1">📺 Survey Questions Phase:</p>
+                  <p className="font-display text-blue-300 font-semibold mb-1">📺 Survey Questions Phase:</p>
                   <p className="ml-3">1. Wait for Jordan's cue before revealing each question</p>
                   <p className="ml-3">2. Click "Reveal Question" button when Jordan signals</p>
                   <p className="ml-3">3. Click individual answer cards to reveal them as the show progresses</p>
@@ -698,7 +698,7 @@ export default function ControllerPage() {
                   <p className="ml-3">7. Play sponsor video between questions if scheduled</p>
                 </div>
                 <div>
-                  <p className="text-blue-300 font-semibold mb-1">⚡ Lightning Round Phase:</p>
+                  <p className="font-display text-blue-300 font-semibold mb-1">⚡ Lightning Round Phase:</p>
                   <p className="ml-3">1. Update contestant names as they come on stage</p>
                   <p className="ml-3">2. Start timer if using a timed round</p>
                   <p className="ml-3">3. Wait for Jordan's cue to reveal each answer</p>
@@ -708,7 +708,7 @@ export default function ControllerPage() {
                   <p className="ml-3">7. Watch total points update automatically at bottom</p>
                 </div>
                 <div>
-                  <p className="text-blue-300 font-semibold mb-1">🎯 General Tips:</p>
+                  <p className="font-display text-blue-300 font-semibold mb-1">🎯 General Tips:</p>
                   <p className="ml-3">• Keep eyes on Jordan for all cues - never reveal ahead!</p>
                   <p className="ml-3">• Update scores after each round using +/- buttons</p>
                   <p className="ml-3">• Use background music during transitions</p>

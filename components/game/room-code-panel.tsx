@@ -10,13 +10,9 @@ import {
   QrCode,
   Users,
   Play,
-  ExternalLink,
   Loader2,
-  Volume2,
-  VolumeX,
-  Video,
-  VideoOff,
   StopCircle,
+  RefreshCw,
 } from "lucide-react"
 import type { Session, SessionStatusResponse, Team } from "@/lib/api-types"
 import { toast } from "sonner"
@@ -29,10 +25,8 @@ interface RoomCodePanelProps {
   isLoading: boolean
   onStartSession: () => Promise<void>
   onStopSession?: () => Promise<void>
-  showVideo?: boolean
-  onToggleShowVideo?: () => void
-  musicEnabled?: boolean
-  onToggleMusic?: () => void
+  onRestartSession?: () => Promise<void>
+  isRestarting?: boolean
 }
 
 export function RoomCodePanel({
@@ -42,12 +36,11 @@ export function RoomCodePanel({
   isLoading,
   onStartSession,
   onStopSession,
-  showVideo = true,
-  onToggleShowVideo,
-  musicEnabled = true,
-  onToggleMusic,
+  onRestartSession,
+  isRestarting = false,
 }: RoomCodePanelProps) {
   const [copied, setCopied] = useState(false)
+  const [copiedUrl, setCopiedUrl] = useState(false)
 
   const roomCode = session?.RoomCode || ""
   const joinUrl = typeof window !== "undefined"
@@ -103,12 +96,12 @@ export function RoomCodePanel({
       } else {
         fallbackCopy(joinUrl)
       }
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setCopiedUrl(true)
+      setTimeout(() => setCopiedUrl(false), 2000)
     } catch (err) {
       if (fallbackCopy(joinUrl)) {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+        setCopiedUrl(true)
+        setTimeout(() => setCopiedUrl(false), 2000)
       } else {
         console.error("Failed to copy:", err)
       }
@@ -132,11 +125,11 @@ export function RoomCodePanel({
 
   return (
     <div className="space-y-4">
-      {/* Room Code & QR Card */}
+      {/* Room Code, Teams & Controls — single card */}
       <Card className="bg-gray-800 border-gray-700 overflow-hidden">
         {/* Header with status badge */}
         <div className="px-4 pt-4 pb-3 flex items-center justify-between">
-          <h3 className="font-semibold text-white text-sm flex items-center gap-2">
+          <h3 className="font-display font-semibold text-white text-sm flex items-center gap-2">
             <QrCode className="h-4 w-4 text-purple-400" />
             Room Code
           </h3>
@@ -152,7 +145,7 @@ export function RoomCodePanel({
           </div>
         </div>
 
-        {/* QR + Room Code Row */}
+        {/* QR + Join Link (copiable) + Room Code (small underneath) */}
         <div className="px-4 pb-4">
           <div className="flex items-center gap-4">
             {/* QR Code — compact */}
@@ -166,32 +159,39 @@ export function RoomCodePanel({
               </div>
             )}
 
-            {/* Room Code + URL */}
+            {/* Join Link (primary, copiable) + Room Code (small) */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-display text-3xl font-bold text-white tracking-[0.2em]">
+              <button
+                onClick={handleCopyUrl}
+                className="flex items-center gap-2 mb-1.5 group"
+              >
+                <span className="text-sm text-purple-400 group-hover:text-purple-300 truncate transition-colors">
+                  {joinUrl.replace(/^https?:\/\//, "").slice(0, 40)}
+                </span>
+                {copiedUrl ? (
+                  <Check className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5 text-gray-500 group-hover:text-purple-300 flex-shrink-0 transition-colors" />
+                )}
+              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Room Code:</span>
+                <span className="font-mono text-xs text-gray-400 tracking-wider">
                   {roomCode}
                 </span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleCopy}
-                  className="text-gray-400 hover:text-white h-7 w-7 p-0"
+                  className="text-gray-500 hover:text-white h-5 w-5 p-0"
                 >
                   {copied ? (
-                    <Check className="h-3.5 w-3.5 text-green-400" />
+                    <Check className="h-3 w-3 text-green-400" />
                   ) : (
-                    <Copy className="h-3.5 w-3.5" />
+                    <Copy className="h-3 w-3" />
                   )}
                 </Button>
               </div>
-              <button
-                onClick={handleCopyUrl}
-                className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors truncate"
-              >
-                <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate">{joinUrl.replace(/^https?:\/\//, "").slice(0, 35)}...</span>
-              </button>
             </div>
           </div>
         </div>
@@ -219,34 +219,9 @@ export function RoomCodePanel({
           </div>
         )}
 
-        {/* Active session controls */}
+        {/* Active session controls — End Game + Restart */}
         {isActive && (
-          <div className="px-4 pb-4 space-y-3">
-            {/* Display toggles */}
-            <div className="flex gap-2">
-              {onToggleShowVideo && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onToggleShowVideo}
-                  className={`${showVideo ? "border-blue-500/50 text-blue-400" : "border-gray-600 text-gray-400"}`}
-                >
-                  {showVideo ? <Video className="h-3.5 w-3.5" /> : <VideoOff className="h-3.5 w-3.5" />}
-                </Button>
-              )}
-              {onToggleMusic && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onToggleMusic}
-                  className={`${musicEnabled ? "border-purple-500/50 text-purple-400" : "border-gray-600 text-gray-400"}`}
-                >
-                  {musicEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
-                </Button>
-              )}
-            </div>
-
-            {/* End Game */}
+          <div className="px-4 pb-4 space-y-2">
             {onStopSession && (
               <Button
                 variant="destructive"
@@ -259,51 +234,67 @@ export function RoomCodePanel({
                 End Game
               </Button>
             )}
+            {onRestartSession && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRestartSession}
+                disabled={isLoading || isRestarting}
+                className="w-full border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10"
+              >
+                {isRestarting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Restart Game
+              </Button>
+            )}
           </div>
         )}
-      </Card>
 
-      {/* Teams Card */}
-      <Card className="bg-gray-800 border-gray-700 overflow-hidden">
-        <div className="px-4 pt-4 pb-3 flex items-center justify-between">
-          <h3 className="font-semibold text-white text-sm flex items-center gap-2">
-            <Users className="h-4 w-4 text-blue-400" />
-            Teams
-          </h3>
-          <span className="text-xs text-gray-500">{teams.length} joined</span>
-        </div>
+        {/* Teams — merged into same card */}
+        <div className="border-t border-gray-700">
+          <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+            <h3 className="font-display font-semibold text-white text-sm flex items-center gap-2">
+              <Users className="h-4 w-4 text-blue-400" />
+              Teams
+            </h3>
+            <span className="text-xs text-gray-500">{teams.length} joined</span>
+          </div>
 
-        <div className="px-4 pb-4">
-          {teams.length === 0 ? (
-            <div className="py-4 text-center">
-              <Users className="h-8 w-8 text-gray-700 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">Waiting for teams to join...</p>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              <AnimatePresence>
-                {teams.map((team, index) => (
-                  <motion.div
-                    key={team.IDTeam}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ delay: index * 0.03 }}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-gray-900/70 border border-gray-700/60"
-                  >
-                    <TeamAvatar
-                      avatarPath={team.AvatarBlobPath}
-                      teamName={team.TeamName}
-                      size="sm"
-                    />
-                    <span className="text-xs text-gray-300 font-medium max-w-[80px] truncate">
-                      {team.TeamName}
-                    </span>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-          )}
+          <div className="px-4 pb-4">
+            {teams.length === 0 ? (
+              <div className="py-4 text-center">
+                <Users className="h-8 w-8 text-gray-700 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">Waiting for teams to join...</p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <AnimatePresence>
+                  {teams.map((team, index) => (
+                    <motion.div
+                      key={team.IDTeam}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={{ delay: index * 0.03 }}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-gray-900/70 border border-gray-700/60"
+                    >
+                      <TeamAvatar
+                        avatarPath={team.AvatarBlobPath}
+                        teamName={team.TeamName}
+                        size="sm"
+                      />
+                      <span className="text-xs text-gray-300 font-medium max-w-[80px] truncate">
+                        {team.TeamName}
+                      </span>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
         </div>
       </Card>
     </div>
