@@ -4,9 +4,11 @@ import { useEffect, useState, useMemo, Suspense } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useSearchParams } from "next/navigation"
 import { sessionsApi } from "@/lib/api-client"
+import { useSessionStatusWebSocket } from "@/hooks/use-session-status-websocket"
 import { DitherBackground } from "@/components/game/dither-background"
 import { TeamAvatar } from "@/components/game/team-avatar"
 import { Loader2, Trophy, Clock, Users, QrCode, Medal } from "lucide-react"
+import { getAvatarValue } from "@/lib/frontend-avatars"
 import type {
   Session,
   SessionStatusResponse,
@@ -21,6 +23,7 @@ type DisplayMode = "lobby" | "question" | "leaderboard" | "completed"
 function TriviaDisplayContent() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("session")
+  const roomCodeFromQuery = searchParams.get("room")
 
   const [session, setSession] = useState<Session | null>(null)
   const [sessionStatus, setSessionStatus] = useState<SessionStatusResponse | null>(null)
@@ -29,47 +32,86 @@ function TriviaDisplayContent() {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("lobby")
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [resolvedRoomCode, setResolvedRoomCode] = useState<string | null>(roomCodeFromQuery)
+  const [roomResolveAttempted, setRoomResolveAttempted] = useState(false)
+  const { status: realtimeStatus } = useSessionStatusWebSocket(resolvedRoomCode, {
+    enabled: !!resolvedRoomCode,
+  })
 
   // We need episode data to get question details - this would need to come from a display-specific endpoint
   // For now, we'll show what we can from session status
 
-  // Poll for updates
+  useEffect(() => {
+    setResolvedRoomCode(roomCodeFromQuery)
+    setRoomResolveAttempted(false)
+  }, [roomCodeFromQuery, sessionId])
+
+  // Resolve room code once when opening via session ID only.
   useEffect(() => {
     if (!sessionId) {
       setError("No session ID provided. Add ?session=<id> to URL")
       return
     }
 
-    const poll = async () => {
+    if (resolvedRoomCode || roomResolveAttempted) return
+
+    const resolveRoomCode = async () => {
       try {
-        const [status, lb, teams] = await Promise.all([
-          sessionsApi.status(sessionId),
+        const status = await sessionsApi.status(sessionId)
+        setResolvedRoomCode(status.RoomCode)
+        setSessionStatus(status)
+        setSession(status)
+      } catch (err) {
+        console.error("Failed to resolve room code:", err)
+      }
+
+      setRoomResolveAttempted(true)
+    }
+
+    void resolveRoomCode()
+  }, [sessionId, resolvedRoomCode, roomResolveAttempted])
+
+  useEffect(() => {
+    if (!realtimeStatus) return
+
+    setSessionStatus(realtimeStatus)
+    setSession(realtimeStatus)
+  }, [realtimeStatus])
+
+  useEffect(() => {
+    if (!sessionId || !sessionStatus) return
+
+    const syncFromStatus = async () => {
+      try {
+        const [lb, teams] = await Promise.all([
           sessionsApi.leaderboard(sessionId),
           sessionsApi.teams(sessionId),
         ])
 
-        setSessionStatus(status)
         setLeaderboard(lb)
         setTeamCount(teams.length)
 
-        // Determine display mode
-        if (status.Status === "lobby") {
+        if (sessionStatus.Status === "lobby") {
           setDisplayMode("lobby")
-        } else if (status.Status === "completed") {
+        } else if (sessionStatus.Status === "completed") {
           setDisplayMode("completed")
-        } else if (status.Status === "active") {
-          // For now, show question mode when active
+        } else if (sessionStatus.Status === "active") {
           setDisplayMode("question")
         }
       } catch (err) {
-        console.error("Poll error:", err)
+        console.error("Realtime sync error:", err)
       }
     }
 
-    poll()
-    const interval = setInterval(poll, 2000)
-    return () => clearInterval(interval)
-  }, [sessionId])
+    void syncFromStatus()
+  }, [
+    sessionId,
+    sessionStatus?.Status,
+    sessionStatus?.CurrentRound,
+    sessionStatus?.CurrentQuestion,
+    sessionStatus?.GameState,
+    sessionStatus?.team_count,
+  ])
 
   // Handle fullscreen
   useEffect(() => {
@@ -188,7 +230,12 @@ function TriviaDisplayContent() {
                       transition={{ delay: index * 0.1 }}
                       className="flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 mb-2"
                     >
-                      <TeamAvatar avatarPath={entry.AvatarBlobPath} teamName={entry.TeamName} size="lg" />
+                        <TeamAvatar
+                          avatarPath={getAvatarValue(entry)}
+                          teamName={entry.TeamName}
+                          teamId={entry.IDTeam}
+                          size="lg"
+                        />
                       <span className="text-white font-medium truncate">
                         {entry.TeamName}
                       </span>
@@ -216,11 +263,11 @@ function TriviaDisplayContent() {
             >
               {/* Header */}
               <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-4">
-                  <span className="px-4 py-2 rounded-full bg-purple-600/20 text-purple-400 font-semibold">
+                <div className="flex items-center gap-6">
+                  <span className="px-6 py-3 rounded-full bg-purple-600/20 text-purple-400 font-bold text-2xl lg:text-4xl">
                     Round {sessionStatus.CurrentRound}
                   </span>
-                  <span className="text-gray-500">
+                  <span className="text-gray-300 font-semibold text-2xl lg:text-4xl">
                     Question {sessionStatus.CurrentQuestion}
                   </span>
                 </div>
@@ -318,7 +365,12 @@ function TriviaDisplayContent() {
                         )}
                       </div>
                       <div className="flex items-center gap-3 flex-1">
-                        <TeamAvatar avatarPath={entry.AvatarBlobPath} teamName={entry.TeamName} size="xl" />
+                        <TeamAvatar
+                          avatarPath={getAvatarValue(entry)}
+                          teamName={entry.TeamName}
+                          teamId={entry.IDTeam}
+                          size="xl"
+                        />
                         <span className="text-xl text-white font-semibold truncate">
                           {entry.TeamName}
                         </span>

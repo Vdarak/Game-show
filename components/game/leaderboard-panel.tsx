@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Trophy, RefreshCw, Loader2, Eye, EyeOff } from "lucide-react"
 import type { LeaderboardResponse } from "@/lib/api-types"
+import { getAvatarValue } from "@/lib/frontend-avatars"
 import { TeamAvatar } from "./team-avatar"
 
 interface LeaderboardPanelProps {
@@ -22,7 +23,7 @@ export function LeaderboardPanel({
   isVisible = true,
   onToggleVisibility,
 }: LeaderboardPanelProps) {
-  const entries = leaderboard?.entries || []
+  const entries = [...(leaderboard?.entries || [])].sort((a, b) => a.Rank - b.Rank)
 
   return (
     <Card className="bg-gray-800 border-gray-700 overflow-hidden">
@@ -100,8 +101,9 @@ export function LeaderboardPanel({
                     {/* Team Info */}
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       <TeamAvatar
-                        avatarPath={entry.AvatarBlobPath}
+                        avatarPath={getAvatarValue(entry)}
                         teamName={entry.TeamName}
+                        teamId={entry.IDTeam}
                         size="md"
                       />
                       <span className="text-white font-medium truncate">
@@ -111,12 +113,6 @@ export function LeaderboardPanel({
 
                     {/* Scores */}
                     <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="text-xs text-gray-500">Round</div>
-                        <div className="text-sm text-gray-400">
-                          {entry.RoundScore > 0 ? `+${entry.RoundScore}` : entry.RoundScore}
-                        </div>
-                      </div>
                       <div className="text-right">
                         <div className="text-xs text-gray-500">Total</div>
                         <div className="font-display text-xl font-bold text-yellow-400">

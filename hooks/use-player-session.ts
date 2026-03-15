@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { sessionsApi, ApiClientError } from "@/lib/api-client"
+import { useSessionStatusWebSocket } from "@/hooks/use-session-status-websocket"
 import type {
   Team,
   CurrentQuestionResponse,
@@ -22,6 +23,7 @@ interface PlayerSessionState {
 
   // Game state
   sessionStatus: SessionStatusResponse | null
+  rulesContent: string[]
   currentQuestion: CurrentQuestionResponse | null
   availableWagers: number[]
 
@@ -39,7 +41,152 @@ interface PlayerSessionState {
 
 
 const STORAGE_KEY = "trivitime_player_session"
+const RULES_CACHE_PREFIX = "trivitime_player_rules"
 const ERROR_DISMISS_MS = 4000
+
+function normalizeRulesContent(rules: unknown): string[] | null {
+  if (!Array.isArray(rules)) return null
+  return rules
+    .map((rule) => (typeof rule === "string" ? rule.trim() : ""))
+    .filter((rule) => rule.length > 0)
+}
+
+function getRulesCacheKey(gameSessionId: string): string {
+  return `${RULES_CACHE_PREFIX}:${gameSessionId}`
+}
+
+function getCachedRulesContent(gameSessionId: string): string[] | null {
+  if (typeof window === "undefined") return null
+
+  const cached = localStorage.getItem(getRulesCacheKey(gameSessionId))
+  if (!cached) return null
+
+  try {
+    const parsed = JSON.parse(cached)
+    return normalizeRulesContent(parsed)
+  } catch {
+    localStorage.removeItem(getRulesCacheKey(gameSessionId))
+    return null
+  }
+}
+
+function cacheRulesContent(gameSessionId: string, rulesContent: string[]) {
+  if (typeof window === "undefined") return
+  localStorage.setItem(getRulesCacheKey(gameSessionId), JSON.stringify(rulesContent))
+}
+
+function normalizeStringArray(values: unknown): string[] | null {
+  if (!Array.isArray(values)) return null
+  return values
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter((value) => value.length > 0)
+}
+
+function normalizeNumberArray(values: unknown): number[] | null {
+  if (!Array.isArray(values)) return null
+  const parsed = values
+    .map((value) => {
+      if (typeof value === "number") return Number.isFinite(value) ? value : null
+      if (typeof value === "string") {
+        const asNumber = Number(value)
+        return Number.isFinite(asNumber) ? asNumber : null
+      }
+      return null
+    })
+    .filter((value): value is number => value !== null)
+  return parsed
+}
+
+function normalizeQuestionType(
+  rawType: unknown,
+  options: string[] | null
+): CurrentQuestionResponse["QuestionType"] {
+  if (rawType === "multiple_choice" || rawType === "true_false" || rawType === "open_ended") {
+    return rawType
+  }
+
+  if (options?.length === 2 && options.every((option) => option === "True" || option === "False")) {
+    return "true_false"
+  }
+
+  return "multiple_choice"
+}
+
+function normalizeRealtimeQuestion(status: SessionStatusResponse): CurrentQuestionResponse | null {
+  const statusWithQuestion = status as SessionStatusResponse & {
+    question?: unknown
+    Question?: unknown
+  }
+
+  const rawQuestion = statusWithQuestion.question ?? statusWithQuestion.Question
+  if (!rawQuestion || typeof rawQuestion !== "object") return null
+
+  const raw = rawQuestion as Record<string, unknown>
+  const options = normalizeStringArray(raw.Options ?? raw.options)
+  const availableWagers = normalizeNumberArray(
+    raw.AvailableWagers ?? raw.available_wagers ?? raw.AvailableValues ?? raw.available_values
+  )
+
+  const idQuestion =
+    typeof raw.IDQuestion === "string"
+      ? raw.IDQuestion
+      : typeof raw.id_question === "string"
+        ? raw.id_question
+        : null
+
+  if (!idQuestion) return null
+
+  const questionOrder =
+    typeof raw.QuestionOrder === "number"
+      ? raw.QuestionOrder
+      : typeof raw.question_order === "number"
+        ? raw.question_order
+        : status.CurrentQuestion ?? 0
+
+  return {
+    IDQuestion: idQuestion,
+    IDRound:
+      typeof raw.IDRound === "string"
+        ? raw.IDRound
+        : typeof raw.id_round === "string"
+          ? raw.id_round
+          : "",
+    QuestionOrder: questionOrder,
+    Category:
+      typeof raw.Category === "string"
+        ? raw.Category
+        : typeof raw.category === "string"
+          ? raw.category
+          : null,
+    QuestionText:
+      typeof raw.QuestionText === "string"
+        ? raw.QuestionText
+        : typeof raw.question_text === "string"
+          ? raw.question_text
+          : "",
+    QuestionType: normalizeQuestionType(raw.QuestionType ?? raw.question_type, options),
+    Options: options,
+    QuestionVideoUrl:
+      typeof raw.QuestionVideoUrl === "string"
+        ? raw.QuestionVideoUrl
+        : typeof raw.question_video_url === "string"
+          ? raw.question_video_url
+          : null,
+    TimerSeconds:
+      typeof raw.TimerSeconds === "number"
+        ? raw.TimerSeconds
+        : typeof raw.timer_seconds === "number"
+          ? raw.timer_seconds
+          : (status.TimerTotal ?? 0),
+    AvailableWagers: availableWagers ?? [],
+    QuestionStartedAt:
+      typeof raw.QuestionStartedAt === "string"
+        ? raw.QuestionStartedAt
+        : typeof raw.question_started_at === "string"
+          ? raw.question_started_at
+          : (status.QuestionStartedAt ?? ""),
+  }
+}
 
 // Map raw API errors to player-friendly messages
 function friendlyError(raw: string): string {
@@ -85,6 +232,7 @@ export function usePlayerSession() {
     gameSessionId: null,
     team: null,
     sessionStatus: null,
+    rulesContent: [],
     currentQuestion: null,
     availableWagers: [],
     lastSubmission: null,
@@ -97,6 +245,130 @@ export function usePlayerSession() {
   // Track whether localStorage has been loaded
   const [isHydrated, setIsHydrated] = useState(false)
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pointPoolRequestKeyRef = useRef<string | null>(null)
+  const {
+    status: realtimeStatus,
+    isConnected: isRealtimeConnected,
+  } = useSessionStatusWebSocket(state.roomCode, {
+    enabled: !!state.roomCode,
+  })
+
+  const applySessionStatus = useCallback((status: SessionStatusResponse) => {
+    const normalizedRules = normalizeRulesContent(status.RulesContent)
+    const normalizedQuestion = normalizeRealtimeQuestion(status)
+
+    if (normalizedRules !== null) {
+      cacheRulesContent(status.IDGameSession, normalizedRules)
+    }
+
+    setState((prev) => {
+      const questionIndexChanged =
+        typeof status.CurrentQuestion === "number" &&
+        !!prev.currentQuestion &&
+        prev.currentQuestion.QuestionOrder !== status.CurrentQuestion
+
+      const questionIdChanged =
+        !!normalizedQuestion &&
+        normalizedQuestion.IDQuestion !== prev.currentQuestion?.IDQuestion
+
+      const questionChanged = questionIdChanged || (!normalizedQuestion && questionIndexChanged)
+
+      const shouldClearQuestion =
+        status.Status !== "active" ||
+        status.CurrentQuestion === null ||
+        status.GameState === "lobby" ||
+        status.GameState === "welcome" ||
+        status.GameState === "rules" ||
+        status.GameState === "break" ||
+        status.GameState === "completed"
+
+      const nextQuestion = (() => {
+        if (normalizedQuestion) return normalizedQuestion
+        if (shouldClearQuestion) return null
+        if (questionIndexChanged) {
+          // Question index changed but payload was omitted in this frame; avoid showing stale question text.
+          return null
+        }
+        return prev.currentQuestion
+      })()
+
+      const nextWagers =
+        normalizedQuestion?.AvailableWagers && normalizedQuestion.AvailableWagers.length > 0
+          ? normalizedQuestion.AvailableWagers
+          : questionChanged || shouldClearQuestion
+            ? []
+            : prev.availableWagers
+
+      return {
+        ...prev,
+        roomCode: prev.roomCode || status.RoomCode,
+        gameSessionId: prev.gameSessionId || status.IDGameSession,
+        // Keep optional fields from previous status when sparse WS frames omit them.
+        sessionStatus: {
+          ...(prev.sessionStatus ?? status),
+          ...status,
+        },
+        rulesContent: normalizedRules ?? prev.rulesContent,
+        currentQuestion: nextQuestion,
+        availableWagers: nextWagers,
+        hasSubmittedCurrentQuestion: questionChanged ? false : prev.hasSubmittedCurrentQuestion,
+        lastSubmission: questionChanged ? null : prev.lastSubmission,
+      }
+    })
+  }, [])
+
+  // Mirror realtime session updates into local state.
+  useEffect(() => {
+    if (!realtimeStatus) return
+
+    applySessionStatus(realtimeStatus)
+  }, [realtimeStatus, applySessionStatus])
+
+  // Backfill wagers only when websocket question payload does not include them.
+  useEffect(() => {
+    const sessionId = state.gameSessionId
+    const teamId = state.team?.IDTeam
+    const questionId = state.currentQuestion?.IDQuestion
+
+    if (!sessionId || !teamId || state.sessionStatus?.Status !== "active" || !questionId) {
+      pointPoolRequestKeyRef.current = null
+      return
+    }
+
+    const requestKey = `${sessionId}:${teamId}:${questionId}`
+
+    if (state.availableWagers.length > 0) {
+      pointPoolRequestKeyRef.current = requestKey
+      return
+    }
+
+    if (pointPoolRequestKeyRef.current === requestKey) return
+    pointPoolRequestKeyRef.current = requestKey
+
+    void sessionsApi
+      .pointPool({
+        IDGameSession: sessionId,
+        IDTeam: teamId,
+      })
+      .then((pool) => {
+        setState((prev) => {
+          if (prev.currentQuestion?.IDQuestion !== questionId) return prev
+          return {
+            ...prev,
+            availableWagers: pool.AvailableValues,
+          }
+        })
+      })
+      .catch(() => {
+        // Ignore; wagers may still arrive via websocket status.
+      })
+  }, [
+    state.gameSessionId,
+    state.team?.IDTeam,
+    state.sessionStatus?.Status,
+    state.currentQuestion?.IDQuestion,
+    state.availableWagers.length,
+  ])
 
   // Set error with auto-dismiss
   const setErrorWithAutoDismiss = useCallback((message: string) => {
@@ -127,6 +399,7 @@ export function usePlayerSession() {
             roomCode: parsed.roomCode || null,
             gameSessionId: parsed.gameSessionId || null,
             team: parsed.team || null,
+            rulesContent: parsed.gameSessionId ? (getCachedRulesContent(parsed.gameSessionId) || []) : [],
           }))
         } catch {
           localStorage.removeItem(STORAGE_KEY)
@@ -169,6 +442,7 @@ export function usePlayerSession() {
       setState({
         ...updates,
         sessionStatus: null,
+        rulesContent: [],
         currentQuestion: null,
         availableWagers: [],
         lastSubmission: null,
@@ -179,6 +453,15 @@ export function usePlayerSession() {
       })
 
       persistSession(updates)
+
+      // Prefetch full status to warm cache for rules content and initial state.
+      void sessionsApi
+        .status(team.IDGameSession)
+        .then(applySessionStatus)
+        .catch(() => {
+          // Non-blocking prefetch; websocket/other fetch paths will still hydrate state.
+        })
+
       return team
     } catch (err) {
       const message = err instanceof ApiClientError ? err.detail : "Failed to join session"
@@ -190,53 +473,24 @@ export function usePlayerSession() {
 
   // Get session status
   const refreshSessionStatus = useCallback(async () => {
+    if (isRealtimeConnected && state.sessionStatus) return state.sessionStatus
     if (!state.gameSessionId) return null
 
     try {
       const status = await sessionsApi.status(state.gameSessionId)
-      setState((prev) => ({ ...prev, sessionStatus: status }))
+      applySessionStatus(status)
       return status
     } catch (err) {
       const message = err instanceof ApiClientError ? err.detail : "Failed to get session status"
       setErrorWithAutoDismiss(message)
       return null
     }
-  }, [state.gameSessionId])
+  }, [state.gameSessionId, state.sessionStatus, isRealtimeConnected, setErrorWithAutoDismiss, applySessionStatus])
 
-  // Get current question
+  // Current question comes from realtime status payload; no extra API request needed.
   const refreshCurrentQuestion = useCallback(async () => {
-    if (!state.gameSessionId || !state.team) return null
-
-    try {
-      const question = await sessionsApi.currentQuestion({
-        IDGameSession: state.gameSessionId,
-        IDTeam: state.team.IDTeam,
-      })
-
-      // Check if this is a new question (different from previous)
-      const isNewQuestion = !state.currentQuestion ||
-        state.currentQuestion.IDQuestion !== question.IDQuestion
-
-      setState((prev) => ({
-        ...prev,
-        currentQuestion: question,
-        availableWagers: question.AvailableWagers,
-        hasSubmittedCurrentQuestion: isNewQuestion ? false : prev.hasSubmittedCurrentQuestion,
-        lastSubmission: isNewQuestion ? null : prev.lastSubmission,
-      }))
-
-      return question
-    } catch (err) {
-      // 404 likely means no active question yet
-      if (err instanceof ApiClientError && err.status === 404) {
-        setState((prev) => ({ ...prev, currentQuestion: null }))
-        return null
-      }
-      const message = err instanceof ApiClientError ? err.detail : "Failed to get question"
-      setErrorWithAutoDismiss(message)
-      return null
-    }
-  }, [state.gameSessionId, state.team, state.currentQuestion])
+    return state.currentQuestion
+  }, [state.currentQuestion])
 
   // Get point pool
   const refreshPointPool = useCallback(async () => {
@@ -314,6 +568,7 @@ export function usePlayerSession() {
       gameSessionId: null,
       team: null,
       sessionStatus: null,
+      rulesContent: [],
       currentQuestion: null,
       availableWagers: [],
       lastSubmission: null,
@@ -337,6 +592,7 @@ export function usePlayerSession() {
     ...state,
     isHydrated,
     isInSession: !!state.team && !!state.gameSessionId,
+    isRealtimeConnected,
 
     // Actions
     joinSession,

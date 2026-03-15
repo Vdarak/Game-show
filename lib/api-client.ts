@@ -178,6 +178,9 @@ export const episodesApi = {
 
   delete: (IDEpisode: string): Promise<DeleteResponse> =>
     apiRequest("/episodes/delete", { body: { IDEpisode }, requiresAuth: true }),
+
+  deleteSponsorshipVideo: (IDEpisode: string): Promise<DeleteResponse> =>
+    apiRequest("/episodes/delete-sponsorship-video", { body: { IDEpisode }, requiresAuth: true }),
 }
 
 // -------------------- Rounds API --------------------
@@ -268,6 +271,12 @@ export const sessionsApi = {
 
   setBreak: (IDGameSession: string): Promise<Session> =>
     apiRequest("/sessions/set-break", { body: { IDGameSession }, requiresAuth: true }),
+
+  resetQuestion: (IDGameSession: string): Promise<Session> =>
+    apiRequest("/sessions/reset-question", { body: { IDGameSession }, requiresAuth: true }),
+
+  prevQuestion: (IDGameSession: string): Promise<Session> =>
+    apiRequest("/sessions/prev-question", { body: { IDGameSession }, requiresAuth: true }),
 
   // Public endpoints (no auth)
   status: (IDGameSession: string): Promise<SessionStatusResponse> =>

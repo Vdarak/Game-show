@@ -66,9 +66,9 @@ export function InstallPWA({ showOnlyOnController = false }: InstallPWAProps) {
       let instructions = "To install this app:\n\n"
       
       if (userAgent.includes('chrome') && !userAgent.includes('edg')) {
-        instructions += "Chrome:\n1. Click the install icon (⊕) in the address bar\n2. Or click the menu (⋮) → 'Install Family Feud Game Show'"
+        instructions += "Chrome:\n1. Click the install icon (⊕) in the address bar\n2. Or click the menu (⋮) → 'Install GATE | Jordan White'"
       } else if (userAgent.includes('edg')) {
-        instructions += "Edge:\n1. Click the app icon (⊕) in the address bar\n2. Or click the menu (···) → 'Apps' → 'Install Family Feud Game Show'"
+        instructions += "Edge:\n1. Click the app icon (⊕) in the address bar\n2. Or click the menu (···) → 'Apps' → 'Install GATE | Jordan White'"
       } else if (userAgent.includes('safari')) {
         instructions += "Safari:\n1. Tap the Share button\n2. Scroll down and tap 'Add to Home Screen'\n3. Tap 'Add' to confirm"
       } else if (userAgent.includes('firefox')) {

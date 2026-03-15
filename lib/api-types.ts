@@ -34,6 +34,7 @@ export interface CreateEpisodeRequest {
   ThemeConfig?: ThemeConfig
   SponsorConfig?: SponsorConfig
   RulesContent?: string[]
+  SponsorshipImage?: string | null
 }
 
 export interface UpdateEpisodeRequest {
@@ -43,6 +44,7 @@ export interface UpdateEpisodeRequest {
   ThemeConfig?: ThemeConfig
   SponsorConfig?: SponsorConfig
   RulesContent?: string[]
+  SponsorshipImage?: string | null
 }
 
 export interface Episode {
@@ -54,6 +56,8 @@ export interface Episode {
   SponsorConfig: SponsorConfig | null
   RulesContent: string[] | null
   RulesVideoUrl: string | null
+  SponsorshipImage: string | null
+  SponsorshipVideoUrl: string | null
   CreatedAt: string
   UpdatedAt: string
 }
@@ -120,6 +124,7 @@ export interface CreateQuestionRequest {
   AnswerVideoUrl?: string | null
   TimerSecondsOverride?: number | null
   ScoringModeOverride?: ScoringMode | null
+  Notes?: string[] | null
 }
 
 export interface UpdateQuestionRequest {
@@ -132,6 +137,7 @@ export interface UpdateQuestionRequest {
   Options?: string[]
   TimerSecondsOverride?: number | null
   ScoringModeOverride?: ScoringMode | null
+  Notes?: string[] | null
 }
 
 export interface Question {
@@ -147,6 +153,7 @@ export interface Question {
   AnswerVideoUrl: string | null
   TimerSecondsOverride: number | null
   ScoringModeOverride: ScoringMode | null
+  Notes: string[] | null
 }
 
 export interface MoveQuestionRequest {
@@ -157,7 +164,7 @@ export interface MoveQuestionRequest {
 export interface RequestUploadUrlPayload {
   question_id?: string
   episode_id?: string
-  video_type: "question" | "answer" | "rules"
+  video_type: "question" | "answer" | "rules" | "sponsorship"
   filename: string
 }
 
@@ -170,7 +177,7 @@ export interface RequestUploadUrlResponse {
 export interface ConfirmUploadPayload {
   question_id?: string
   episode_id?: string
-  video_type: "question" | "answer" | "rules"
+  video_type: "question" | "answer" | "rules" | "sponsorship"
   blob_path: string
 }
 
@@ -214,6 +221,13 @@ export interface Session {
 
 export interface SessionStatusResponse extends Session {
   team_count: number
+  Category?: string | null
+  CurrentCategory?: string | null
+  QuestionCategory?: string | null
+  RulesContent?: string[] | null
+  RulesVideoUrl?: string | null
+  SponsorshipImage?: string | null
+  SponsorshipVideoUrl?: string | null
 }
 
 // -------------------- Host Links --------------------
@@ -270,7 +284,8 @@ export interface Team {
   IDTeam: string
   IDGameSession: string
   TeamName: string
-  AvatarBlobPath: string | null
+  AvatarBlobPath?: string | null
+  AvatarBase64?: string | null
   JoinedAt: string
 }
 
@@ -368,7 +383,8 @@ export interface GradeOverrideResponse {
 export interface LeaderboardEntry {
   IDTeam: string
   TeamName: string
-  AvatarBlobPath: string | null
+  AvatarBlobPath?: string | null
+  AvatarBase64?: string | null
   TotalScore: number
   RoundScore: number
   Rank: number

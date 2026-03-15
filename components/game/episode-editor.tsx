@@ -38,7 +38,7 @@ import {
   MessageSquare,
   Upload,
   BookOpen,
-
+  Image,
 } from "lucide-react"
 import { episodesApi, roundsApi, questionsApi, mediaApi, getMediaUrl } from "@/lib/api-client"
 import type {
@@ -73,13 +73,20 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
   const [episodeDescription, setEpisodeDescription] = useState("")
 
   // Rules states
-  const [rulesText, setRulesText] = useState("")
+  const [rulesArray, setRulesArray] = useState<string[]>([])
   const [rulesVideoUrl, setRulesVideoUrl] = useState<string | null>(null)
   const [rulesVideoFileName, setRulesVideoFileName] = useState<string | null>(null)
   const [uploadingRulesVideo, setUploadingRulesVideo] = useState(false)
   const [rulesUploadProgress, setRulesUploadProgress] = useState(0)
   const rulesDebounceRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Sponsorship states
+  const [sponsorshipImage, setSponsorshipImage] = useState<string | null>(null)
+  const [sponsorshipVideoUrl, setSponsorshipVideoUrl] = useState<string | null>(null)
+  const [sponsorshipVideoFileName, setSponsorshipVideoFileName] = useState<string | null>(null)
+  const [uploadingSponsorVideo, setUploadingSponsorVideo] = useState(false)
+  const [sponsorUploadProgress, setSponsorUploadProgress] = useState(0)
+  const sponsorshipDebounceRef = useRef<NodeJS.Timeout | null>(null)
 
 
   // Load episode
@@ -94,8 +101,10 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
       setEpisode(data)
       setEpisodeTitle(data.Title)
       setEpisodeDescription(data.Description || "")
-      setRulesText(data.RulesContent?.join("\n") || "")
+      setRulesArray(data.RulesContent || [])
       setRulesVideoUrl(data.RulesVideoUrl || null)
+      setSponsorshipImage(data.SponsorshipImage || null)
+      setSponsorshipVideoUrl(data.SponsorshipVideoUrl || null)
     } catch (err) {
       toast.error("Failed to load episode")
       onClose()
@@ -159,11 +168,12 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
     }
 
     rulesDebounceRef.current = setTimeout(async () => {
-      const rulesArray = rulesText.split("\n").filter(line => line.trim())
       try {
         await episodesApi.update({
           IDEpisode: episode.IDEpisode,
-          RulesContent: rulesArray.length > 0 ? rulesArray : undefined,
+          RulesContent: rulesArray.filter(line => line.trim()).length > 0 
+                          ? rulesArray.filter(line => line.trim()) 
+                          : undefined,
         })
         setLastSavedAt(new Date())
       } catch (err) {
@@ -176,7 +186,109 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
         clearTimeout(rulesDebounceRef.current)
       }
     }
-  }, [rulesText, episode])
+  }, [rulesArray, episode])
+
+  // Sponsorship Logo Upload
+  const handleSponsorLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !episode) return
+
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string
+      setSponsorshipImage(base64)
+      setIsAutosaving(true)
+      try {
+        await episodesApi.update({
+          IDEpisode: episode.IDEpisode,
+          SponsorshipImage: base64,
+        })
+        setLastSavedAt(new Date())
+        toast.success("Sponsorship logo uploaded!")
+      } catch (err) {
+        toast.error("Failed to upload sponsorship logo")
+      } finally {
+        setIsAutosaving(false)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleRemoveSponsorLogo = async () => {
+    if (!episode) return
+    setSponsorshipImage(null)
+    setIsAutosaving(true)
+    try {
+      await episodesApi.update({
+        IDEpisode: episode.IDEpisode,
+        SponsorshipImage: "", // Sending empty string clears it
+      })
+      setLastSavedAt(new Date())
+      toast.success("Sponsorship logo removed!")
+    } catch (err) {
+      toast.error("Failed to remove sponsorship logo")
+    } finally {
+      setIsAutosaving(false)
+    }
+  }
+
+  // Sponsorship Video Upload
+  const handleSponsorVideoUpload = async (file: File) => {
+    if (!episode) return
+    setUploadingSponsorVideo(true)
+    setSponsorUploadProgress(10)
+    setSponsorshipVideoFileName(file.name)
+
+    try {
+      setSponsorUploadProgress(15)
+      const { upload_url, blob_path } = await mediaApi.requestUploadUrl({
+        episode_id: episode.IDEpisode,
+        video_type: "sponsorship",
+        filename: file.name,
+      })
+
+      setSponsorUploadProgress(30)
+      await mediaApi.uploadFileToS3(upload_url, file)
+
+      setSponsorUploadProgress(80)
+      await mediaApi.confirmUpload({
+        episode_id: episode.IDEpisode,
+        video_type: "sponsorship",
+        blob_path,
+      })
+
+      setSponsorUploadProgress(95)
+      const updated = await episodesApi.get(episode.IDEpisode)
+      setSponsorUploadProgress(100)
+      await new Promise(r => setTimeout(r, 300))
+      setSponsorshipVideoUrl(updated.SponsorshipVideoUrl)
+      toast.success("Sponsorship video uploaded!")
+    } catch (err) {
+      console.error("Sponsorship video upload failed:", err)
+      toast.error("Failed to upload sponsorship video")
+      setSponsorshipVideoFileName(null)
+    } finally {
+      setUploadingSponsorVideo(false)
+      setSponsorUploadProgress(0)
+    }
+  }
+
+  const handleRemoveSponsorVideo = async () => {
+    if (!episode) return
+    setIsAutosaving(true)
+    try {
+      // Create this new API endpoint in api-client.ts 
+      // (which we already did)
+      await episodesApi.deleteSponsorshipVideo(episode.IDEpisode)
+      setSponsorshipVideoUrl(null)
+      setSponsorshipVideoFileName(null)
+      toast.success("Sponsorship video removed!")
+    } catch (err) {
+      toast.error("Failed to remove sponsorship video")
+    } finally {
+      setIsAutosaving(false)
+    }
+  }
 
   // Save Episode
   const handleSaveEpisode = async () => {
@@ -303,11 +415,15 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
       // Build update request with proper types
       const updateRequest = {
         IDQuestion: questionId,
+        QuestionOrder: updates.QuestionOrder,
         QuestionText: updates.QuestionText,
+        QuestionType: updates.QuestionType,
         CorrectAnswer: updates.CorrectAnswer,
         Category: updates.Category ?? undefined,
-        QuestionType: updates.QuestionType,
         Options: updates.Options ?? undefined,
+        TimerSecondsOverride: updates.TimerSecondsOverride,
+        ScoringModeOverride: updates.ScoringModeOverride,
+        Notes: updates.Notes,
       }
       const updated = await questionsApi.update(updateRequest)
       const updatedRounds = [...episode.rounds]
@@ -429,7 +545,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
         {/* Rounds Navigation */}
-        <div className="w-full md:w-64 bg-gray-900/50 md:border-r border-b md:border-b-0 border-gray-800 flex flex-col">
+        <div className="w-full md:w-64 bg-gray-900/50 md:border-r border-b md:border-b-0 border-gray-800 flex flex-col overflow-y-auto">
           <div className="p-3 sm:p-4 border-b border-gray-800">
             <div className="flex items-center justify-between">
               <h2 className="font-display font-semibold text-white flex items-center gap-2 text-sm sm:text-base">
@@ -495,13 +611,44 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Rules Text (one per line)</label>
-                <Textarea
-                  value={rulesText}
-                  onChange={(e) => setRulesText(e.target.value)}
-                  placeholder="Enter rules, one per line..."
-                  className="bg-gray-900 border-gray-700 text-xs h-24 resize-none"
-                />
+                <label className="text-xs text-gray-400 block mb-2">Rules</label>
+                <div className="space-y-2">
+                  {rulesArray.map((rule, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-800 text-[10px] font-medium text-gray-500 flex-shrink-0">
+                        {i + 1}
+                      </div>
+                      <Input
+                        value={rule}
+                        onChange={(e) => {
+                          const newRules = [...rulesArray]
+                          newRules[i] = e.target.value
+                          setRulesArray(newRules)
+                        }}
+                        placeholder="Rule text..."
+                        className="bg-gray-900 border-gray-700 text-xs h-8 flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newRules = rulesArray.filter((_, idx) => idx !== i)
+                          setRulesArray(newRules)
+                        }}
+                        className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-colors flex-shrink-0 text-sm pl-0 pr-0 pb-0.5"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setRulesArray([...rulesArray, ""])}
+                    className="mt-2 px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-1 w-fit"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Rule
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Rules Video</label>
@@ -559,6 +706,109 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) handleRulesVideoUpload(file)
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sponsorship Media Section */}
+          <div className="border-t border-gray-800 p-3 sm:p-4 mb-10 border-b">
+            <div className="flex items-center gap-2 mb-3">
+              <Image className="h-4 w-4 text-purple-400" />
+              <h3 className="font-display text-sm font-semibold text-white">Sponsorship Media</h3>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Sponsor Logo */}
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Sponsor Logo</label>
+                {sponsorshipImage ? (
+                  <div className="relative rounded-lg overflow-hidden bg-black border border-gray-700 p-2 flex items-center justify-center">
+                    <img
+                      src={sponsorshipImage}
+                      alt="Sponsor Logo"
+                      className="max-h-24 w-auto object-contain bg-black"
+                    />
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={handleRemoveSponsorLogo}
+                        className="px-2 py-1 bg-red-500/80 rounded text-xs text-white"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center h-16 rounded-lg border-2 border-dashed border-gray-700 hover:border-purple-500/50 bg-gray-900/30 cursor-pointer transition-colors">
+                    <Upload className="h-4 w-4 text-gray-500 mb-1" />
+                    <span className="text-xs text-gray-500">Upload logo image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleSponsorLogoUpload}
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Sponsor Video */}
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Sponsor Video (Break Screen)</label>
+                {sponsorshipVideoUrl ? (
+                  <div className="relative rounded-lg overflow-hidden bg-black border border-gray-700">
+                    <video
+                      src={getMediaUrl(sponsorshipVideoUrl)!}
+                      className="w-full h-32 object-contain bg-black"
+                      controls
+                      playsInline
+                      muted
+                    />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={handleRemoveSponsorVideo}
+                        className="px-2 py-1 bg-red-500/80 rounded text-xs text-white"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between">
+                      {sponsorshipVideoFileName && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-900/80 text-gray-300 truncate max-w-[60%]">
+                          {sponsorshipVideoFileName}
+                        </span>
+                      )}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/80 text-white">✓ Uploaded</span>
+                    </div>
+                  </div>
+                ) : uploadingSponsorVideo ? (
+                  <div className="rounded-lg border border-gray-700 p-3 bg-gray-900/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Loader2 className="h-3.5 w-3.5 text-purple-400 animate-spin" />
+                      <span className="text-xs text-gray-400">Uploading...</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-purple-500 rounded-full"
+                        animate={{ width: `${sponsorUploadProgress}%` }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center h-16 rounded-lg border-2 border-dashed border-gray-700 hover:border-purple-500/50 bg-gray-900/30 cursor-pointer transition-colors">
+                    <Upload className="h-4 w-4 text-gray-500 mb-1" />
+                    <span className="text-xs text-gray-500">Upload video</span>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleSponsorVideoUpload(file)
                       }}
                     />
                   </label>
@@ -842,11 +1092,13 @@ function QuestionCard({
   const [options, setOptions] = useState(question.Options || ["", "", "", ""])
   const [questionVideoUrl, setQuestionVideoUrl] = useState(question.QuestionVideoUrl)
   const [answerVideoUrl, setAnswerVideoUrl] = useState(question.AnswerVideoUrl)
+  const [notes, setNotes] = useState<string[]>(question.Notes || [])
   const [questionVideoFileName, setQuestionVideoFileName] = useState<string | null>(null)
   const [answerVideoFileName, setAnswerVideoFileName] = useState<string | null>(null)
   const [uploadingVideo, setUploadingVideo] = useState<"question" | "answer" | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadStage, setUploadStage] = useState<"reading" | "optimizing" | "uploading" | null>(null)
+  const notesPreview = notes.map((note) => note.trim()).filter((note) => note.length > 0)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const initializedRef = useRef(false)
   const onUpdateRef = useRef(onUpdate)
@@ -871,6 +1123,7 @@ function QuestionCard({
         Category: category || undefined,
         QuestionType: type,
         Options: type === "multiple_choice" ? options.filter((o) => o.trim()) : undefined,
+        Notes: notes.filter((n) => n.trim()).length > 0 ? notes.filter((n) => n.trim()) : null,
       })
     }, 1000)
 
@@ -879,7 +1132,7 @@ function QuestionCard({
         clearTimeout(debounceRef.current)
       }
     }
-  }, [text, answer, category, type, options])
+  }, [text, answer, category, type, options, notes])
 
   // Video upload handler
   const handleVideoUpload = async (file: File, videoType: "question" | "answer") => {
@@ -982,10 +1235,25 @@ function QuestionCard({
             }`}>
             {question.QuestionType === "multiple_choice" ? "MCQ" : question.QuestionType === "true_false" ? "T/F" : "OPEN"}
           </span>
-          <span className="text-white truncate">{question.QuestionText}</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-white truncate">{question.QuestionText}</p>
+            {notesPreview.length > 0 ? (
+              <ul className="list-disc list-inside text-[11px] text-gray-400 leading-snug mt-1 space-y-0.5">
+                {notesPreview.slice(0, 2).map((note, noteIndex) => (
+                  <li key={`${question.IDQuestion}-note-preview-${noteIndex}`} className="truncate">
+                    {note}
+                  </li>
+                ))}
+                {notesPreview.length > 2 && (
+                  <li className="text-gray-500">+{notesPreview.length - 2} more notes</li>
+                )}
+              </ul>
+            ) : (
+              <p className="text-[11px] text-gray-500 mt-1">No host notes</p>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          {question.QuestionVideoUrl && <Video className="h-4 w-4 text-blue-400" />}
           <Button
             size="sm"
             variant="ghost"
@@ -1161,6 +1429,52 @@ function QuestionCard({
                   </div>
                 </div>
               )}
+
+              {/* Host Notes Section */}
+              <div className="border-t border-gray-700 pt-4">
+                <label className="text-xs text-gray-400 mb-2 block flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5" /> Host Notes (Optional)
+                </label>
+                <div className="space-y-2">
+                  {notes.map((note, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-800 text-xs font-medium text-gray-500 flex-shrink-0">
+                        {i + 1}
+                      </div>
+                      <Input
+                        value={note}
+                        onChange={(e) => {
+                          const newNotes = [...notes]
+                          newNotes[i] = e.target.value
+                          setNotes(newNotes)
+                        }}
+                        placeholder="e.g. Common wrong guess: London"
+                        className="bg-gray-900 border-gray-600 flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newNotes = notes.filter((_, idx) => idx !== i)
+                          setNotes(newNotes)
+                        }}
+                        className="w-8 h-8 rounded flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-colors flex-shrink-0"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-start mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setNotes([...notes, ""])}
+                    className="px-3 py-1.5 rounded-lg text-sm text-gray-400 bg-gray-800 hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Note
+                  </button>
+                </div>
+              </div>
 
               {/* Video Upload Section */}
               <div className="border-t border-gray-700 pt-4">

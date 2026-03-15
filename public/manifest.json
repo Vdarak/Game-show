@@ -1,7 +1,7 @@
 {
-  "name": "Family Feud Game Show",
-  "short_name": "Family Feud",
-  "description": "Interactive Family Feud game with multi-screen support and offline capabilities",
+  "name": "GATE | Jordan White",
+  "short_name": "GATE",
+  "description": "Interactive game show with multi-screen support and offline capabilities",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#111827",

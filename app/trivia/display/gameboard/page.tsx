@@ -1,13 +1,16 @@
 "use client"
 
-import { useEffect, useState, useRef, Suspense, useCallback } from "react"
+import { useEffect, useState, useRef, Suspense, useMemo, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { sessionsApi, episodesApi, getMediaUrl } from "@/lib/api-client"
+import { useSessionStatusWebSocket } from "@/hooks/use-session-status-websocket"
 import { DEFAULT_RULES } from "@/lib/constants"
-import { MeshGradient } from "@paper-design/shaders-react"
+import dynamic from "next/dynamic"
+const MeshGradient = dynamic(() => import("@paper-design/shaders-react").then(mod => mod.MeshGradient), { ssr: false })
 import { TeamAvatar } from "@/components/game/team-avatar"
+import { getAvatarValue } from "@/lib/frontend-avatars"
 import {
   Loader2,
   Trophy,
@@ -65,6 +68,7 @@ function AnimatedScore({ score }: { score: number }) {
 function GameBoardContent() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("session")
+  const roomCodeFromQuery = searchParams.get("room")
 
   const [episode, setEpisode] = useState<EpisodeWithRounds | null>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -73,6 +77,11 @@ function GameBoardContent() {
   const [teams, setTeams] = useState<Team[]>([])
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [resolvedRoomCode, setResolvedRoomCode] = useState<string | null>(roomCodeFromQuery)
+  const [roomResolveAttempted, setRoomResolveAttempted] = useState(false)
+  const { status: realtimeStatus } = useSessionStatusWebSocket(resolvedRoomCode, {
+    enabled: !!resolvedRoomCode,
+  })
   const [isMuted, setIsMuted] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [fullscreenLeaderboard, setFullscreenLeaderboard] = useState(false)
@@ -93,10 +102,115 @@ function GameBoardContent() {
   const [questionTextRevealed, setQuestionTextRevealed] = useState(false)
   const [isFlipping, setIsFlipping] = useState(false)
 
+  useEffect(() => {
+    setResolvedRoomCode(roomCodeFromQuery)
+    setRoomResolveAttempted(false)
+  }, [roomCodeFromQuery, sessionId])
+
+  // Bootstrap status once per session to warm room code + optional metadata (rules/category).
+  useEffect(() => {
+    if (!sessionId) {
+      setError("No session ID provided. Add ?session=<id> to URL")
+      return
+    }
+
+    if (roomResolveAttempted) return
+
+    setRoomResolveAttempted(true)
+
+    const resolveRoomCode = async () => {
+      try {
+        const status = await sessionsApi.status(sessionId)
+        setResolvedRoomCode(status.RoomCode)
+        setSessionStatus((prev) => ({
+          ...(prev ?? status),
+          ...status,
+        }))
+        setSession(status)
+        setError(null)
+      } catch (err) {
+        console.error("Failed to bootstrap session status:", err)
+      }
+    }
+
+    void resolveRoomCode()
+  }, [sessionId, roomResolveAttempted])
+
+  useEffect(() => {
+    if (!realtimeStatus) return
+
+    setSessionStatus((prev) => ({
+      ...(prev ?? realtimeStatus),
+      ...realtimeStatus,
+    }))
+    setSession(realtimeStatus)
+    setError(null)
+  }, [realtimeStatus])
+
   // Derived from server state
   const gameState = sessionStatus?.GameState || null
   const timerRemaining = sessionStatus?.TimerRemaining ?? null
   const timerTotal = sessionStatus?.TimerTotal ?? null
+
+  // WS payload includes question data in realtime updates; normalize it as fallback
+  const statusQuestion = useMemo(() => {
+    const rawQuestion = (sessionStatus as (SessionStatusResponse & { question?: unknown }) | null)?.question
+    if (!rawQuestion || typeof rawQuestion !== "object") return null
+
+    const raw = rawQuestion as Record<string, unknown>
+    const rawOptions = raw.Options ?? raw.options
+    const options = Array.isArray(rawOptions)
+      ? rawOptions.filter((value): value is string => typeof value === "string")
+      : null
+
+    const rawQuestionType = raw.QuestionType ?? raw.question_type
+    const questionType: Question["QuestionType"] =
+      rawQuestionType === "multiple_choice" ||
+      rawQuestionType === "true_false" ||
+      rawQuestionType === "open_ended"
+        ? rawQuestionType
+        : options?.length === 2 && options.every((opt) => opt === "True" || opt === "False")
+          ? "true_false"
+          : "multiple_choice"
+
+    return {
+      IDQuestion: typeof raw.IDQuestion === "string" ? raw.IDQuestion : "",
+      IDRound: typeof raw.IDRound === "string" ? raw.IDRound : "",
+      QuestionOrder: typeof raw.QuestionOrder === "number"
+        ? raw.QuestionOrder
+        : (sessionStatus?.CurrentQuestion ?? 0),
+      Category: typeof raw.Category === "string"
+        ? raw.Category
+        : typeof raw.category === "string"
+          ? raw.category
+          : null,
+      QuestionText: typeof raw.QuestionText === "string"
+        ? raw.QuestionText
+        : typeof raw.question_text === "string"
+          ? raw.question_text
+          : "",
+      QuestionType: questionType,
+      CorrectAnswer: typeof raw.CorrectAnswer === "string"
+        ? raw.CorrectAnswer
+        : typeof raw.correct_answer === "string"
+          ? raw.correct_answer
+          : "",
+      Options: options,
+      QuestionVideoUrl: typeof raw.QuestionVideoUrl === "string"
+        ? raw.QuestionVideoUrl
+        : typeof raw.question_video_url === "string"
+          ? raw.question_video_url
+          : null,
+      AnswerVideoUrl: typeof raw.AnswerVideoUrl === "string"
+        ? raw.AnswerVideoUrl
+        : typeof raw.answer_video_url === "string"
+          ? raw.answer_video_url
+          : null,
+      TimerSecondsOverride: typeof raw.TimerSecondsOverride === "number" ? raw.TimerSecondsOverride : null,
+      ScoringModeOverride: null,
+      Notes: null,
+    } as Question
+  }, [sessionStatus, sessionStatus?.CurrentQuestion])
 
   // Generate QR code URL
   const roomCode = sessionStatus?.RoomCode || session?.RoomCode || ""
@@ -207,55 +321,71 @@ function GameBoardContent() {
     })
   }, [currentQuestion, episode, sessionStatus?.CurrentRound, sessionStatus?.CurrentQuestion])
 
-  // Poll for updates — faster during timer_running
+  // Keep leaderboard and teams in sync when pushed state changes.
   useEffect(() => {
-    if (!sessionId) {
-      setError("No session ID provided. Add ?session=<id> to URL")
-      return
-    }
+    if (!sessionId || !sessionStatus) return
 
-    const fetchData = async () => {
+    const syncFromStatus = async () => {
       try {
-        const [status, lb, teamsData] = await Promise.all([
-          sessionsApi.status(sessionId),
+        const [lb, teamsData] = await Promise.all([
           sessionsApi.leaderboard(sessionId),
           sessionsApi.teams(sessionId),
         ])
 
-        setSessionStatus(status)
-        setSession(status)
         setLeaderboard(lb)
         setTeams(teamsData)
-
-        // Load episode if not loaded
-        if (status.IDEpisode && !episode) {
-          try {
-            const ep = await episodesApi.get(status.IDEpisode)
-            setEpisode(ep)
-          } catch {
-            // May not have auth for this
-          }
-        }
-
-        // Get current question from episode
-        if (episode && status.CurrentRound !== null && status.CurrentQuestion !== null) {
-          const round = episode.rounds.find((r) => r.RoundNumber === status.CurrentRound)
-          if (round) {
-            const question = round.questions.find((q) => q.QuestionOrder === status.CurrentQuestion)
-            setCurrentQuestion(question || null)
-          }
-        }
       } catch (err) {
-        console.error("Poll error:", err)
+        console.error("Realtime sync error:", err)
       }
     }
 
-    fetchData()
-    // Poll faster during timer_running for smooth countdown
-    const pollInterval = gameState === "timer_running" ? 1000 : 2000
-    const interval = setInterval(fetchData, pollInterval)
-    return () => clearInterval(interval)
-  }, [sessionId, episode, gameState])
+    void syncFromStatus()
+  }, [
+    sessionId,
+    sessionStatus?.Status,
+    sessionStatus?.CurrentRound,
+    sessionStatus?.CurrentQuestion,
+    sessionStatus?.GameState,
+    sessionStatus?.team_count,
+  ])
+
+  useEffect(() => {
+    if (!sessionStatus?.IDEpisode || episode) return
+
+    const loadEpisode = async () => {
+      try {
+        const ep = await episodesApi.get(sessionStatus.IDEpisode)
+        setEpisode(ep)
+      } catch {
+        // Display clients may not have auth for episode details.
+      }
+    }
+
+    void loadEpisode()
+  }, [sessionStatus?.IDEpisode, episode])
+
+  useEffect(() => {
+    if (!sessionStatus || sessionStatus.CurrentRound === null || sessionStatus.CurrentQuestion === null) {
+      setCurrentQuestion(null)
+      return
+    }
+
+    if (!episode) {
+      if (statusQuestion) {
+        setCurrentQuestion(statusQuestion)
+      }
+      return
+    }
+
+    const round = episode.rounds.find((r) => r.RoundNumber === sessionStatus.CurrentRound)
+    if (!round) {
+      setCurrentQuestion(statusQuestion || null)
+      return
+    }
+
+    const question = round.questions.find((q) => q.QuestionOrder === sessionStatus.CurrentQuestion)
+    setCurrentQuestion(question || statusQuestion || null)
+  }, [episode, sessionStatus, sessionStatus?.CurrentRound, sessionStatus?.CurrentQuestion, statusQuestion])
 
   // Listen for BroadcastChannel messages from controller
   useEffect(() => {
@@ -263,8 +393,37 @@ function GameBoardContent() {
     try {
       const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
       bc.onmessage = (event) => {
-        const { type, rank } = event.data || {}
+        const { type, rank, teams: incomingTeams } = event.data || {}
         switch (type) {
+          case "SYNC_TEAMS":
+            if (Array.isArray(incomingTeams)) {
+              const normalizedTeams = incomingTeams
+                .filter(
+                  (candidate): candidate is Team =>
+                    !!candidate &&
+                    typeof candidate === "object" &&
+                    typeof candidate.IDTeam === "string" &&
+                    typeof candidate.IDGameSession === "string" &&
+                    typeof candidate.TeamName === "string" &&
+                    typeof candidate.JoinedAt === "string" &&
+                    (
+                      candidate.AvatarBlobPath === undefined ||
+                      candidate.AvatarBlobPath === null ||
+                      typeof candidate.AvatarBlobPath === "string"
+                    ) &&
+                    (
+                      candidate.AvatarBase64 === undefined ||
+                      candidate.AvatarBase64 === null ||
+                      typeof candidate.AvatarBase64 === "string"
+                    )
+                )
+                .map((candidate) => ({
+                  ...candidate,
+                  AvatarBlobPath: getAvatarValue(candidate),
+                }))
+              setTeams(normalizedTeams)
+            }
+            break
           case "TOGGLE_LEADERBOARD":
             setShowLeaderboard(prev => !prev)
             break
@@ -345,8 +504,63 @@ function GameBoardContent() {
   // Get sponsor info from episode - default to gate-logo.png
   const sponsorLogo = episode?.SponsorConfig?.logo || "/gate-logo.png"
 
+  const statusPayload = sessionStatus as (SessionStatusResponse & {
+    current_category?: string | null
+    question_category?: string | null
+    category?: string | null
+    rules_content?: unknown
+    rules_video_url?: string | null
+  }) | null
+
+  const statusRulesContent = Array.isArray(sessionStatus?.RulesContent)
+    ? sessionStatus.RulesContent.filter((rule): rule is string => typeof rule === "string")
+    : Array.isArray(statusPayload?.rules_content)
+      ? statusPayload.rules_content.filter((rule): rule is string => typeof rule === "string")
+      : null
+  const episodeRulesContent = Array.isArray(episode?.RulesContent)
+    ? episode.RulesContent.filter((rule): rule is string => typeof rule === "string")
+    : null
+  const resolvedRulesContent =
+    statusRulesContent?.length
+      ? statusRulesContent
+      : episodeRulesContent?.length
+        ? episodeRulesContent
+        : DEFAULT_RULES
+  const resolvedRulesVideoPath =
+    sessionStatus?.RulesVideoUrl || statusPayload?.rules_video_url || episode?.RulesVideoUrl || null
+  const resolvedRulesVideoUrl = getMediaUrl(resolvedRulesVideoPath)
+
+  // If rules screen is open but rules are still missing, retry public status API once more.
+  useEffect(() => {
+    if (!sessionId || gameState !== "rules") return
+    if (statusRulesContent && statusRulesContent.length > 0) return
+
+    const refreshRulesFromStatus = async () => {
+      try {
+        const status = await sessionsApi.status(sessionId)
+        setSessionStatus((prev) => ({
+          ...(prev ?? status),
+          ...status,
+        }))
+        setSession((prev) => prev ?? status)
+      } catch (err) {
+        console.error("Failed to refresh rules from status API:", err)
+      }
+    }
+
+    void refreshRulesFromStatus()
+  }, [sessionId, gameState, statusRulesContent])
+
   // Get current category
-  const currentCategory = currentQuestion?.Category || "General"
+  const statusCategory =
+    sessionStatus?.CurrentCategory ||
+    sessionStatus?.QuestionCategory ||
+    sessionStatus?.Category ||
+    statusPayload?.current_category ||
+    statusPayload?.question_category ||
+    statusPayload?.category ||
+    null
+  const currentCategory = currentQuestion?.Category || statusQuestion?.Category || statusCategory || "General"
 
   // Video visibility — derived from server GameState (no local toggle needed)
   const hasQuestionVideo = !!currentQuestion?.QuestionVideoUrl
@@ -433,7 +647,7 @@ function GameBoardContent() {
         </div>
 
         {/* ==== MAIN CONTENT AREA ==== */}
-        <div className="flex-1 flex flex-col p-6 gap-4 overflow-hidden">
+        <div className="flex-1 flex flex-col p-4 xl:p-6 gap-4 overflow-hidden">
           <AnimatePresence mode="wait">
             {/* ==== LOBBY STATE ==== */}
             {isLobby && (
@@ -488,7 +702,12 @@ function GameBoardContent() {
                               transition={{ delay: index * 0.05 }}
                               className="px-3 py-1.5 rounded-full text-sm flex items-center gap-2 bg-gray-800 text-gray-300"
                             >
-                              <TeamAvatar avatarPath={t.AvatarBlobPath} teamName={t.TeamName} size="sm" />
+                              <TeamAvatar
+                                avatarPath={getAvatarValue(t)}
+                                teamName={t.TeamName}
+                                teamId={t.IDTeam}
+                                size="sm"
+                              />
                               <span className="truncate max-w-[120px]">{t.TeamName}</span>
                             </motion.div>
                           ))}
@@ -517,18 +736,26 @@ function GameBoardContent() {
                     initial={{ y: 40, opacity: 0, scale: 0.8 }}
                     animate={{ y: 0, opacity: 1, scale: 1 }}
                     transition={{ delay: 0.5, type: "spring", stiffness: 200, damping: 15 }}
-                    className="w-[50vw] max-w-[700px]"
+                    className="w-[70vw] max-w-[1000px]"
                   >
-                    <Image src="/trivi-time-logo.png" alt="Trivi Time" width={700} height={200} className="w-full h-auto drop-shadow-2xl" priority />
+                    <Image src="/trivi-time-logo.png" alt="Trivi Time" width={1000} height={300} className="w-full h-auto drop-shadow-2xl" priority />
                   </motion.div>
                   <motion.div
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.9 }}
-                    className="flex flex-col items-center gap-2 mt-2"
+                    className="flex flex-row items-end justify-center gap-16 mt-6"
                   >
-                    <span className="text-lg lg:text-xl text-white font-medium tracking-wider uppercase">presented by</span>
-                    <Image src="/gate-logo.png" alt="GATE" width={120} height={56} className="h-10 lg:h-14 w-auto" />
+                    <div className="flex flex-col items-center gap-3">
+                      <span className="text-lg lg:text-xl text-white font-medium tracking-wider uppercase">presented by</span>
+                      <Image src="/gate-logo.png" alt="GATE" width={120} height={56} className="h-10 lg:h-14 w-auto drop-shadow" />
+                    </div>
+                    {episode?.SponsorshipImage && (
+                      <div className="flex flex-col items-center gap-3">
+                        <span className="text-lg lg:text-xl text-white font-medium tracking-wider uppercase">sponsored by</span>
+                        <img src={episode.SponsorshipImage} alt="Sponsor" className="h-10 lg:h-14 w-auto object-contain drop-shadow" />
+                      </div>
+                    )}
                   </motion.div>
                 </div>
               </motion.div>
@@ -543,74 +770,67 @@ function GameBoardContent() {
                 exit={{ opacity: 0, x: -30 }}
                 className="flex-1 flex items-center justify-center"
               >
-                {/* Use dynamic rules from episode, or fallback to DEFAULT_RULES */}
-                {(() => {
-                  const rulesContent = episode?.RulesContent?.length ? episode.RulesContent : DEFAULT_RULES
-                  const hasVideo = !!episode?.RulesVideoUrl
-
-                  return (
-                    <div className={`${hasVideo ? "w-[90vw] flex flex-col items-center gap-4 max-h-full overflow-hidden" : "w-[90vw] mx-auto"}`}>
-                      {/* Video Section (if available) — stacked above rules */}
-                      {hasVideo && (
-                        <div className="flex-shrink-0 w-full flex justify-center">
-                          <video
-                            ref={rulesVideoRef}
-                            src={getMediaUrl(episode?.RulesVideoUrl)!}
-                            className="max-h-[35vh] w-auto object-contain rounded-xl border border-gray-700"
-                            autoPlay
-                            playsInline
-                          />
-                        </div>
-                      )}
-
-                      {/* Rules Text Section */}
-                      <div className={`${hasVideo ? "w-full overflow-y-auto max-h-[45vh]" : "w-full"}`}>
-                        <div className="flex items-center gap-3 mb-4 justify-center">
-                          <h2 className="font-display text-4xl font-bold text-yellow-400 underline" style={{ textShadow: '2px 2px 6px rgba(0,0,0,0.7)' }}>RULES</h2>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-8 gap-y-1">
-                          {(() => {
-                            const mid = Math.ceil(rulesContent.length / 2)
-                            const leftCol = rulesContent.slice(0, mid)
-                            const rightCol = rulesContent.slice(mid)
-                            return (
-                              <>
-                                <div className="space-y-1">
-                                  {leftCol.map((rule, i) => (
-                                    <motion.div
-                                      key={i}
-                                      initial={{ opacity: 0, x: -20 }}
-                                      animate={{ opacity: 1, x: 0 }}
-                                      transition={{ delay: 0.15 + i * 0.1 }}
-                                      className="py-1.5 px-2 flex items-start gap-3"
-                                    >
-                                      <span className="flex-shrink-0 font-display text-xl font-bold text-purple-400" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.8)' }}>&gt;</span>
-                                      <p className="font-display text-lg text-white leading-snug" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.7)' }}>{rule}</p>
-                                    </motion.div>
-                                  ))}
-                                </div>
-                                <div className="space-y-1">
-                                  {rightCol.map((rule, i) => (
-                                    <motion.div
-                                      key={i + mid}
-                                      initial={{ opacity: 0, x: -20 }}
-                                      animate={{ opacity: 1, x: 0 }}
-                                      transition={{ delay: 0.15 + (i + mid) * 0.1 }}
-                                      className="py-1.5 px-2 flex items-start gap-3"
-                                    >
-                                      <span className="flex-shrink-0 font-display text-xl font-bold text-purple-400" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.8)' }}>&gt;</span>
-                                      <p className="font-display text-lg text-white leading-snug" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.7)' }}>{rule}</p>
-                                    </motion.div>
-                                  ))}
-                                </div>
-                              </>
-                            )
-                          })()}
-                        </div>
-                      </div>
+                {/* Prefer rules from live status payload, then episode fallback, then defaults. */}
+                <div className={`${resolvedRulesVideoUrl ? "w-[90vw] flex flex-col items-center gap-4 max-h-full overflow-hidden" : "w-[90vw] mx-auto"}`}>
+                  {/* Video Section (if available) — stacked above rules */}
+                  {resolvedRulesVideoUrl && (
+                    <div className="flex-shrink-0 w-full flex justify-center">
+                      <video
+                        ref={rulesVideoRef}
+                        src={resolvedRulesVideoUrl}
+                        className="max-h-[35vh] w-auto object-contain rounded-xl border border-gray-700"
+                        autoPlay
+                        playsInline
+                      />
                     </div>
-                  )
-                })()}
+                  )}
+
+                  {/* Rules Text Section */}
+                  <div className={`${resolvedRulesVideoUrl ? "w-full overflow-y-auto max-h-[45vh]" : "w-full"}`}>
+                    <div className="flex items-center gap-3 mb-4 justify-center">
+                      <h2 className="font-display text-4xl font-bold text-yellow-400 underline drop-shadow-md">RULES</h2>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-1">
+                      {(() => {
+                        const mid = Math.ceil(resolvedRulesContent.length / 2)
+                        const leftCol = resolvedRulesContent.slice(0, mid)
+                        const rightCol = resolvedRulesContent.slice(mid)
+                        return (
+                          <>
+                            <div className="space-y-1">
+                              {leftCol.map((rule, i) => (
+                                <motion.div
+                                  key={i}
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: 0.15 + i * 0.1 }}
+                                  className="py-1.5 px-2 flex items-start gap-3"
+                                >
+                                  <span className="flex-shrink-0 font-display text-xl font-bold text-purple-400 drop-shadow-md">&gt;</span>
+                                  <p className="font-display text-lg text-white leading-snug drop-shadow-md">{rule}</p>
+                                </motion.div>
+                              ))}
+                            </div>
+                            <div className="space-y-1">
+                              {rightCol.map((rule, i) => (
+                                <motion.div
+                                  key={i + mid}
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: 0.15 + (i + mid) * 0.1 }}
+                                  className="py-1.5 px-2 flex items-start gap-3"
+                                >
+                                  <span className="flex-shrink-0 font-display text-xl font-bold text-purple-400 drop-shadow-md">&gt;</span>
+                                  <p className="font-display text-lg text-white leading-snug drop-shadow-md">{rule}</p>
+                                </motion.div>
+                              ))}
+                            </div>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                </div>
               </motion.div>
             )}
 
@@ -625,7 +845,7 @@ function GameBoardContent() {
                 className="flex-1 flex items-center justify-center"
               >
                 <div className="text-center">
-                  <h2 className="font-display text-6xl lg:text-8xl font-bold text-white mb-4">
+                  <h2 className="font-display text-8xl lg:text-[12rem] leading-none font-bold text-white mb-6 drop-shadow-md">
                     Get Ready!
                   </h2>
                   <p className="text-xl text-gray-200">Next question is coming up...</p>
@@ -642,23 +862,58 @@ function GameBoardContent() {
                 exit={{ opacity: 0 }}
                 className="flex-1 flex items-center justify-center"
               >
-                <div className="text-center">
-                  <motion.div
-                    animate={{ y: [0, -8, 0] }}
-                    transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                  >
-                    <Coffee className="h-20 w-20 text-yellow-400 mx-auto mb-6" />
-                  </motion.div>
-                  <h2 className="font-display text-6xl lg:text-8xl font-bold text-white mb-4">
-                    Break Time
-                  </h2>
-                  <p className="text-xl text-gray-200">Sit tight — we&apos;ll be right back!</p>
+                <div className="text-center w-full max-w-6xl mx-auto flex flex-col items-center">
+                  {episode?.SponsorshipVideoUrl ? (
+                    <div className="flex flex-col items-center gap-6 w-full">
+                      <h2 className="font-display text-5xl lg:text-7xl font-bold text-yellow-400 drop-shadow-lg">
+                        A word from our sponsors
+                      </h2>
+                      
+                      <div className="w-full aspect-video max-h-[50vh] bg-black rounded-2xl border-4 border-yellow-500/50 overflow-hidden shadow-2xl relative">
+                         {episode.SponsorshipImage && (
+                           <div className="absolute top-4 right-4 z-20 bg-black/50 p-2 rounded-xl backdrop-blur">
+                             <img src={episode.SponsorshipImage} alt="Sponsor Logo Overlay" className="h-12 lg:h-16 w-auto object-contain" />
+                           </div>
+                         )}
+                         <video
+                           src={getMediaUrl(episode.SponsorshipVideoUrl)!}
+                           className="w-full h-full object-contain"
+                           autoPlay
+                           loop
+                           playsInline
+                         />
+                      </div>
+                    </div>
+                  ) : episode?.SponsorshipImage ? (
+                    <div className="flex flex-col items-center gap-8">
+                       <h2 className="font-display text-6xl lg:text-8xl font-bold text-white mb-2 drop-shadow-xl">
+                         Break Time
+                       </h2>
+                       <div className="bg-white/10 p-8 rounded-3xl backdrop-blur-sm border border-white/20 shadow-2xl flex flex-col items-center gap-6">
+                         <span className="text-2xl text-yellow-400 font-medium tracking-wider uppercase drop-shadow">Sponsored By</span>
+                         <img src={episode.SponsorshipImage} alt="Sponsor Logo" className="h-32 lg:h-48 w-auto object-contain drop-shadow-2xl" />
+                       </div>
+                    </div>
+                  ) : (
+                    <>
+                      <motion.div
+                        animate={{ y: [0, -8, 0] }}
+                        transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                      >
+                        <Coffee className="h-20 w-20 text-yellow-400 mx-auto mb-6 drop-shadow-lg" />
+                      </motion.div>
+                      <h2 className="font-display text-6xl lg:text-8xl font-bold text-white mb-4 drop-shadow-xl">
+                        Break Time
+                      </h2>
+                      <p className="text-xl text-gray-200 drop-shadow">Sit tight — we&apos;ll be right back!</p>
+                    </>
+                  )}
                 </div>
               </motion.div>
             )}
 
             {/* ==== ANNOUNCED STATE ==== */}
-            {gameState === "announced" && currentQuestion && (
+            {gameState === "announced" && (
               <motion.div
                 key="announce"
                 initial={{ opacity: 0, scale: 0.8 }}
@@ -672,7 +927,7 @@ function GameBoardContent() {
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.2 }}
-                    className="text-2xl text-purple-400 uppercase tracking-[0.3em] mb-4"
+                    className="text-6xl lg:text-7xl font-bold text-purple-400 uppercase tracking-widest mb-6 drop-shadow-md"
                   >
                     Round {sessionStatus?.CurrentRound}
                   </motion.p>
@@ -680,20 +935,18 @@ function GameBoardContent() {
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.4 }}
-                    className="font-display text-6xl lg:text-8xl font-bold text-white mb-4"
+                    className="font-display text-[12vw] xl:text-[200px] leading-none font-bold text-white mb-8 whitespace-nowrap drop-shadow-md"
                   >
                     Question {sessionStatus?.CurrentQuestion}
                   </motion.p>
-                  {currentQuestion.Category && (
-                    <motion.p
-                      initial={{ y: 20, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ delay: 0.6 }}
-                      className="text-xl text-gray-400"
-                    >
-                      {currentQuestion.Category}
-                    </motion.p>
-                  )}
+                  <motion.p
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.6 }}
+                    className="text-5xl lg:text-7xl font-semibold text-gray-300 drop-shadow-md"
+                  >
+                    {currentCategory}
+                  </motion.p>
                 </div>
               </motion.div>
             )}
@@ -705,7 +958,7 @@ function GameBoardContent() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex-1 flex flex-col gap-4"
+                className="flex-1 flex flex-col gap-3 lg:gap-4 min-h-0"
               >
                 {/* Video + Question — Side-by-side layout */}
                 <motion.div
@@ -734,7 +987,7 @@ function GameBoardContent() {
                             ref={videoRef}
                             key={showAnswerVideo ? "answer-video" : "question-video"}
                             src={getMediaUrl(showAnswerVideo ? currentQuestion.AnswerVideoUrl : currentQuestion.QuestionVideoUrl)!}
-                            className="w-full h-full object-contain"
+                            className="w-full h-full object-cover object-center"
                             muted={isMuted}
                             autoPlay
                             playsInline
@@ -797,109 +1050,111 @@ function GameBoardContent() {
                   </div>
                 </div>
                 {/* Answer Options — Sequential Reveal */}
-                {(() => {
-                  const isTrueFalse = currentQuestion.QuestionType === "true_false" ||
-                    (currentQuestion.Options?.length === 2 &&
-                      currentQuestion.Options.every(o => ["True", "False"].includes(o)))
-                  const isMCQ = currentQuestion.QuestionType === "multiple_choice" && !isTrueFalse
+                <div className="flex-shrink-0 max-h-[34vh] xl:max-h-[38vh] overflow-y-auto pr-1">
+                  {(() => {
+                    const isTrueFalse = currentQuestion.QuestionType === "true_false" ||
+                      (currentQuestion.Options?.length === 2 &&
+                        currentQuestion.Options.every(o => ["True", "False"].includes(o)))
+                    const isMCQ = currentQuestion.QuestionType === "multiple_choice" && !isTrueFalse
 
-                  if (!showOptions) return null
+                    if (!showOptions) return null
 
-                  return (
-                    <>
-                      {/* MCQ Grid — staggered reveal */}
-                      {isMCQ && currentQuestion.Options && (
-                        <div className="flex-shrink-0">
-                          <div className={`grid gap-3 ${currentQuestion.Options.length <= 4 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                            {currentQuestion.Options.map((option, i) => {
-                              const isCorrect = isShowingAnswer && option === currentQuestion.CorrectAnswer
-                              const letter = String.fromCharCode(65 + i)
-                              const isRevealed = revealedOptions.includes(option) ||
-                                gameState !== "options_revealed" // Show all if past reveal phase
+                    return (
+                      <>
+                        {/* MCQ Grid — staggered reveal */}
+                        {isMCQ && currentQuestion.Options && (
+                          <div className="flex-shrink-0">
+                            <div className={`grid gap-2 lg:gap-3 ${currentQuestion.Options.length <= 4 ? 'grid-cols-2' : 'grid-cols-2 xl:grid-cols-3'}`}>
+                              {currentQuestion.Options.map((option, i) => {
+                                const isCorrect = isShowingAnswer && option === currentQuestion.CorrectAnswer
+                                const letter = String.fromCharCode(65 + i)
+                                const isRevealed = revealedOptions.includes(option) ||
+                                  gameState !== "options_revealed" // Show all if past reveal phase
 
-                              return (
-                                <AnimatePresence key={i}>
-                                  {isRevealed && (
-                                    <motion.div
-                                      initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                                      className={`p-4 rounded-xl border-2 transition-colors duration-300 ${isCorrect
-                                        ? 'border-green-500 bg-green-600/50 backdrop-blur-sm shadow-lg shadow-green-500/30'
-                                        : 'border-gray-700 bg-gray-800/80 hover:border-gray-600'
-                                        }`}
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        <span className={`w-10 h-10 rounded-lg flex items-center justify-center font-display font-bold text-xl flex-shrink-0 ${isCorrect ? 'bg-green-500 text-white' : 'bg-purple-600/30 text-purple-400'
+                                return (
+                                  <AnimatePresence key={i}>
+                                    {isRevealed && (
+                                      <motion.div
+                                        initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                                        className={`p-2.5 lg:p-3 rounded-xl border-2 transition-colors duration-300 ${isCorrect
+                                          ? 'border-green-500 bg-green-600/50 backdrop-blur-sm shadow-lg shadow-green-500/30'
+                                          : 'border-gray-700 bg-gray-800/80 hover:border-gray-600'
+                                          }`}
+                                      >
+                                        <div className="flex items-center gap-2 lg:gap-3">
+                                          <span className={`w-8 h-8 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center font-display font-bold text-base lg:text-xl flex-shrink-0 ${isCorrect ? 'bg-green-500 text-white' : 'bg-purple-600/30 text-purple-400'
+                                            }`}>
+                                            {letter}
+                                          </span>
+                                          <span className="font-display text-base lg:text-xl font-semibold text-white flex-1 text-center leading-tight break-words">{option}</span>
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* True/False */}
+                        {isTrueFalse && (
+                          <div className="flex-shrink-0">
+                            <div className="grid grid-cols-2 gap-3 lg:gap-4">
+                              {["True", "False"].map((option, i) => {
+                                const isCorrect = isShowingAnswer && option === currentQuestion.CorrectAnswer
+                                const isRevealed = revealedOptions.includes(option) || revealedOptions.length >= 2 ||
+                                  gameState !== "options_revealed"
+
+                                return (
+                                  <AnimatePresence key={option}>
+                                    {isRevealed && (
+                                      <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: i * 0.1 }}
+                                        className={`p-3 lg:p-6 rounded-xl border-2 text-center transition-colors duration-300 ${isCorrect
+                                          ? 'border-green-500 bg-green-600/50 backdrop-blur-sm shadow-lg shadow-green-500/30'
+                                          : 'border-gray-700 bg-gray-800/80'
+                                          }`}
+                                      >
+                                        <span className={`font-display text-xl lg:text-2xl font-bold ${isCorrect ? 'text-green-400' : option === 'True' ? 'text-blue-400' : 'text-red-400'
                                           }`}>
-                                          {letter}
+                                          {option}
                                         </span>
-                                        <span className="font-display text-xl font-semibold text-white flex-1 text-center">{option}</span>
-                                      </div>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-                              )
-                            })}
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                )
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </>
+                    )
+                  })()}
 
-                      {/* True/False */}
-                      {isTrueFalse && (
-                        <div className="flex-shrink-0">
-                          <div className="grid grid-cols-2 gap-4">
-                            {["True", "False"].map((option, i) => {
-                              const isCorrect = isShowingAnswer && option === currentQuestion.CorrectAnswer
-                              const isRevealed = revealedOptions.includes(option) || revealedOptions.length >= 2 ||
-                                gameState !== "options_revealed"
-
-                              return (
-                                <AnimatePresence key={option}>
-                                  {isRevealed && (
-                                    <motion.div
-                                      initial={{ opacity: 0, y: 10 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      transition={{ delay: i * 0.1 }}
-                                      className={`p-6 rounded-xl border-2 text-center transition-colors duration-300 ${isCorrect
-                                        ? 'border-green-500 bg-green-600/50 backdrop-blur-sm shadow-lg shadow-green-500/30'
-                                        : 'border-gray-700 bg-gray-800/80'
-                                        }`}
-                                    >
-                                      <span className={`font-display text-2xl font-bold ${isCorrect ? 'text-green-400' : option === 'True' ? 'text-blue-400' : 'text-red-400'
-                                        }`}>
-                                        {option}
-                                      </span>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )
-                })()}
-
-                {/* Open Ended - Show answer box */}
-                {currentQuestion.QuestionType === "open_ended" && isShowingAnswer && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex-shrink-0 p-6 rounded-xl bg-green-800/40 backdrop-blur-sm border-2 border-green-500 text-center shadow-lg shadow-green-500/30"
-                  >
-                    <span className="text-sm text-green-400 uppercase tracking-wider">Correct Answer</span>
-                    <p className="text-3xl font-bold text-white mt-2">
-                      {currentQuestion.CorrectAnswer}
-                    </p>
-                  </motion.div>
-                )}
+                  {/* Open Ended - Show answer box */}
+                  {currentQuestion.QuestionType === "open_ended" && isShowingAnswer && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex-shrink-0 p-4 lg:p-6 rounded-xl bg-green-800/40 backdrop-blur-sm border-2 border-green-500 text-center shadow-lg shadow-green-500/30"
+                    >
+                      <span className="text-xs lg:text-sm text-green-400 uppercase tracking-wider">Correct Answer</span>
+                      <p className="text-xl lg:text-3xl font-bold text-white mt-2 break-words">
+                        {currentQuestion.CorrectAnswer}
+                      </p>
+                    </motion.div>
+                  )}
+                </div>
               </motion.div>
             )}
 
             {/* ==== ACTIVE BUT NO QUESTION YET ==== */}
-            {sessionStatus?.Status === "active" && !currentQuestion && !["welcome", "rules", "get_ready", "break", "lobby"].includes(gameState || "") && (
+            {sessionStatus?.Status === "active" && !currentQuestion && !["welcome", "rules", "get_ready", "announced", "video_playing", "options_revealed", "timer_running", "timer_ended", "answer_reveal", "break", "lobby", "completed"].includes(gameState || "") && (
               <motion.div
                 key="no-question"
                 initial={{ opacity: 0 }}
@@ -908,8 +1163,8 @@ function GameBoardContent() {
                 className="flex-1 flex items-center justify-center"
               >
                 <div className="text-center">
-                  <Clock className="h-16 w-16 text-purple-400 mx-auto mb-4 animate-pulse" />
-                  <h2 className="font-display text-3xl font-bold text-white mb-2">
+                  <Clock className="h-24 w-24 text-purple-400 mx-auto mb-6 animate-pulse drop-shadow-md" />
+                  <h2 className="font-display text-6xl lg:text-8xl font-bold text-white mb-4 drop-shadow-md">
                     Get Ready!
                   </h2>
                   <p className="text-gray-200">Next question loading...</p>
@@ -924,23 +1179,43 @@ function GameBoardContent() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex-1 flex items-center justify-center"
+                className="flex-1 flex flex-col items-center justify-center gap-12"
               >
                 <div className="text-center">
-                  <h2 className="font-display text-5xl font-bold text-white mb-4">
+                  <h2 className="font-display text-7xl font-bold text-white mb-6">
                     Game Over!
                   </h2>
                   {leaderboard?.entries[0] && (
-                    <p className="text-2xl text-gray-400">
+                    <p className="text-4xl text-gray-400">
                       Winner:{" "}
                       <span className="text-yellow-400 font-bold">
                         {leaderboard.entries[0].TeamName}
                       </span>
-                      <span className="text-gray-500 ml-2">
+                      <span className="text-gray-500 ml-3">
                         ({leaderboard.entries[0].TotalScore} pts)
                       </span>
                     </p>
                   )}
+                </div>
+
+                <div className="flex flex-col items-center gap-6 mt-8">
+                  <p className="font-display text-4xl font-bold text-purple-400 tracking-wider uppercase">
+                    Thanks for Playing!
+                  </p>
+                  <div className="flex items-center gap-16">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="bg-white p-4 rounded-2xl shadow-xl">
+                        <Image src="/google-QR.png" alt="Leave a Google Review" width={180} height={180} className="w-48 h-48" />
+                      </div>
+                      <span className="font-display text-xl font-semibold text-gray-300">Leave a Review</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="bg-white p-4 rounded-2xl shadow-xl">
+                        <Image src="/website-QR.png" alt="Visit website" width={180} height={180} className="w-48 h-48" />
+                      </div>
+                      <span className="font-display text-xl font-semibold text-gray-300">More Games</span>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -1018,8 +1293,9 @@ function GameBoardContent() {
                           )}
                         </div>
                         <TeamAvatar
-                          avatarPath={entry.AvatarBlobPath}
+                          avatarPath={getAvatarValue(entry)}
                           teamName={entry.TeamName}
+                          teamId={entry.IDTeam}
                           size="md"
                         />
                         <div className="flex-1 min-w-0">
@@ -1067,7 +1343,7 @@ function GameBoardContent() {
                 transition={{ delay: 0.2 }}
                 className="text-center"
               >
-                <h1 className="font-display text-5xl lg:text-7xl font-bold bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 bg-clip-text text-transparent drop-shadow-[0_4px_8px_rgba(0,0,0,0.6)]" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.4)' }}>
+                <h1 className="font-display text-5xl lg:text-7xl font-bold bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 bg-clip-text text-transparent drop-shadow-md">
                   Leaderboard
                 </h1>
               </motion.div>
@@ -1097,7 +1373,7 @@ function GameBoardContent() {
                               initial={{ opacity: 0, scale: 0.8, y: 20 }}
                               animate={{ opacity: 1, scale: 1, y: 0 }}
                               transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                              className={`flex items-center gap-4 p-5 rounded-2xl border-2 shadow-[0_8px_32px_rgba(0,0,0,0.5),0_4px_12px_rgba(0,0,0,0.3)] ${isTop3 ? bgColors[entry.Rank - 1] : "bg-gray-800/60 border-gray-700/50"
+                              className={`flex items-center gap-4 p-5 rounded-2xl border-2 shadow-lg ${isTop3 ? bgColors[entry.Rank - 1] : "bg-gray-800/60 border-gray-700/50"
                                 }`}
                             >
                               <div className="w-14 text-center flex-shrink-0">
@@ -1108,20 +1384,21 @@ function GameBoardContent() {
                                 )}
                               </div>
                               <TeamAvatar
-                                avatarPath={entry.AvatarBlobPath}
+                                avatarPath={getAvatarValue(entry)}
                                 teamName={entry.TeamName}
+                                teamId={entry.IDTeam}
                                 size="lg"
                               />
                               <div className="flex-1 min-w-0">
-                                <p className={`font-display text-2xl font-bold truncate ${isTop3 ? "text-white" : "text-gray-200"}`} style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                                <p className={`font-display text-2xl font-bold truncate ${isTop3 ? "text-white" : "text-gray-200"}`}>
                                   {entry.TeamName}
                                 </p>
                               </div>
                               <div className="text-right flex-shrink-0">
-                                <span className={`font-display text-3xl font-bold ${isTop3 ? rankColors[entry.Rank - 1] : "text-purple-400"}`} style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                                <span className={`font-display text-3xl font-bold ${isTop3 ? rankColors[entry.Rank - 1] : "text-purple-400"}`}>
                                   {entry.TotalScore}
                                 </span>
-                                <p className="text-xs text-gray-500 uppercase tracking-wider" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>pts</p>
+                                <p className="text-xs text-gray-500 uppercase tracking-wider">pts</p>
                               </div>
                             </motion.div>
                           ) : (

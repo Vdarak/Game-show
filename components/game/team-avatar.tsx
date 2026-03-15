@@ -1,13 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
+import { getDeterministicAvatarPath, normalizeAvatarSource } from "@/lib/frontend-avatars"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 interface TeamAvatarProps {
-  avatarPath: string | null
+  avatarPath?: string | null
+  avatarBase64?: string | null
   teamName: string
+  teamId?: string | null
   size?: "sm" | "md" | "lg" | "xl"
   className?: string
 }
@@ -28,49 +31,61 @@ const imageSizes = {
 
 export function TeamAvatar({
   avatarPath,
+  avatarBase64,
   teamName,
+  teamId,
   size = "md",
   className = "",
 }: TeamAvatarProps) {
-  const [imageError, setImageError] = useState(false)
+  const [primaryImageError, setPrimaryImageError] = useState(false)
+  const [fallbackImageError, setFallbackImageError] = useState(false)
 
-  // Check if avatarPath is a valid URL path (starts with /)
-  const isImagePath = avatarPath && avatarPath.startsWith("/") && !imageError
-  const imageUrl = isImagePath ? `${API_BASE_URL}${avatarPath}` : null
+  useEffect(() => {
+    setPrimaryImageError(false)
+    setFallbackImageError(false)
+  }, [avatarPath, avatarBase64, teamId, teamName])
 
-  // Generate consistent fallback emoji from team name
-  const fallbackEmoji = getTeamEmoji(teamName)
+  const avatarValue = avatarBase64 ?? avatarPath
+  const resolvedImageUrl = primaryImageError
+    ? null
+    : normalizeAvatarSource(avatarValue, API_BASE_URL)
+  const fallbackAvatarPath = getDeterministicAvatarPath(teamName, teamId)
 
-  if (imageUrl) {
+  const avatarClasses = `relative rounded-full overflow-hidden bg-gray-700 flex items-center justify-center ${sizeClasses[size]} ${className}`
+
+  if (resolvedImageUrl) {
     return (
-      <div
-        className={`relative rounded-full overflow-hidden bg-gray-700 flex items-center justify-center ${sizeClasses[size]} ${className}`}
-      >
+      <div className={avatarClasses}>
         <Image
-          src={imageUrl}
+          src={resolvedImageUrl}
           alt={teamName}
           width={imageSizes[size]}
           height={imageSizes[size]}
           className="object-cover"
-          onError={() => setImageError(true)}
+          onError={() => setPrimaryImageError(true)}
+        />
+      </div>
+    )
+  }
+
+  if (!fallbackImageError) {
+    return (
+      <div className={avatarClasses}>
+        <Image
+          src={fallbackAvatarPath}
+          alt={`${teamName} avatar`}
+          width={imageSizes[size]}
+          height={imageSizes[size]}
+          className="object-cover"
+          onError={() => setFallbackImageError(true)}
         />
       </div>
     )
   }
 
   return (
-    <span className={`flex items-center justify-center ${sizeClasses[size]} ${className}`}>
-      {fallbackEmoji}
+    <span className={`flex items-center justify-center font-semibold text-gray-200 ${sizeClasses[size]} ${className}`}>
+      {(teamName.trim().charAt(0) || "?").toUpperCase()}
     </span>
   )
-}
-
-// Generate a consistent emoji based on team name
-function getTeamEmoji(teamName: string): string {
-  const emojis = ["🦊", "🐻", "🦁", "🐼", "🐸", "🐵", "🐯", "🦄", "🐲", "🦅", "🐺", "🦈", "🎮", "🎯", "🏆", "⚡"]
-  let hash = 0
-  for (let i = 0; i < teamName.length; i++) {
-    hash = ((hash << 5) - hash + teamName.charCodeAt(i)) | 0
-  }
-  return emojis[Math.abs(hash) % emojis.length]
 }

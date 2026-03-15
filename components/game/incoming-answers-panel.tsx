@@ -11,11 +11,11 @@ import {
   Users,
   Award,
   Loader2,
-  ChevronRight,
   AlertCircle,
   Zap,
 } from "lucide-react"
 import type { Team, TeamResponse, Question, Round, GradeOverrideItem } from "@/lib/api-types"
+import { getAvatarValue } from "@/lib/frontend-avatars"
 import { TeamAvatar } from "./team-avatar"
 
 interface IncomingAnswersPanelProps {
@@ -27,7 +27,6 @@ interface IncomingAnswersPanelProps {
   isGrading: boolean
   onGrade: () => Promise<void>
   onGradeOverride?: (overrides: GradeOverrideItem[]) => Promise<void>
-  onNextQuestion: () => Promise<void>
   onRefresh: () => Promise<void>
   onKickTeam: (teamId: string) => Promise<void>
 }
@@ -41,7 +40,6 @@ export function IncomingAnswersPanel({
   isGrading,
   onGrade,
   onGradeOverride,
-  onNextQuestion,
   onRefresh,
   onKickTeam,
 }: IncomingAnswersPanelProps) {
@@ -215,8 +213,9 @@ export function IncomingAnswersPanel({
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         <TeamAvatar
-                          avatarPath={team.AvatarBlobPath}
+                          avatarPath={getAvatarValue(team)}
                           teamName={team.TeamName}
+                          teamId={team.IDTeam}
                           size="md"
                         />
                         <span className="text-sm text-white truncate max-w-[120px]">
@@ -251,7 +250,7 @@ export function IncomingAnswersPanel({
                       {hasResponded ? (
                         <div className="flex items-center justify-center gap-1">
                           <span className="text-xs text-gray-400">
-                            {response.SubmissionSeconds.toFixed(1)}s
+                            {response.SubmissionSeconds != null ? `${response.SubmissionSeconds.toFixed(1)}s` : "0.0s"}
                           </span>
                           {response.TimedBonusAwarded > 0 && (
                             <span className="text-xs text-green-400 flex items-center">
@@ -355,14 +354,6 @@ export function IncomingAnswersPanel({
               Grade All ({submittedCount})
             </Button>
           )}
-          <Button
-            onClick={onNextQuestion}
-            variant="secondary"
-            className="flex-1"
-          >
-            Next Question
-            <ChevronRight className="h-4 w-4 ml-2" />
-          </Button>
         </div>
       </div>
     </Card>

@@ -7,6 +7,7 @@ import {
   ApiClientError,
   getAuthToken,
 } from "@/lib/api-client"
+import { useSessionStatusWebSocket } from "@/hooks/use-session-status-websocket"
 import type {
   Session,
   SessionStatusResponse,
@@ -55,6 +56,28 @@ export function useHostSession() {
 
   // Check if authenticated
   const isAuthenticated = typeof window !== "undefined" && !!getAuthToken()
+  const {
+    status: realtimeStatus,
+    isConnected: isRealtimeConnected,
+  } = useSessionStatusWebSocket(state.session?.RoomCode || state.sessionStatus?.RoomCode || null, {
+    enabled: !!state.session,
+  })
+
+  // Mirror realtime status updates into local host state.
+  useEffect(() => {
+    if (!realtimeStatus) return
+
+    setState((prev) => ({
+      ...prev,
+      sessionStatus: realtimeStatus,
+      session: prev.session
+        ? {
+            ...prev.session,
+            ...realtimeStatus,
+          }
+        : prev.session,
+    }))
+  }, [realtimeStatus])
 
   // Restore session from localStorage
   useEffect(() => {
@@ -136,16 +159,26 @@ export function useHostSession() {
 
   // Refresh session status
   const refreshSessionStatus = useCallback(async () => {
+    if (isRealtimeConnected && state.sessionStatus) return state.sessionStatus
     if (!state.session) return null
 
     try {
       const status = await sessionsApi.status(state.session.IDGameSession)
-      setState((prev) => ({ ...prev, sessionStatus: status }))
+      setState((prev) => ({
+        ...prev,
+        sessionStatus: status,
+        session: prev.session
+          ? {
+              ...prev.session,
+              ...status,
+            }
+          : prev.session,
+      }))
       return status
     } catch (err) {
       return null
     }
-  }, [state.session])
+  }, [state.session, state.sessionStatus, isRealtimeConnected])
 
   // Refresh teams
   const refreshTeams = useCallback(async () => {
@@ -392,6 +425,7 @@ export function useHostSession() {
     ...state,
     isAuthenticated,
     hasSession: !!state.session,
+    isRealtimeConnected,
 
     // Computed
     currentQuestion: getCurrentQuestion(),

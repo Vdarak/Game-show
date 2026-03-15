@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import type { Session, SessionStatusResponse, Team } from "@/lib/api-types"
 import { toast } from "sonner"
+import { getAvatarValue } from "@/lib/frontend-avatars"
 import { TeamAvatar } from "./team-avatar"
 
 interface RoomCodePanelProps {
@@ -282,8 +283,9 @@ export function RoomCodePanel({
                       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-gray-900/70 border border-gray-700/60"
                     >
                       <TeamAvatar
-                        avatarPath={team.AvatarBlobPath}
+                        avatarPath={getAvatarValue(team)}
                         teamName={team.TeamName}
+                        teamId={team.IDTeam}
                         size="sm"
                       />
                       <span className="text-xs text-gray-300 font-medium max-w-[80px] truncate">

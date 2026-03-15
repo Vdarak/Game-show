@@ -7,9 +7,11 @@ import { usePlayerSession } from "@/hooks/use-player-session"
 import { sessionsApi } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Loader2, Users, LogOut, Clock, Wifi, QrCode } from "lucide-react"
-import { GrainGradient } from "@paper-design/shaders-react"
+import dynamic from "next/dynamic"
+const GrainGradient = dynamic(() => import("@paper-design/shaders-react").then(mod => mod.GrainGradient), { ssr: false })
 import { TeamAvatar } from "@/components/game/team-avatar"
 import type { Team } from "@/lib/api-types"
+import { getAvatarValue } from "@/lib/frontend-avatars"
 
 export default function LobbyPage() {
   const router = useRouter()
@@ -22,10 +24,10 @@ export default function LobbyPage() {
     clearSession,
     isInSession,
     isHydrated,
+    isRealtimeConnected,
   } = usePlayerSession()
 
   const [teams, setTeams] = useState<Team[]>([])
-  const [isPolling, setIsPolling] = useState(true)
   const [showQR, setShowQR] = useState(false)
 
   // Generate join URL and QR code
@@ -44,39 +46,36 @@ export default function LobbyPage() {
     }
   }, [isHydrated, isInSession, router])
 
-  // Poll for session status and teams list
+  // Bootstrap status once if websocket data has not arrived yet.
   useEffect(() => {
-    if (!gameSessionId || !isPolling) return
+    if (!gameSessionId || sessionStatus) return
+    void refreshSessionStatus()
+  }, [gameSessionId, sessionStatus, refreshSessionStatus])
 
-    const poll = async () => {
+  // Refresh lobby team list when membership changes.
+  useEffect(() => {
+    if (!gameSessionId) return
+
+    const loadTeams = async () => {
       try {
-        const [status, teamsList] = await Promise.all([
-          refreshSessionStatus(),
-          sessionsApi.teams(gameSessionId),
-        ])
-
+        const teamsList = await sessionsApi.teams(gameSessionId)
         setTeams(teamsList)
-
-        // If game has started, redirect to game page
-        if (status?.Status === "active") {
-          router.push("/play/game")
-        }
       } catch (error) {
-        console.error("Polling error:", error)
+        console.error("Failed to refresh teams:", error)
       }
     }
 
-    // Initial poll
-    poll()
+    void loadTeams()
+  }, [gameSessionId, sessionStatus])
 
-    // Poll every 2 seconds
-    const interval = setInterval(poll, 2000)
-
-    return () => clearInterval(interval)
-  }, [gameSessionId, isPolling, refreshSessionStatus, router])
+  // Move into gameplay as soon as host starts the session.
+  useEffect(() => {
+    if (sessionStatus?.Status === "active") {
+      router.push("/play/game")
+    }
+  }, [sessionStatus?.Status, router])
 
   const handleLeave = () => {
-    setIsPolling(false)
     clearSession()
     router.push("/play/join")
   }
@@ -90,9 +89,9 @@ export default function LobbyPage() {
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-950 overflow-hidden">
+    <div className="fixed inset-0 bg-gray-950 overflow-y-auto h-[100dvh] w-full">
       {/* Background */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
+      <div className="fixed inset-0 z-0 pointer-events-none">
         <GrainGradient
           colors={["#002185", "#faaf00", "#089659"]}
           colorBack="#740fa3"
@@ -106,13 +105,21 @@ export default function LobbyPage() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col min-h-screen p-6">
+      <div className="relative z-10 flex flex-col min-h-[100dvh] p-4 sm:p-6 pb-12">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="px-3 py-1.5 rounded-full bg-green-600/20 border border-green-500/30 flex items-center gap-2">
-              <Wifi className="h-3 w-3 text-green-400" />
-              <span className="text-green-400 text-xs font-medium">Connected</span>
+            <div
+              className={`px-3 py-1.5 rounded-full flex items-center gap-2 ${
+                isRealtimeConnected
+                  ? "bg-green-600/20 border border-green-500/30"
+                  : "bg-yellow-600/20 border border-yellow-500/30"
+              }`}
+            >
+              <Wifi className={`h-3 w-3 ${isRealtimeConnected ? "text-green-400" : "text-yellow-400"}`} />
+              <span className={`text-xs font-medium ${isRealtimeConnected ? "text-green-400" : "text-yellow-400"}`}>
+                {isRealtimeConnected ? "Connected" : "Reconnecting"}
+              </span>
             </div>
           </div>
           <Button
@@ -133,7 +140,12 @@ export default function LobbyPage() {
           className="bg-gray-950/80 backdrop-blur-lg rounded-2xl p-6 border border-gray-700 mb-6"
         >
           <div className="flex items-center gap-4">
-            <TeamAvatar avatarPath={team.AvatarBlobPath} teamName={team.TeamName} size="xl" />
+            <TeamAvatar
+              avatarPath={getAvatarValue(team)}
+              teamName={team.TeamName}
+              teamId={team.IDTeam}
+              size="xl"
+            />
             <div className="flex-1">
               <h2 className="text-2xl font-display font-bold text-white">
                 {team.TeamName}
@@ -243,7 +255,12 @@ export default function LobbyPage() {
                     : "bg-gray-950/70 text-gray-100"
                     }`}
                 >
-                  <TeamAvatar avatarPath={t.AvatarBlobPath} teamName={t.TeamName} size="sm" />
+                    <TeamAvatar
+                      avatarPath={getAvatarValue(t)}
+                      teamName={t.TeamName}
+                      teamId={t.IDTeam}
+                      size="sm"
+                    />
                   <span className="truncate max-w-[120px]">{t.TeamName}</span>
                   {t.IDTeam === team.IDTeam && (
                     <span className="text-xs text-purple-400">(You)</span>

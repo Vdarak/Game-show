@@ -1,6 +1,7 @@
 "use client"
 
-import { Dithering } from "@paper-design/shaders-react"
+import dynamic from "next/dynamic"
+const Dithering = dynamic(() => import("@paper-design/shaders-react").then(mod => mod.Dithering), { ssr: false })
 import { memo } from "react"
 
 interface DitherBackgroundProps {

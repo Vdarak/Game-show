@@ -15,14 +15,14 @@ const rubik = Rubik({
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 export const metadata: Metadata = {
-  title: "Family Feud Game Show",
-  description: "Interactive Family Feud-style game show application with offline support",
+  title: "GATE | Jordan White",
+  description: "Interactive game show application with offline support",
   generator: "v0.app",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Family Feud",
+    title: "GATE",
   },
   icons: {
     icon: [

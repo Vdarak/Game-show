@@ -331,20 +331,34 @@ export function MacroPhaseBar({
               {/* Leaderboard Reveal */}
               <Button
                 onClick={() => {
-                  setLeaderboardRevealMode(true)
-                  setRevealedRanks([])
-                  try {
-                    const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
-                    bc.postMessage({ type: "SHOW_FULLSCREEN_LEADERBOARD" })
-                    bc.close()
-                  } catch { /* not supported */ }
+                  if (leaderboardRevealMode) {
+                    setLeaderboardRevealMode(false)
+                    setRevealedRanks([])
+                    try {
+                      const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+                      bc.postMessage({ type: "EXIT_FULLSCREEN_LEADERBOARD" })
+                      bc.close()
+                    } catch { /* not supported */ }
+                  } else {
+                    setLeaderboardRevealMode(true)
+                    setRevealedRanks([])
+                    try {
+                      const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+                      bc.postMessage({ type: "SHOW_FULLSCREEN_LEADERBOARD" })
+                      bc.close()
+                    } catch { /* not supported */ }
+                  }
                 }}
                 variant="outline"
                 size="sm"
-                className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
+                className={
+                  leaderboardRevealMode
+                    ? "border-amber-500 text-amber-400 hover:bg-amber-500/20 bg-amber-500/10"
+                    : "border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
+                }
               >
                 <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
-                Reveal Rankings
+                {leaderboardRevealMode ? "Hide Rankings Screen" : "Show Rankings Screen"}
               </Button>
             </div>
           </div>

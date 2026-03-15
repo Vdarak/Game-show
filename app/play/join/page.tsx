@@ -3,35 +3,51 @@
 import { useState, useEffect, Suspense } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter, useSearchParams } from "next/navigation"
+import Image from "next/image"
 import { usePlayerSession } from "@/hooks/use-player-session"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, Users, ArrowRight, AlertCircle, QrCode } from "lucide-react"
-import { GrainGradient } from "@paper-design/shaders-react"
+import { FRONTEND_AVATAR_OPTIONS } from "@/lib/frontend-avatars"
+import dynamic from "next/dynamic"
+const GrainGradient = dynamic(() => import("@paper-design/shaders-react").then(mod => mod.GrainGradient), { ssr: false })
 
-// Avatars for selection
-const AVATARS = ["🦊", "🐻", "🦁", "🐼", "🐸", "🐵", "🐯", "🦄", "🐲", "🦅", "🐺", "🦈"]
+const avatarBase64Cache = new Map<string, string>()
 
-// Convert emoji to base64 PNG image
-function emojiToBase64(emoji: string): string {
-  const canvas = document.createElement("canvas")
-  canvas.width = 128
-  canvas.height = 128
-  const ctx = canvas.getContext("2d")
-  if (!ctx) return ""
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result)
+      } else {
+        reject(new Error("Failed to encode avatar image"))
+      }
+    }
+    reader.onerror = () => reject(new Error("Failed to read avatar image"))
+    reader.readAsDataURL(blob)
+  })
+}
 
-  // Clear canvas
-  ctx.clearRect(0, 0, 128, 128)
+async function avatarPathToBase64(avatarPath: string): Promise<string> {
+  const cachedBase64 = avatarBase64Cache.get(avatarPath)
+  if (cachedBase64) return cachedBase64
 
-  // Use emoji-specific font stack so the correct glyph is rendered
-  ctx.font = '100px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif'
-  ctx.textAlign = "center"
-  ctx.textBaseline = "middle"
-  ctx.fillText(emoji, 64, 68)
+  const response = await fetch(avatarPath)
+  if (!response.ok) {
+    throw new Error(`Failed to load avatar image: ${avatarPath}`)
+  }
 
-  // Get base64 data (strip the data:image/png;base64, prefix)
-  const dataUrl = canvas.toDataURL("image/png")
-  return dataUrl.split(",")[1] || ""
+  const blob = await response.blob()
+  const dataUrl = await blobToDataUrl(blob)
+  const base64Payload = dataUrl.split(",")[1] || ""
+
+  if (!base64Payload) {
+    throw new Error(`Failed to encode avatar image: ${avatarPath}`)
+  }
+
+  avatarBase64Cache.set(avatarPath, base64Payload)
+  return base64Payload
 }
 
 function JoinPageContent() {
@@ -51,7 +67,7 @@ function JoinPageContent() {
   // Form state
   const [roomCode, setRoomCode] = useState("")
   const [teamName, setTeamName] = useState("")
-  const [selectedAvatar, setSelectedAvatar] = useState<string>(AVATARS[0])
+  const [selectedAvatar, setSelectedAvatar] = useState<string>(FRONTEND_AVATAR_OPTIONS[0]?.path || "/avatars/bear.png")
   const [step, setStep] = useState<"room" | "team">("room")
 
   // Get room code from URL if provided
@@ -92,7 +108,7 @@ function JoinPageContent() {
     if (!teamName.trim()) return
 
     try {
-      const avatarBase64 = emojiToBase64(selectedAvatar)
+      const avatarBase64 = await avatarPathToBase64(selectedAvatar)
       await joinSession(roomCode, teamName.trim(), avatarBase64 || undefined)
       router.push("/play/lobby")
     } catch {
@@ -101,9 +117,9 @@ function JoinPageContent() {
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-950 overflow-hidden">
+    <div className="fixed inset-0 bg-gray-950 overflow-y-auto h-[100dvh] w-full">
       {/* Background */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
+      <div className="fixed inset-0 z-0 pointer-events-none">
         <GrainGradient
           colors={["#002185", "#faaf00", "#089659"]}
           colorBack="#740fa3"
@@ -117,7 +133,7 @@ function JoinPageContent() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6">
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-[100dvh] p-4 sm:p-6 pb-12">
         {/* Logo */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -214,20 +230,28 @@ function JoinPageContent() {
                   <label className="text-sm text-gray-200 mb-3 block text-center">
                     Choose Your Avatar
                   </label>
-                  <div className="grid grid-cols-6 gap-2">
-                    {AVATARS.map((avatar) => (
+                  <div className="grid grid-cols-5 gap-2">
+                    {FRONTEND_AVATAR_OPTIONS.map((avatar) => (
                       <motion.button
-                        key={avatar}
+                        key={avatar.id}
                         type="button"
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => setSelectedAvatar(avatar)}
-                        className={`p-3 text-2xl rounded-xl transition-colors ${selectedAvatar === avatar
-                          ? "bg-purple-600 ring-2 ring-purple-400"
-                          : "bg-gray-950/70 hover:bg-gray-800"
+                        onClick={() => setSelectedAvatar(avatar.path)}
+                        className={`h-14 rounded-xl border transition-colors flex items-center justify-center overflow-hidden ${selectedAvatar === avatar.path
+                          ? "bg-purple-600/40 border-purple-300 ring-2 ring-purple-400"
+                          : "bg-gray-950/70 border-gray-700 hover:bg-gray-800"
                           }`}
                       >
-                        {avatar}
+                        <div className="relative h-10 w-10">
+                          <Image
+                            src={avatar.path}
+                            alt={avatar.label}
+                            fill
+                            sizes="40px"
+                            className="object-contain object-center"
+                          />
+                        </div>
                       </motion.button>
                     ))}
                   </div>

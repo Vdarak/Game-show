@@ -19,6 +19,7 @@ import {
     Play,
     Pause,
     RotateCcw,
+    SkipBack,
 } from "lucide-react"
 import { sessionsApi } from "@/lib/api-client"
 import type { Question, Round, TeamResponse, Team, GameState, SessionStatusResponse } from "@/lib/api-types"
@@ -34,6 +35,8 @@ interface QuestionOrchestrationControlsProps {
     isGrading: boolean
     onGrade: () => Promise<void>
     onNextQuestion: () => Promise<void>
+    onResetQuestion: () => Promise<void>
+    onPrevQuestion: () => Promise<void>
     onRefreshStatus: () => Promise<unknown>
     isLoading: boolean
 }
@@ -61,10 +64,14 @@ export function QuestionOrchestrationControls({
     isGrading,
     onGrade,
     onNextQuestion,
+    onResetQuestion,
+    onPrevQuestion,
     onRefreshStatus,
     isLoading,
 }: QuestionOrchestrationControlsProps) {
     const [advancing, setAdvancing] = useState(false)
+    const [isResetting, setIsResetting] = useState(false)
+    const [isGoingPrev, setIsGoingPrev] = useState(false)
     const [questionVideoPlaying, setQuestionVideoPlaying] = useState(true)
     const [answerVideoPlaying, setAnswerVideoPlaying] = useState(true)
     const [videoFrameVisible, setVideoFrameVisible] = useState(true)
@@ -82,6 +89,9 @@ export function QuestionOrchestrationControls({
             currentQuestion.Options.every(o => ["True", "False"].includes(o)))
     const isMCQ = currentQuestion?.QuestionType === "multiple_choice" && !isTrueFalse
     const hasOptions = isMCQ || isTrueFalse
+    const hostNotes = (currentQuestion?.Notes ?? [])
+        .map((note) => note.trim())
+        .filter((note) => note.length > 0)
 
     // Video steps depend on showVideo toggle
     const showVideoSteps = showVideo && hasQuestionVideo
@@ -125,6 +135,28 @@ export function QuestionOrchestrationControls({
         await onNextQuestion()
         await onRefreshStatus()
     }, [onNextQuestion, onRefreshStatus])
+
+    const handleResetClick = useCallback(async (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault()
+        event.stopPropagation()
+        setIsResetting(true)
+        try {
+            await onResetQuestion()
+        } finally {
+            setIsResetting(false)
+        }
+    }, [onResetQuestion])
+
+    const handlePrevClick = useCallback(async (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault()
+        event.stopPropagation()
+        setIsGoingPrev(true)
+        try {
+            await onPrevQuestion()
+        } finally {
+            setIsGoingPrev(false)
+        }
+    }, [onPrevQuestion])
 
     // BroadcastChannel video control helpers
     const sendVideoMessage = useCallback((type: string) => {
@@ -261,7 +293,7 @@ export function QuestionOrchestrationControls({
                 <span className="text-[10px] uppercase tracking-widest text-gray-600 font-semibold">
                     Question Pipeline
                 </span>
-                <span className="text-[10px] uppercase tracking-widest text-gray-600 font-semibold">
+                <span className="text-[14px] uppercase tracking-widest text-gray-400 font-semibold">
                     Round {sessionStatus.CurrentRound} · Q{sessionStatus.CurrentQuestion}
                 </span>
             </div>
@@ -303,7 +335,7 @@ export function QuestionOrchestrationControls({
                 {/* Question Content */}
                 <div className="p-4">
                     {currentQuestion.Category && (
-                        <span className="text-[10px] text-purple-400 uppercase tracking-wider font-semibold">
+                        <span className="text-[14px] text-purple-400 uppercase tracking-wider font-semibold">
                             {currentQuestion.Category}
                         </span>
                     )}
@@ -314,18 +346,20 @@ export function QuestionOrchestrationControls({
                         Answer: <span className="text-green-400 font-medium">{currentQuestion.CorrectAnswer}</span>
                     </p>
 
-                    {/* Video indicators */}
-                    <div className="flex gap-2 mt-2">
-                        {hasQuestionVideo ? (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${showVideo ? "bg-blue-500/20 text-blue-400" : "bg-gray-700 text-gray-500 line-through"}`}>
-                                📹 Q Video
-                            </span>
-                        ) : null}
-                        {hasAnswerVideo ? (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${showVideo ? "bg-green-500/20 text-green-400" : "bg-gray-700 text-gray-500 line-through"}`}>
-                                📹 A Video
-                            </span>
-                        ) : null}
+                    {/* Host notes (from episodes/get question Notes) */}
+                    <div className="mt-2 rounded-lg border border-gray-700 bg-gray-900/60 p-2.5">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Host Notes</p>
+                        {hostNotes.length > 0 ? (
+                            <ul className="list-disc list-inside space-y-1">
+                                {hostNotes.map((note, i) => (
+                                    <li key={`${i}-${note}`} className="text-xs text-gray-200 leading-snug">
+                                        {note}
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-xs text-gray-500">No notes for this question.</p>
+                        )}
                     </div>
                 </div>
 
@@ -586,8 +620,25 @@ export function QuestionOrchestrationControls({
                 )}
 
                 {/* Action Bar — Grade + Next Question only */}
-                <div className="px-4 py-2.5 border-t border-gray-700 bg-gray-900/50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                <div className="px-4 py-2.5 border-t border-gray-700 bg-gray-900/50 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                            type="button"
+                            onClick={handleResetClick}
+                            disabled={isResetting || isGoingPrev || isLoading}
+                            variant="outline"
+                            size="sm"
+                            className="border-red-500/50 text-red-400 hover:bg-red-500/10 h-8 text-xs"
+                            title="Reset current question"
+                        >
+                            {isResetting ? (
+                                <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
+                            ) : (
+                                <RotateCcw className="h-3.5 w-3.5 sm:mr-1.5" />
+                            )}
+                            <span className="hidden sm:inline">{isResetting ? "Resetting..." : "Reset"}</span>
+                        </Button>
+
                         <Button
                             onClick={onGrade}
                             disabled={isGrading || respondedCount === 0}
@@ -596,11 +647,12 @@ export function QuestionOrchestrationControls({
                             className="border-green-500/50 text-green-400 hover:bg-green-500/10 h-8 text-xs"
                         >
                             {isGrading ? (
-                                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
                             ) : (
-                                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                <CheckCircle2 className="h-3.5 w-3.5 sm:mr-1.5" />
                             )}
-                            Grade ({respondedCount})
+                            <span className="hidden sm:inline">Grade ({respondedCount})</span>
+                            <span className="sm:hidden">{respondedCount}</span>
                         </Button>
 
                         {/* Toggle Video Frame on/off */}
@@ -630,23 +682,40 @@ export function QuestionOrchestrationControls({
 
                     <div className="flex items-center gap-2">
                         {gradedCount > 0 && (
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-gray-500 hidden sm:inline">
                                 {correctCount}/{gradedCount} correct
                             </span>
                         )}
+                        <Button
+                            type="button"
+                            onClick={handlePrevClick}
+                            disabled={(currentRound?.RoundNumber === 1 && currentQuestion?.QuestionOrder === 1) || isGoingPrev || isResetting || isLoading}
+                            variant="outline"
+                            size="sm"
+                            className="bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700 h-8 text-xs"
+                            title="Previous Question"
+                        >
+                            {isGoingPrev ? (
+                                <Loader2 className="h-3.5 w-3.5 sm:mr-1 animate-spin" />
+                            ) : (
+                                <SkipBack className="h-3.5 w-3.5 sm:mr-1" />
+                            )}
+                            <span className="hidden sm:inline">{isGoingPrev ? "Loading..." : "Prev"}</span>
+                        </Button>
                         {gameState === "answer_reveal" && (
                             <Button
                                 onClick={handleNextQuestion}
-                                disabled={isLoading}
+                                disabled={isLoading || advancing}
                                 size="sm"
                                 className="bg-purple-600 hover:bg-purple-700 text-white h-8 text-xs"
                             >
                                 {isLoading ? (
-                                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                    <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
                                 ) : (
-                                    <SkipForward className="h-3.5 w-3.5 mr-1.5" />
+                                    <SkipForward className="h-3.5 w-3.5 sm:mr-1.5" />
                                 )}
-                                Next Question
+                                <span className="hidden sm:inline">Next Question</span>
+                                <span className="sm:hidden">Next</span>
                             </Button>
                         )}
                     </div>

@@ -5,18 +5,20 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { useAuth, useRequireAuth } from "@/hooks/use-auth"
 import { useHostSession } from "@/hooks/use-host-session"
-import { episodesApi, hostLinksApi } from "@/lib/api-client"
+import { episodesApi, hostLinksApi, sessionsApi } from "@/lib/api-client"
 import { useSound } from "@/lib/use-sound"
 import { createDemoGame } from "@/lib/demo-game-generator"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { RoomCodePanel } from "@/components/game/room-code-panel"
+import { LeaderboardPanel } from "@/components/game/leaderboard-panel"
 import { EpisodeEditor } from "@/components/game/episode-editor"
 import { IncomingAnswersPanel } from "@/components/game/incoming-answers-panel"
 import { SoundBoardPanel } from "@/components/game/sound-board-panel"
 import { QuestionOrchestrationControls } from "@/components/game/question-orchestration-controls"
 import { MacroPhaseBar } from "@/components/game/macro-phase-bar"
 import { Toaster } from "@/components/ui/sonner"
+import { getAvatarValue } from "@/lib/frontend-avatars"
 import { toast } from "sonner"
 import {
   Loader2,
@@ -50,6 +52,7 @@ export default function TriviaControllerPage() {
     episode,
     session,
     sessionStatus,
+    isRealtimeConnected,
     teams,
     responses,
     leaderboard,
@@ -85,6 +88,11 @@ export default function TriviaControllerPage() {
   const [showVideo, setShowVideo] = useState(true)
   const [introMusicPaused, setIntroMusicPaused] = useState(false)
   const [introMusicPlaying, setIntroMusicPlaying] = useState(false)
+  const responsesGraceUntilRef = useRef<number>(0)
+  const previousPollingGameStateRef = useRef<string | null>(null)
+  const responsesPollInFlightRef = useRef(false)
+  const leaderboardPollInFlightRef = useRef(false)
+  const teamsBroadcastSignatureRef = useRef("")
 
   // Sound effects (play in the controller tab)
   const introMusic = useSound("/sounds/intro-music.wav", { loop: true, volume: 0.5 })
@@ -146,6 +154,22 @@ export default function TriviaControllerPage() {
     prevGameStateRef.current = gameState
   }, [gameState])
 
+  // Allow responses polling to continue briefly after timer ends.
+  useEffect(() => {
+    const prev = previousPollingGameStateRef.current
+    const next = sessionStatus?.GameState || null
+
+    if (next === "timer_ended" && prev === "timer_running") {
+      responsesGraceUntilRef.current = Date.now() + 5000
+    } else if (next === "timer_running") {
+      responsesGraceUntilRef.current = 0
+    } else if (next !== "timer_ended") {
+      responsesGraceUntilRef.current = 0
+    }
+
+    previousPollingGameStateRef.current = next
+  }, [sessionStatus?.GameState])
+
   // Host link management state
   const [allHostLinks, setAllHostLinks] = useState<HostLinkListItem[]>([])
   const [isLoadingLinks, setIsLoadingLinks] = useState(false)
@@ -176,31 +200,145 @@ export default function TriviaControllerPage() {
 
   // No auto-switch — view is set explicitly in handleSelectEpisode
 
-  // Poll for updates when in an active session
+  // Bootstrap status and react to pushed updates while in session view.
   useEffect(() => {
     if (!session || view !== "session") return
 
-    const poll = async () => {
-      await Promise.all([
-        refreshSessionStatus(),
-        refreshTeams(),
-        currentQuestion ? refreshResponses(currentQuestion.IDQuestion) : null,
-        refreshLeaderboard(),
-      ])
+    if (!sessionStatus) {
+      void refreshSessionStatus()
+      return
     }
 
-    poll()
-    const interval = setInterval(poll, 3000)
-    return () => clearInterval(interval)
+    const syncFromStatus = async () => {
+      const shouldRefreshTeams = sessionStatus.Status !== "active" || sessionStatus.team_count !== teams.length
+
+      if (shouldRefreshTeams) {
+        await refreshTeams()
+      }
+    }
+
+    void syncFromStatus()
   }, [
-    session,
+    session?.IDGameSession,
     view,
-    currentQuestion,
+    sessionStatus?.Status,
+    sessionStatus?.GameState,
+    sessionStatus?.CurrentRound,
+    sessionStatus?.CurrentQuestion,
+    sessionStatus?.team_count,
     refreshSessionStatus,
     refreshTeams,
+  ])
+
+  // Poll responses and leaderboard at most once per second while timer is active.
+  useEffect(() => {
+    if (!session || view !== "session" || !sessionStatus || !currentQuestion) return
+
+    const pollQuestionData = async () => {
+      const now = Date.now()
+      const isTimerRunning = sessionStatus.GameState === "timer_running"
+      const isInResponsesGrace =
+        sessionStatus.GameState === "timer_ended" && responsesGraceUntilRef.current > now
+
+      const shouldPollResponses = isTimerRunning || isInResponsesGrace
+      const shouldPollLeaderboard = isTimerRunning
+
+      const tasks: Promise<unknown>[] = []
+
+      if (shouldPollResponses && !responsesPollInFlightRef.current) {
+        responsesPollInFlightRef.current = true
+        tasks.push(
+          refreshResponses(currentQuestion.IDQuestion).finally(() => {
+            responsesPollInFlightRef.current = false
+          })
+        )
+      }
+
+      if (shouldPollLeaderboard && !leaderboardPollInFlightRef.current) {
+        leaderboardPollInFlightRef.current = true
+        tasks.push(
+          refreshLeaderboard().finally(() => {
+            leaderboardPollInFlightRef.current = false
+          })
+        )
+      }
+
+      if (tasks.length > 0) {
+        await Promise.all(tasks)
+      }
+    }
+
+    void pollQuestionData()
+    const interval = setInterval(() => {
+      void pollQuestionData()
+    }, 1000)
+
+    return () => {
+      clearInterval(interval)
+      responsesPollInFlightRef.current = false
+      leaderboardPollInFlightRef.current = false
+    }
+  }, [
+    session?.IDGameSession,
+    view,
+    sessionStatus?.GameState,
+    currentQuestion?.IDQuestion,
     refreshResponses,
     refreshLeaderboard,
   ])
+
+  // Fallback: keep lobby team list fresh even if websocket is delayed/disconnected.
+  useEffect(() => {
+    if (!session || view !== "session") return
+
+    const shouldPollTeams = !isRealtimeConnected || !sessionStatus || sessionStatus.Status === "lobby"
+    if (!shouldPollTeams) return
+
+    const pollTeams = async () => {
+      if (!isRealtimeConnected) {
+        await refreshSessionStatus()
+      }
+      await refreshTeams()
+    }
+
+    void pollTeams()
+    const interval = setInterval(() => {
+      void pollTeams()
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [
+    session?.IDGameSession,
+    view,
+    sessionStatus?.Status,
+    isRealtimeConnected,
+    refreshSessionStatus,
+    refreshTeams,
+  ])
+
+  // Broadcast latest teams to gameboard tabs as soon as controller state updates.
+  useEffect(() => {
+    if (!session || view !== "session") {
+      teamsBroadcastSignatureRef.current = ""
+      return
+    }
+
+    const teamSignature = teams
+      .map((team) => `${team.IDTeam}:${team.TeamName}:${getAvatarValue(team) ?? ""}:${team.JoinedAt}`)
+      .join("|")
+    const signature = `${session.IDGameSession}:${teamSignature}`
+
+    if (signature === teamsBroadcastSignatureRef.current) return
+    teamsBroadcastSignatureRef.current = signature
+
+    try {
+      const bc = new BroadcastChannel(`trivitime-host-${session.IDGameSession}`)
+      bc.postMessage({ type: "SYNC_TEAMS", teams })
+      bc.close()
+    } catch {
+      // BroadcastChannel not supported
+    }
+  }, [session?.IDGameSession, view, teams])
 
   // Show errors as toasts
   useEffect(() => {
@@ -409,7 +547,10 @@ export default function TriviaControllerPage() {
       const result = await gradeOverride(overrides)
       if (result) {
         toast.success(`Graded ${result.updated} responses`)
-        if (currentQuestion) {
+        const isTimerRunning = sessionStatus?.GameState === "timer_running"
+        const isInResponsesGrace =
+          sessionStatus?.GameState === "timer_ended" && responsesGraceUntilRef.current > Date.now()
+        if ((isTimerRunning || isInResponsesGrace) && currentQuestion) {
           await refreshResponses(currentQuestion.IDQuestion)
         }
       }
@@ -429,8 +570,33 @@ export default function TriviaControllerPage() {
     }
   }
 
+  const handleResetQuestion = async () => {
+    if (!session) return
+    try {
+      await sessionsApi.resetQuestion(session.IDGameSession)
+      await refreshSessionStatus()
+      toast.success("Question reset successfully")
+    } catch {
+      toast.error("Failed to reset question")
+    }
+  }
+
+  const handlePrevQuestion = async () => {
+    if (!session) return
+    try {
+      await sessionsApi.prevQuestion(session.IDGameSession)
+      await refreshSessionStatus()
+      toast.success("Moved to previous question")
+    } catch {
+      toast.error("Failed to move to previous question")
+    }
+  }
+
   const handleRefreshResponses = async () => {
-    if (currentQuestion) {
+    const isTimerRunning = sessionStatus?.GameState === "timer_running"
+    const isInResponsesGrace =
+      sessionStatus?.GameState === "timer_ended" && responsesGraceUntilRef.current > Date.now()
+    if ((isTimerRunning || isInResponsesGrace) && currentQuestion) {
       await refreshResponses(currentQuestion.IDQuestion)
     }
   }
@@ -485,7 +651,10 @@ export default function TriviaControllerPage() {
         gameboardWindowRef.current.focus()
         return
       }
-      const win = window.open(`/trivia/display/gameboard?session=${session.IDGameSession}`, "_blank")
+      const win = window.open(
+        `/trivia/display/gameboard?session=${session.IDGameSession}&room=${encodeURIComponent(session.RoomCode)}`,
+        "_blank"
+      )
       if (win) {
         gameboardWindowRef.current = win
         setIsGameboardOpen(true)
@@ -1082,6 +1251,8 @@ export default function TriviaControllerPage() {
                             isGrading={isGrading}
                             onGrade={handleGrade}
                             onNextQuestion={handleNextQuestion}
+                            onResetQuestion={handleResetQuestion}
+                            onPrevQuestion={handlePrevQuestion}
                             onRefreshStatus={refreshSessionStatus}
                             isLoading={isLoading}
                           />
@@ -1095,7 +1266,6 @@ export default function TriviaControllerPage() {
                             isGrading={isGrading}
                             onGrade={handleGrade}
                             onGradeOverride={handleGradeOverride}
-                            onNextQuestion={handleNextQuestion}
                             onRefresh={handleRefreshResponses}
                             onKickTeam={async (teamId) => {
                               if (session) {
@@ -1175,6 +1345,13 @@ export default function TriviaControllerPage() {
                         onStopSession={handleEndSession}
                         onRestartSession={handleRestartSession}
                         isRestarting={isRestarting}
+                      />
+
+                      {/* Controller-only leaderboard */}
+                      <LeaderboardPanel
+                        leaderboard={leaderboard}
+                        isLoading={isLoading}
+                        onRefresh={refreshLeaderboard}
                       />
                     </div>
                   </div>

@@ -4,14 +4,18 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useParams, useRouter } from "next/navigation"
 import { hostLinksApi, sessionsApi, episodesApi } from "@/lib/api-client"
+import { useSessionStatusWebSocket } from "@/hooks/use-session-status-websocket"
+import { useSound } from "@/lib/use-sound"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { RoomCodePanel } from "@/components/game/room-code-panel"
+import { LeaderboardPanel } from "@/components/game/leaderboard-panel"
 import { IncomingAnswersPanel } from "@/components/game/incoming-answers-panel"
 import { QuestionOrchestrationControls } from "@/components/game/question-orchestration-controls"
 import { MacroPhaseBar } from "@/components/game/macro-phase-bar"
 import { Toaster } from "@/components/ui/sonner"
+import { getAvatarValue } from "@/lib/frontend-avatars"
 import { toast } from "sonner"
 import {
   Loader2,
@@ -57,11 +61,98 @@ export default function HostTokenPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isGrading, setIsGrading] = useState(false)
   const [isRestarting, setIsRestarting] = useState(false)
+  const responsesGraceUntilRef = useRef<number>(0)
+  const previousPollingGameStateRef = useRef<string | null>(null)
+  const responsesPollInFlightRef = useRef(false)
+  const leaderboardPollInFlightRef = useRef(false)
+  const teamsBroadcastSignatureRef = useRef("")
+  const { status: realtimeStatus, isConnected: isRealtimeConnected } = useSessionStatusWebSocket(
+    isPinValidated ? session?.RoomCode || null : null,
+    {
+      enabled: isPinValidated && !!session?.RoomCode,
+    }
+  )
 
   // Gameboard controls
   const [showVideo, setShowVideo] = useState(true)
   const gameboardWindowRef = useRef<Window | null>(null)
   const [isGameboardOpen, setIsGameboardOpen] = useState(false)
+
+  // Sound effects
+  const introMusic = useSound("/sounds/intro-music.wav", { loop: true, volume: 0.5 })
+  const answerRevealSound = useSound("/sounds/answer-reveal.wav")
+  const timerSound = useSound("/sounds/timer.wav", { loop: true })
+  const timeUpSound = useSound("/sounds/time-up.wav")
+
+  const [introMusicPaused, setIntroMusicPaused] = useState(false)
+  const [introMusicPlaying, setIntroMusicPlaying] = useState(false)
+
+  // Derive gameState for sound triggers
+  const gameState = sessionStatus?.GameState || null
+  const prevGameStateRef = useRef<string | null>(null)
+
+  // Intro music auto-plays during lobby/welcome/rules
+  const isInLobbyState = !!gameState && ["lobby", "welcome", "rules"].includes(gameState)
+
+  useEffect(() => {
+    if (isInLobbyState && !introMusicPaused) {
+      introMusic.play()
+      setIntroMusicPlaying(true)
+    } else if (!introMusicPaused && !isInLobbyState && introMusicPlaying) {
+      introMusic.stop()
+      setIntroMusicPlaying(false)
+    }
+  }, [gameState, introMusicPaused, introMusicPlaying, introMusic, isInLobbyState])
+
+  // Timer sounds + answer-reveal
+  useEffect(() => {
+    const prev = prevGameStateRef.current
+
+    if (gameState === "timer_running" && prev !== "timer_running") {
+      timerSound.play()
+    }
+    if (prev === "timer_running" && gameState !== "timer_running") {
+      timerSound.stop()
+    }
+    if (gameState === "timer_ended" && prev !== "timer_ended") {
+      setTimeout(() => timeUpSound.play(), 50)
+    }
+    if (gameState === "answer_reveal" && prev !== "answer_reveal") {
+      answerRevealSound.play()
+    }
+
+    prevGameStateRef.current = gameState
+  }, [gameState, timerSound, timeUpSound, answerRevealSound])
+
+  // Allow responses polling to continue briefly after timer ends.
+  useEffect(() => {
+    const prev = previousPollingGameStateRef.current
+    const next = sessionStatus?.GameState || null
+
+    if (next === "timer_ended" && prev === "timer_running") {
+      responsesGraceUntilRef.current = Date.now() + 5000
+    } else if (next === "timer_running") {
+      responsesGraceUntilRef.current = 0
+    } else if (next !== "timer_ended") {
+      responsesGraceUntilRef.current = 0
+    }
+
+    previousPollingGameStateRef.current = next
+  }, [sessionStatus?.GameState])
+
+  useEffect(() => {
+    if (!realtimeStatus) return
+
+    setSessionStatus(realtimeStatus)
+    setSession((prev) =>
+      prev
+        ? {
+            ...prev,
+            ...realtimeStatus,
+          }
+        : prev
+    )
+  }, [realtimeStatus])
 
   // --------------- PIN VALIDATION ---------------
   const handlePinSubmit = async (e: React.FormEvent) => {
@@ -88,14 +179,25 @@ export default function HostTokenPage() {
 
   // --------------- REFRESH STATUS ---------------
   const refreshSessionStatus = useCallback(async () => {
-    if (!session) return
+    if (isRealtimeConnected && sessionStatus) return sessionStatus
+    if (!session) return null
     try {
       const status = await sessionsApi.status(session.IDGameSession)
       setSessionStatus(status)
+      setSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...status,
+            }
+          : prev
+      )
+      return status
     } catch (err) {
       console.error("Failed to refresh status:", err)
+      return null
     }
-  }, [session])
+  }, [session, sessionStatus, isRealtimeConnected])
 
   // --------------- GAMEBOARD WINDOW TRACKING ---------------
   useEffect(() => {
@@ -116,7 +218,10 @@ export default function HostTokenPage() {
         gameboardWindowRef.current.focus()
         return
       }
-      const win = window.open(`/trivia/display/gameboard?session=${session.IDGameSession}`, "_blank")
+      const win = window.open(
+        `/trivia/display/gameboard?session=${session.IDGameSession}&room=${encodeURIComponent(session.RoomCode)}`,
+        "_blank"
+      )
       if (win) {
         gameboardWindowRef.current = win
         setIsGameboardOpen(true)
@@ -124,45 +229,192 @@ export default function HostTokenPage() {
     }
   }
 
-  // --------------- POLLING ---------------
+  // --------------- REALTIME-DERIVED DATA ---------------
   useEffect(() => {
-    if (!session) return
+    if (!session || sessionStatus) return
+    void refreshSessionStatus()
+  }, [session, sessionStatus, refreshSessionStatus])
 
-    const poll = async () => {
+  useEffect(() => {
+    if (!session || !sessionStatus) return
+
+    const syncFromStatus = async () => {
       try {
-        const status = await sessionsApi.status(session.IDGameSession)
-        setSessionStatus(status)
+        const shouldRefreshTeams = sessionStatus.Status !== "active" || sessionStatus.team_count !== teams.length
 
-        const teamsList = await sessionsApi.teams(session.IDGameSession)
-        setTeams(teamsList)
+        const teamsList = shouldRefreshTeams
+          ? await sessionsApi.teams(session.IDGameSession)
+          : teams
 
-        if (status.CurrentRound && status.CurrentQuestion && episode) {
-          const round = episode.rounds.find(r => r.RoundNumber === status.CurrentRound)
+        if (shouldRefreshTeams) {
+          setTeams(teamsList)
+        }
+
+        if (sessionStatus.CurrentRound && sessionStatus.CurrentQuestion && episode) {
+          const round = episode.rounds.find((r) => r.RoundNumber === sessionStatus.CurrentRound) || null
+          setCurrentRound(round)
+
           if (round) {
-            setCurrentRound(round)
-            const question = round.questions.find(q => q.QuestionOrder === status.CurrentQuestion)
+            const question = round.questions.find((q) => q.QuestionOrder === sessionStatus.CurrentQuestion) || null
+            setCurrentQuestion(question)
+
             if (question) {
-              setCurrentQuestion(question)
-              const resps = await sessionsApi.responses({
-                IDGameSession: session.IDGameSession,
-                IDQuestion: question.IDQuestion,
+              setResponses((prev) => {
+                if (prev.length === 0) return prev
+                return prev.every((response) => response.IDQuestion === question.IDQuestion)
+                  ? prev
+                  : []
               })
-              setResponses(resps)
+              return
             }
           }
         }
 
-        const lb = await sessionsApi.leaderboard(session.IDGameSession)
-        setLeaderboard(lb)
+        setCurrentRound(null)
+        setCurrentQuestion(null)
+        setResponses([])
       } catch (err) {
-        console.error("Poll error:", err)
+        console.error("Realtime sync error:", err)
       }
     }
 
-    poll()
-    const interval = setInterval(poll, 3000)
+    void syncFromStatus()
+  }, [
+    session,
+    episode,
+    sessionStatus?.Status,
+    sessionStatus?.CurrentRound,
+    sessionStatus?.CurrentQuestion,
+    sessionStatus?.GameState,
+    sessionStatus?.team_count,
+  ])
+
+  // Poll responses and leaderboard at most once per second while timer is active.
+  useEffect(() => {
+    if (!session || !sessionStatus || !currentQuestion) return
+
+    const pollQuestionData = async () => {
+      const now = Date.now()
+      const isTimerRunning = sessionStatus.GameState === "timer_running"
+      const isInResponsesGrace =
+        sessionStatus.GameState === "timer_ended" && responsesGraceUntilRef.current > now
+
+      const shouldPollResponses = isTimerRunning || isInResponsesGrace
+      const shouldPollLeaderboard = isTimerRunning
+
+      const tasks: Promise<unknown>[] = []
+
+      if (shouldPollResponses && !responsesPollInFlightRef.current) {
+        responsesPollInFlightRef.current = true
+        tasks.push(
+          sessionsApi
+            .responses({
+              IDGameSession: session.IDGameSession,
+              IDQuestion: currentQuestion.IDQuestion,
+            })
+            .then((resps) => {
+              setResponses(resps)
+            })
+            .catch((err) => {
+              console.error("Responses realtime poll error:", err)
+            })
+            .finally(() => {
+              responsesPollInFlightRef.current = false
+            })
+        )
+      }
+
+      if (shouldPollLeaderboard && !leaderboardPollInFlightRef.current) {
+        leaderboardPollInFlightRef.current = true
+        tasks.push(
+          sessionsApi
+            .leaderboard(session.IDGameSession)
+            .then((lb) => {
+              setLeaderboard(lb)
+            })
+            .catch((err) => {
+              console.error("Leaderboard realtime poll error:", err)
+            })
+            .finally(() => {
+              leaderboardPollInFlightRef.current = false
+            })
+        )
+      }
+
+      if (tasks.length > 0) {
+        await Promise.all(tasks)
+      }
+    }
+
+    void pollQuestionData()
+    const interval = setInterval(() => {
+      void pollQuestionData()
+    }, 1000)
+
+    return () => {
+      clearInterval(interval)
+      responsesPollInFlightRef.current = false
+      leaderboardPollInFlightRef.current = false
+    }
+  }, [session?.IDGameSession, sessionStatus?.GameState, currentQuestion?.IDQuestion])
+
+  // Fallback: keep teams in sync in lobby or whenever websocket is not connected.
+  useEffect(() => {
+    if (!session || !isPinValidated) return
+
+    const shouldPollTeams = !isRealtimeConnected || !sessionStatus || sessionStatus.Status === "lobby"
+    if (!shouldPollTeams) return
+
+    const pollTeams = async () => {
+      try {
+        if (!isRealtimeConnected) {
+          await refreshSessionStatus()
+        }
+
+        const teamsList = await sessionsApi.teams(session.IDGameSession)
+        setTeams(teamsList)
+      } catch (err) {
+        console.error("Teams fallback poll error:", err)
+      }
+    }
+
+    void pollTeams()
+    const interval = setInterval(() => {
+      void pollTeams()
+    }, 1000)
+
     return () => clearInterval(interval)
-  }, [session, episode])
+  }, [
+    session?.IDGameSession,
+    isPinValidated,
+    sessionStatus?.Status,
+    isRealtimeConnected,
+    refreshSessionStatus,
+  ])
+
+  // Broadcast latest teams to gameboard tabs as soon as controller state updates.
+  useEffect(() => {
+    if (!session || !isPinValidated) {
+      teamsBroadcastSignatureRef.current = ""
+      return
+    }
+
+    const teamSignature = teams
+      .map((team) => `${team.IDTeam}:${team.TeamName}:${getAvatarValue(team) ?? ""}:${team.JoinedAt}`)
+      .join("|")
+    const signature = `${session.IDGameSession}:${teamSignature}`
+
+    if (signature === teamsBroadcastSignatureRef.current) return
+    teamsBroadcastSignatureRef.current = signature
+
+    try {
+      const bc = new BroadcastChannel(`trivitime-host-${session.IDGameSession}`)
+      bc.postMessage({ type: "SYNC_TEAMS", teams })
+      bc.close()
+    } catch {
+      // BroadcastChannel not supported
+    }
+  }, [session?.IDGameSession, isPinValidated, teams])
 
   // --------------- HANDLERS ---------------
   const handleStartSession = async () => {
@@ -183,6 +435,7 @@ export default function HostTokenPage() {
     setIsGrading(true)
     try {
       const result = await sessionsApi.grade({ IDGameSession: session.IDGameSession })
+      await refreshLeaderboard()
       toast.success(`Graded ${result.total_graded} responses`)
     } catch {
       toast.error("Failed to grade responses")
@@ -242,8 +495,37 @@ export default function HostTokenPage() {
     setIsRestarting(false)
   }
 
+  const handleResetQuestion = async () => {
+    if (!session) return
+    setIsLoading(true)
+    try {
+      await sessionsApi.resetQuestion(session.IDGameSession)
+      await refreshSessionStatus()
+      toast.success("Question reset successfully")
+    } catch {
+      toast.error("Failed to reset question")
+    }
+    setIsLoading(false)
+  }
+
+  const handlePrevQuestion = async () => {
+    if (!session) return
+    setIsLoading(true)
+    try {
+      await sessionsApi.prevQuestion(session.IDGameSession)
+      await refreshSessionStatus()
+      toast.success("Moved to previous question")
+    } catch {
+      toast.error("Failed to move to previous question")
+    }
+    setIsLoading(false)
+  }
+
   const handleRefreshResponses = async () => {
-    if (currentQuestion && session) {
+    const isTimerRunning = sessionStatus?.GameState === "timer_running"
+    const isInResponsesGrace =
+      sessionStatus?.GameState === "timer_ended" && responsesGraceUntilRef.current > Date.now()
+    if ((isTimerRunning || isInResponsesGrace) && currentQuestion && session) {
       const resps = await sessionsApi.responses({
         IDGameSession: session.IDGameSession,
         IDQuestion: currentQuestion.IDQuestion,
@@ -259,6 +541,7 @@ export default function HostTokenPage() {
         IDGameSession: session.IDGameSession,
         overrides,
       })
+      await refreshLeaderboard()
       toast.success(`Graded ${result.updated} responses`)
       await handleRefreshResponses()
     } catch {
@@ -401,6 +684,8 @@ export default function HostTokenPage() {
                   isGrading={isGrading}
                   onGrade={handleGrade}
                   onNextQuestion={handleNextQuestion}
+                  onResetQuestion={handleResetQuestion}
+                  onPrevQuestion={handlePrevQuestion}
                   onRefreshStatus={refreshSessionStatus}
                   isLoading={isLoading}
                 />
@@ -414,7 +699,6 @@ export default function HostTokenPage() {
                   isGrading={isGrading}
                   onGrade={handleGrade}
                   onGradeOverride={handleGradeOverride}
-                  onNextQuestion={handleNextQuestion}
                   onRefresh={handleRefreshResponses}
                   onKickTeam={handleKickTeam}
                 />
@@ -489,6 +773,13 @@ export default function HostTokenPage() {
               onStopSession={handleEndSession}
               onRestartSession={handleRestartSession}
               isRestarting={isRestarting}
+            />
+
+            {/* Controller-only leaderboard */}
+            <LeaderboardPanel
+              leaderboard={leaderboard}
+              isLoading={isLoading}
+              onRefresh={refreshLeaderboard}
             />
           </div>
         </div>

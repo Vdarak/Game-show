@@ -22,9 +22,11 @@ import {
   Coins,
   Timer,
 } from "lucide-react"
-import { GrainGradient } from "@paper-design/shaders-react"
+import dynamic from "next/dynamic"
+const GrainGradient = dynamic(() => import("@paper-design/shaders-react").then(mod => mod.GrainGradient), { ssr: false })
 import { TeamAvatar } from "@/components/game/team-avatar"
 import { DEFAULT_RULES } from "@/lib/constants"
+import { getAvatarValue } from "@/lib/frontend-avatars"
 import type { GameState } from "@/lib/api-types"
 
 export default function GamePage() {
@@ -34,6 +36,7 @@ export default function GamePage() {
     roomCode,
     gameSessionId,
     sessionStatus,
+    rulesContent,
     currentQuestion,
     availableWagers,
     lastSubmission,
@@ -44,7 +47,6 @@ export default function GamePage() {
     isInSession,
     isHydrated,
     refreshSessionStatus,
-    refreshCurrentQuestion,
     refreshLeaderboard,
     submitAnswer,
     clearError,
@@ -62,6 +64,12 @@ export default function GamePage() {
   const isTimerLow = timerRemaining !== null && timerRemaining <= 10
   const isTimerCritical = timerRemaining !== null && timerRemaining <= 5
   const isTimerExpired = gameState === "timer_ended"
+  const effectiveRulesContent =
+    Array.isArray(sessionStatus?.RulesContent) && sessionStatus.RulesContent.length > 0
+      ? sessionStatus.RulesContent
+      : rulesContent.length > 0
+        ? rulesContent
+        : DEFAULT_RULES
 
   // Redirect if not in session (only after hydration)
   useEffect(() => {
@@ -70,35 +78,38 @@ export default function GamePage() {
     }
   }, [isHydrated, isInSession, router])
 
-  // Poll for updates — faster during timer_running
+  // Bootstrap status once if websocket data is not available yet.
   useEffect(() => {
-    if (!gameSessionId || !team) return
+    if (!gameSessionId || sessionStatus) return
+    void refreshSessionStatus()
+  }, [gameSessionId, sessionStatus, refreshSessionStatus])
 
-    const poll = async () => {
-      const status = await refreshSessionStatus()
+  // React to pushed session state updates.
+  useEffect(() => {
+    if (!gameSessionId || !team || !sessionStatus) return
 
-      // If session completed, show final leaderboard
-      if (status?.Status === "completed") {
+    const syncFromStatus = async () => {
+      if (sessionStatus.Status === "completed") {
         await refreshLeaderboard()
         return
       }
 
-      // If session is active, check for current question
-      if (status?.Status === "active") {
-        await refreshCurrentQuestion()
-      }
-
-      // If session back to lobby, go back
-      if (status?.Status === "lobby") {
+      if (sessionStatus.Status === "lobby") {
         router.push("/play/lobby")
       }
     }
 
-    poll()
-    const pollInterval = gameState === "timer_running" ? 1000 : 2000
-    const interval = setInterval(poll, pollInterval)
-    return () => clearInterval(interval)
-  }, [gameSessionId, team, refreshSessionStatus, refreshCurrentQuestion, refreshLeaderboard, router, gameState])
+    void syncFromStatus()
+  }, [
+    gameSessionId,
+    team,
+    sessionStatus?.Status,
+    sessionStatus?.GameState,
+    sessionStatus?.CurrentRound,
+    sessionStatus?.CurrentQuestion,
+    refreshLeaderboard,
+    router,
+  ])
 
   // Reset form when question changes
   useEffect(() => {
@@ -151,8 +162,8 @@ export default function GamePage() {
   // ===== COMPLETED STATE — Final Leaderboard =====
   if (sessionStatus?.Status === "completed") {
     return (
-      <div className="fixed inset-0 bg-gray-950 overflow-hidden">
-        <div className="absolute inset-0 z-0 pointer-events-none">
+      <div className="fixed inset-0 bg-gray-950 overflow-y-auto h-[100dvh] w-full">
+        <div className="fixed inset-0 z-0 pointer-events-none">
           <GrainGradient
             colors={["#002185", "#faaf00", "#089659"]}
             colorBack="#740fa3"
@@ -164,7 +175,7 @@ export default function GamePage() {
             style={{ width: "100%", height: "100%" }}
           />
         </div>
-        <div className="relative z-10 flex flex-col min-h-screen p-6">
+        <div className="relative z-10 flex flex-col min-h-[100dvh] p-4 sm:p-6 pb-12">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
             <h1 className="font-display text-4xl font-bold text-white mb-2">Game Over!</h1>
             {teamRank && <p className="text-xl text-purple-200">You placed #{teamRank}</p>}
@@ -218,18 +229,26 @@ export default function GamePage() {
                 initial={{ y: 30, opacity: 0, scale: 0.8 }}
                 animate={{ y: 0, opacity: 1, scale: 1 }}
                 transition={{ delay: 0.5, type: "spring", stiffness: 200, damping: 15 }}
-                className="w-[70vw] max-w-[350px]"
+                className="w-[85vw] max-w-[500px]"
               >
-                <Image src="/trivi-time-logo.png" alt="Trivi Time" width={350} height={100} className="w-full h-auto drop-shadow-2xl" priority />
+                <Image src="/trivi-time-logo.png" alt="Trivi Time" width={500} height={150} className="w-full h-auto drop-shadow-2xl" priority />
               </motion.div>
               <motion.div
                 initial={{ y: 15, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.9 }}
-                className="flex flex-col items-center gap-2 mt-1"
+                className="flex flex-row items-end justify-center gap-8 mt-4"
               >
-                <span className="text-sm text-white font-medium tracking-wider uppercase">presented by</span>
-                <Image src="/gate-logo.png" alt="GATE" width={80} height={28} className="h-7 w-auto" />
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-xs sm:text-sm text-white font-medium tracking-wider uppercase drop-shadow">presented by</span>
+                  <Image src="/gate-logo.png" alt="GATE" width={80} height={28} className="h-6 sm:h-8 w-auto drop-shadow" />
+                </div>
+                {sessionStatus?.SponsorshipImage && (
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-xs sm:text-sm text-white font-medium tracking-wider uppercase drop-shadow">sponsored by</span>
+                    <img src={sessionStatus.SponsorshipImage} alt="Sponsor" className="h-6 sm:h-8 w-auto object-contain drop-shadow" />
+                  </div>
+                )}
               </motion.div>
             </div>
           )
@@ -238,10 +257,10 @@ export default function GamePage() {
           return (
             <div className="w-[90vw] sm:w-[75vw] mx-auto">
               <div className="flex items-center gap-2 mb-2 justify-center">
-                <h2 className="font-display text-2xl sm:text-3xl font-bold text-yellow-400 underline" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.7)' }}>RULES</h2>
+                <h2 className="font-display text-2xl sm:text-3xl font-bold text-yellow-400 underline drop-shadow-md">RULES</h2>
               </div>
               <div className="space-y-0">
-                {DEFAULT_RULES.map((rule, i) => (
+                {effectiveRulesContent.map((rule, i) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, x: -20 }}
@@ -249,8 +268,8 @@ export default function GamePage() {
                     transition={{ delay: 0.1 + i * 0.08 }}
                     className="py-1 px-1 flex items-start gap-2"
                   >
-                    <span className="flex-shrink-0 font-display text-base sm:text-lg font-bold text-purple-400" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.8)' }}>&gt;</span>
-                    <p className="font-display text-sm sm:text-base text-white leading-snug" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.7)' }}>{rule}</p>
+                    <span className="flex-shrink-0 font-display text-base sm:text-lg font-bold text-purple-400 drop-shadow-md">&gt;</span>
+                    <p className="font-display text-sm sm:text-base text-white leading-snug drop-shadow-md">{rule}</p>
                   </motion.div>
                 ))}
               </div>
@@ -260,7 +279,7 @@ export default function GamePage() {
         case "get_ready":
           return (
             <div className="text-center">
-              <h2 className="font-display text-4xl font-bold text-white mb-2">Get Ready!</h2>
+              <h2 className="font-display text-6xl sm:text-[5rem] font-bold text-white mb-4 drop-shadow-md">Get Ready!</h2>
               <p className="text-gray-200">Next question is coming up...</p>
             </div>
           )
@@ -269,16 +288,16 @@ export default function GamePage() {
           return (
             <div className="text-center">
               <motion.p initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}
-                className="text-lg text-purple-200 uppercase tracking-[0.2em] mb-3">
+                className="text-3xl sm:text-5xl text-purple-200 uppercase tracking-widest font-semibold mb-4 drop-shadow-md">
                 Round {sessionStatus?.CurrentRound}
               </motion.p>
               <motion.p initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }}
-                className="font-display text-5xl font-bold text-white mb-2">
+                className="font-display text-[15vw] sm:text-[7rem] leading-none font-bold text-white mb-4 whitespace-nowrap drop-shadow-md">
                 Question {sessionStatus?.CurrentQuestion}
               </motion.p>
               {currentQuestion?.Category && (
                 <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-                  className="text-gray-200">
+                  className="text-3xl sm:text-5xl font-semibold text-gray-300 drop-shadow-md">
                   {currentQuestion.Category}
                 </motion.p>
               )}
@@ -297,13 +316,30 @@ export default function GamePage() {
           )
 
         case "break":
+          if (sessionStatus?.SponsorshipVideoUrl || sessionStatus?.SponsorshipImage) {
+            return (
+              <div className="text-center flex flex-col items-center gap-6">
+                <h2 className="font-display text-3xl font-bold text-yellow-400 drop-shadow-md">
+                  A word from our sponsors
+                </h2>
+                {sessionStatus.SponsorshipImage && (
+                  <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/20 shadow-xl">
+                    <img src={sessionStatus.SponsorshipImage} alt="Sponsor" className="h-24 w-auto object-contain drop-shadow-xl" />
+                  </div>
+                )}
+                {sessionStatus.SponsorshipVideoUrl && (
+                  <p className="text-purple-300 mt-2 animate-pulse uppercase tracking-widest text-sm font-semibold">Watch the main screen!</p>
+                )}
+              </div>
+            )
+          }
           return (
             <div className="text-center">
               <motion.div animate={{ y: [0, -6, 0] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
-                <Coffee className="h-16 w-16 text-yellow-400 mx-auto mb-4" />
+                <Coffee className="h-16 w-16 text-yellow-400 mx-auto mb-4 drop-shadow-md" />
               </motion.div>
-              <h2 className="font-display text-4xl font-bold text-white mb-2">Break Time</h2>
-              <p className="text-gray-200">Sit tight — we&apos;ll be right back!</p>
+              <h2 className="font-display text-4xl font-bold text-white mb-2 drop-shadow-md">Break Time</h2>
+              <p className="text-gray-200 drop-shadow-md">Sit tight — we&apos;ll be right back!</p>
             </div>
           )
 
@@ -321,8 +357,8 @@ export default function GamePage() {
     }
 
     return (
-      <div className="fixed inset-0 bg-gray-950 overflow-hidden">
-        <div className="absolute inset-0 z-0 pointer-events-none">
+      <div className="fixed inset-0 bg-gray-950 overflow-y-auto h-[100dvh] w-full">
+        <div className="fixed inset-0 z-0 pointer-events-none">
           <GrainGradient
             colors={["#002185", "#faaf00", "#089659"]}
             colorBack="#740fa3"
@@ -334,11 +370,16 @@ export default function GamePage() {
             style={{ width: "100%", height: "100%" }}
           />
         </div>
-        <div className="relative z-10 flex flex-col min-h-screen p-4">
+        <div className="relative z-10 flex flex-col min-h-[100dvh] p-4 sm:p-6 pb-12">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <TeamAvatar avatarPath={team.AvatarBlobPath} teamName={team.TeamName} size="lg" />
+              <TeamAvatar
+                avatarPath={getAvatarValue(team)}
+                teamName={team.TeamName}
+                teamId={team.IDTeam}
+                size="lg"
+              />
               <span className="text-white font-semibold truncate max-w-[150px]">{team.TeamName}</span>
             </div>
             <div className="px-3 py-1 rounded-full bg-gray-950/70 text-gray-200 text-sm">{roomCode}</div>
@@ -364,9 +405,9 @@ export default function GamePage() {
 
   // ===== QUESTION STATES (options_revealed, timer_running, timer_ended, answer_reveal) =====
   return (
-    <div className="fixed inset-0 bg-gray-950 overflow-auto">
+    <div className="fixed inset-0 bg-gray-950 overflow-y-auto h-[100dvh] w-full">
       {/* Dither Background */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
+      <div className="fixed inset-0 z-0 pointer-events-none">
         <GrainGradient
           colors={["#002185", "#faaf00", "#089659"]}
           colorBack="#740fa3"
@@ -384,7 +425,12 @@ export default function GamePage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <TeamAvatar avatarPath={team.AvatarBlobPath} teamName={team.TeamName} size="lg" />
+            <TeamAvatar
+              avatarPath={getAvatarValue(team)}
+              teamName={team.TeamName}
+              teamId={team.IDTeam}
+              size="lg"
+            />
             <span className="text-white font-semibold truncate max-w-[150px]">{team.TeamName}</span>
           </div>
           <div className="px-3 py-1 rounded-full bg-gray-800 text-gray-400 text-sm">{roomCode}</div>
@@ -395,32 +441,20 @@ export default function GamePage() {
           <div className="mb-4">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <Clock className={`h-5 w-5 ${isTimerCritical ? 'text-red-400' : isTimerLow ? 'text-yellow-400' : 'text-purple-400'}`} />
-                <span className={`font-display text-2xl font-bold tabular-nums ${isTimerExpired ? 'text-red-400' : isTimerCritical ? 'text-red-400' : isTimerLow ? 'text-yellow-400' : 'text-white'}`}>
-                  {isTimerExpired ? '0s' : `${timerRemaining}s`}
+                <Clock className={`h-5 w-5 ${isTimerExpired ? 'text-red-400' : isTimerCritical ? 'text-red-400' : isTimerLow ? 'text-yellow-400' : 'text-purple-400'}`} />
+                <span className={`font-display text-2xl font-bold ${isTimerExpired ? 'text-red-400' : `tabular-nums ${isTimerCritical ? 'text-red-400' : isTimerLow ? 'text-yellow-400' : 'text-white'}`}`}>
+                  {isTimerExpired ? "TIME'S UP!" : `${timerRemaining}s`}
                 </span>
               </div>
               <div className="flex-1 h-3 bg-gray-950/70 rounded-full overflow-hidden">
                 <motion.div
-                  className={`h-full rounded-full ${isTimerCritical ? 'bg-red-500' : isTimerLow ? 'bg-yellow-500' : 'bg-purple-500'}`}
-                  animate={{ width: `${timerTotal ? (timerRemaining / timerTotal) * 100 : 0}%` }}
+                  className={`h-full rounded-full ${isTimerExpired ? 'bg-red-500' : isTimerCritical ? 'bg-red-500' : isTimerLow ? 'bg-yellow-500' : 'bg-purple-500'}`}
+                  animate={{ width: `${isTimerExpired ? 0 : timerTotal ? (timerRemaining / timerTotal) * 100 : 0}%` }}
                   transition={{ duration: 0.3 }}
                 />
               </div>
             </div>
           </div>
-        )}
-
-        {/* Time's Up Banner */}
-        {isTimerExpired && !hasSubmittedCurrentQuestion && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mb-4 flex items-center gap-3 p-3 rounded-xl bg-red-500/20 border border-red-500/40"
-          >
-            <Clock className="h-5 w-5 text-red-400 flex-shrink-0" />
-            <span className="font-display text-lg font-bold text-red-400">TIME&apos;S UP!</span>
-          </motion.div>
         )}
 
         {/* Answer Reveal State */}
@@ -459,7 +493,7 @@ export default function GamePage() {
                 {/* Category */}
                 {currentQuestion.Category && (
                   <div className="text-center mb-2">
-                    <span className="text-xs text-purple-300 uppercase tracking-wider">
+                    <span className="text-sm sm:text-base font-semibold text-purple-300 uppercase tracking-wider">
                       {currentQuestion.Category}
                     </span>
                   </div>
