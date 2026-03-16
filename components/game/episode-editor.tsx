@@ -246,6 +246,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
         video_type: "sponsorship",
         filename: file.name,
       })
+      const uploadedSponsorshipVideoUrl = `${new URL(upload_url).origin}/${blob_path.replace(/^\/+/, "")}`
 
       setSponsorUploadProgress(30)
       await mediaApi.uploadFileToS3(upload_url, file)
@@ -258,10 +259,9 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
       })
 
       setSponsorUploadProgress(95)
-      const updated = await episodesApi.get(episode.IDEpisode)
       setSponsorUploadProgress(100)
       await new Promise(r => setTimeout(r, 300))
-      setSponsorshipVideoUrl(updated.SponsorshipVideoUrl)
+      setSponsorshipVideoUrl(uploadedSponsorshipVideoUrl)
       toast.success("Sponsorship video uploaded!")
     } catch (err) {
       console.error("Sponsorship video upload failed:", err)
