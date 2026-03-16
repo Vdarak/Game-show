@@ -32,6 +32,7 @@ interface MacroPhaseBarProps {
   leaderboard: LeaderboardResponse | null
   onRefreshStatus: () => Promise<unknown>
   hasRulesVideo?: boolean
+  hasSponsorshipVideo?: boolean
 }
 
 // Map server GameState to macro phase
@@ -70,17 +71,20 @@ export function MacroPhaseBar({
   leaderboard,
   onRefreshStatus,
   hasRulesVideo,
+  hasSponsorshipVideo,
 }: MacroPhaseBarProps) {
   const [advancing, setAdvancing] = useState(false)
   const [leaderboardVisible, setLeaderboardVisible] = useState(true)
   const [leaderboardRevealMode, setLeaderboardRevealMode] = useState(false)
   const [revealedRanks, setRevealedRanks] = useState<number[]>([])
   const [rulesVideoPlaying, setRulesVideoPlaying] = useState(true)
+  const [sponsorVideoPlaying, setSponsorVideoPlaying] = useState(true)
 
   const gameState = sessionStatus?.GameState || null
   const currentPhase = getMacroPhase(gameState, sessionStatus?.Status)
   const phaseIndex = PHASES.findIndex(p => p.id === currentPhase)
   const isOnBreak = gameState === "break"
+  const hasBreakSponsorVideo = !!(hasSponsorshipVideo || sessionStatus?.SponsorshipVideoUrl)
 
   const handleAdvanceState = useCallback(async () => {
     setAdvancing(true)
@@ -302,6 +306,64 @@ export function MacroPhaseBar({
                   )}
                   Resume
                 </Button>
+              )}
+
+              {isOnBreak && hasBreakSponsorVideo && (
+                <>
+                  <div className="h-4 w-px bg-gray-800" />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-400">Sponsor Video</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (sponsorVideoPlaying) {
+                          setSponsorVideoPlaying(false)
+                          try {
+                            const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+                            bc.postMessage({ type: "SPONSOR_VIDEO_PAUSE" })
+                            bc.close()
+                          } catch { /* not supported */ }
+                        } else {
+                          setSponsorVideoPlaying(true)
+                          try {
+                            const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+                            bc.postMessage({ type: "SPONSOR_VIDEO_PLAY" })
+                            bc.close()
+                          } catch { /* not supported */ }
+                        }
+                      }}
+                      className={
+                        sponsorVideoPlaying
+                          ? "h-8 border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10"
+                          : "h-8 border-green-500/50 text-green-400 hover:bg-green-500/10"
+                      }
+                    >
+                      {sponsorVideoPlaying ? (
+                        <Pause className="h-3.5 w-3.5 mr-1.5" />
+                      ) : (
+                        <Play className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      {sponsorVideoPlaying ? "Pause" : "Play"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSponsorVideoPlaying(true)
+                        try {
+                          const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+                          bc.postMessage({ type: "SPONSOR_VIDEO_RESTART" })
+                          bc.close()
+                        } catch { /* not supported */ }
+                      }}
+                      className="h-8 border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                      Restart
+                    </Button>
+                  </div>
+                </>
               )}
 
               <div className="h-4 w-px bg-gray-800" />

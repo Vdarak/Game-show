@@ -775,6 +775,7 @@ export default function HostTokenPage() {
               leaderboard={leaderboard}
               onRefreshStatus={refreshSessionStatus}
               hasRulesVideo={!!episode?.RulesVideoUrl}
+              hasSponsorshipVideo={!!(sessionStatus?.SponsorshipVideoUrl || episode?.SponsorshipVideoUrl)}
             />
           </div>
         )}

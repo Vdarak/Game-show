@@ -1288,6 +1288,7 @@ export default function TriviaControllerPage() {
                     leaderboard={leaderboard}
                     onRefreshStatus={refreshSessionStatus}
                     hasRulesVideo={!!episode?.RulesVideoUrl}
+                    hasSponsorshipVideo={!!(sessionStatus?.SponsorshipVideoUrl || episode?.SponsorshipVideoUrl)}
                   />
 
                   {/* 2-Column Layout */}

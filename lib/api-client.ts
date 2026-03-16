@@ -53,6 +53,20 @@ import type {
 
 // -------------------- Configuration --------------------
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ""
+const DEFAULT_MEDIA_CDN_BASE_URL = "https://triviatime-media-463884819756.s3.us-east-1.amazonaws.com"
+const MEDIA_CDN_BASE_URL = (
+  process.env.NEXT_PUBLIC_MEDIA_BASE_URL ||
+  process.env.NEXT_PUBLIC_MEDIA_ASSET_BASE_URL ||
+  DEFAULT_MEDIA_CDN_BASE_URL
+).replace(/\/+$/, "")
+
+const API_HOSTNAME = (() => {
+  try {
+    return API_BASE_URL ? new URL(API_BASE_URL).hostname.toLowerCase() : null
+  } catch {
+    return null
+  }
+})()
 
 // Debug: Log API URL on startup (client-side only)
 if (typeof window !== "undefined") {
@@ -61,7 +75,43 @@ if (typeof window !== "undefined") {
 
 export function getMediaUrl(path: string | null | undefined): string | undefined {
   if (!path) return undefined
-  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) return path
+
+  if (path.startsWith("data:")) return path
+
+  const toCdnUrl = (rawPath: string) => {
+    const normalized = rawPath.replace(/^\/+/, "")
+    return `${MEDIA_CDN_BASE_URL}/${normalized}`
+  }
+
+  const isVideoPath = (value: string) => value.toLowerCase().startsWith("/videos/")
+
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    try {
+      const parsed = new URL(path)
+      const host = parsed.hostname.toLowerCase()
+      const shouldRemapToCdn =
+        isVideoPath(parsed.pathname) &&
+        (
+          host === API_HOSTNAME ||
+          host.startsWith("api.") ||
+          host.includes("gamesandtrivia.fun") ||
+          host.includes("gameandtrivia.fun")
+        )
+
+      if (shouldRemapToCdn) {
+        return toCdnUrl(parsed.pathname)
+      }
+    } catch {
+      // Keep original URL when parsing fails.
+    }
+
+    return path
+  }
+
+  if (isVideoPath(path.startsWith("/") ? path : `/${path}`)) {
+    return toCdnUrl(path)
+  }
+
   return `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`
 }
 

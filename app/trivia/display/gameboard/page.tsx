@@ -125,6 +125,7 @@ function GameBoardContent() {
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const rulesVideoRef = useRef<HTMLVideoElement>(null)
+  const sponsorVideoRef = useRef<HTMLVideoElement>(null)
 
   // Video frame visibility — toggled by controller
   const [videoFrameHidden, setVideoFrameHidden] = useState(false)
@@ -640,6 +641,18 @@ function GameBoardContent() {
               videoRef.current.play()
             }
             break
+          case "SPONSOR_VIDEO_PLAY":
+            sponsorVideoRef.current?.play()
+            break
+          case "SPONSOR_VIDEO_PAUSE":
+            sponsorVideoRef.current?.pause()
+            break
+          case "SPONSOR_VIDEO_RESTART":
+            if (sponsorVideoRef.current) {
+              sponsorVideoRef.current.currentTime = 0
+              sponsorVideoRef.current.play()
+            }
+            break
           case "TOGGLE_VIDEO_FRAME":
             setVideoFrameHidden(prev => !prev)
             break
@@ -682,6 +695,8 @@ function GameBoardContent() {
     category?: string | null
     rules_content?: unknown
     rules_video_url?: string | null
+    sponsorship_image?: string | null
+    sponsorship_video_url?: string | null
   }) | null
 
   const statusRulesContent = Array.isArray(sessionStatus?.RulesContent)
@@ -701,6 +716,12 @@ function GameBoardContent() {
   const resolvedRulesVideoPath =
     sessionStatus?.RulesVideoUrl || statusPayload?.rules_video_url || episode?.RulesVideoUrl || null
   const resolvedRulesVideoUrl = getMediaUrl(resolvedRulesVideoPath)
+  const resolvedSponsorshipImagePath =
+    sessionStatus?.SponsorshipImage || statusPayload?.sponsorship_image || episode?.SponsorshipImage || null
+  const resolvedSponsorshipImageUrl = getMediaUrl(resolvedSponsorshipImagePath)
+  const resolvedSponsorshipVideoPath =
+    sessionStatus?.SponsorshipVideoUrl || statusPayload?.sponsorship_video_url || episode?.SponsorshipVideoUrl || null
+  const resolvedSponsorshipVideoUrl = getMediaUrl(resolvedSponsorshipVideoPath)
 
   // If rules screen is open but rules are still missing, retry public status API once more.
   useEffect(() => {
@@ -1032,53 +1053,65 @@ function GameBoardContent() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex-1 flex items-center justify-center"
+                className="flex-1 min-h-0 flex items-center justify-center"
               >
-                <div className="text-center w-full max-w-6xl mx-auto flex flex-col items-center">
-                  {episode?.SponsorshipVideoUrl ? (
-                    <div className="flex flex-col items-center gap-6 w-full">
-                      <h2 className="font-display text-5xl lg:text-7xl font-bold text-yellow-400 drop-shadow-lg">
-                        A word from our sponsors
-                      </h2>
-                      
-                      <div className="w-full aspect-video max-h-[50vh] bg-black rounded-2xl border-4 border-yellow-500/50 overflow-hidden shadow-2xl relative">
-                         {episode.SponsorshipImage && (
-                           <div className="absolute top-4 right-4 z-20 bg-black/50 p-2 rounded-xl backdrop-blur">
-                             <img src={episode.SponsorshipImage} alt="Sponsor Logo Overlay" className="h-12 lg:h-16 w-auto object-contain" />
-                           </div>
-                         )}
-                         <video
-                           src={getMediaUrl(episode.SponsorshipVideoUrl)!}
-                           className="w-full h-full object-contain"
-                           autoPlay
-                           loop
-                           playsInline
-                         />
-                      </div>
-                    </div>
-                  ) : episode?.SponsorshipImage ? (
-                    <div className="flex flex-col items-center gap-8">
-                       <h2 className="font-display text-6xl lg:text-8xl font-bold text-white mb-2 drop-shadow-xl">
-                         Break Time
-                       </h2>
-                       <div className="bg-white/10 p-8 rounded-3xl backdrop-blur-sm border border-white/20 shadow-2xl flex flex-col items-center gap-6">
-                         <span className="text-2xl text-yellow-400 font-medium tracking-wider uppercase drop-shadow">Sponsored By</span>
-                         <img src={episode.SponsorshipImage} alt="Sponsor Logo" className="h-32 lg:h-48 w-auto object-contain drop-shadow-2xl" />
-                       </div>
-                    </div>
-                  ) : (
+                <div className="w-full h-full max-w-7xl mx-auto flex flex-col gap-5 min-h-0">
+                  {resolvedSponsorshipVideoUrl ? (
                     <>
+                      <div className="flex-[7] min-h-0 w-full rounded-2xl border-2 border-yellow-500/40 overflow-hidden shadow-2xl bg-black">
+                        <video
+                          ref={sponsorVideoRef}
+                          src={resolvedSponsorshipVideoUrl}
+                          className="w-full h-full object-cover"
+                          muted={isMuted}
+                          autoPlay
+                          loop
+                          playsInline
+                        />
+                      </div>
+
+                      <div className="flex-[3] min-h-0 flex items-center justify-center">
+                        <div className={`w-full max-w-5xl grid gap-4 ${resolvedSponsorshipImageUrl ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"}`}>
+                          <div className="rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center">
+                            <span className="text-xs md:text-sm text-gray-300 uppercase tracking-[0.2em]">Presented by</span>
+                            <img src="/gate-logo.png" alt="GATE" className="h-10 md:h-14 w-auto mt-3 object-contain" />
+                          </div>
+
+                          {resolvedSponsorshipImageUrl && (
+                            <div className="rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center">
+                              <span className="text-xs md:text-sm text-gray-300 uppercase tracking-[0.2em]">Sponsored by</span>
+                              <img src={resolvedSponsorshipImageUrl} alt="Sponsor" className="h-10 md:h-14 w-auto mt-3 object-contain" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="h-full w-full flex flex-col items-center justify-center gap-6 text-center">
                       <motion.div
                         animate={{ y: [0, -8, 0] }}
                         transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
                       >
-                        <Coffee className="h-20 w-20 text-yellow-400 mx-auto mb-6 drop-shadow-lg" />
+                        <Coffee className="h-20 w-20 text-yellow-400 mx-auto drop-shadow-lg" />
                       </motion.div>
-                      <h2 className="font-display text-6xl lg:text-8xl font-bold text-white mb-4 drop-shadow-xl">
+                      <h2 className="font-display text-6xl lg:text-8xl font-bold text-white drop-shadow-xl">
                         Break Time
                       </h2>
-                      <p className="text-xl text-gray-200 drop-shadow">Sit tight — we&apos;ll be right back!</p>
-                    </>
+
+                      <div className={`w-full max-w-5xl grid gap-4 ${resolvedSponsorshipImageUrl ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"}`}>
+                        <div className="rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center">
+                          <span className="text-xs md:text-sm text-gray-300 uppercase tracking-[0.2em]">Presented by</span>
+                          <img src="/gate-logo.png" alt="GATE" className="h-10 md:h-14 w-auto mt-3 object-contain" />
+                        </div>
+
+                        {resolvedSponsorshipImageUrl && (
+                          <div className="rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center">
+                            <span className="text-xs md:text-sm text-gray-300 uppercase tracking-[0.2em]">Sponsored by</span>
+                            <img src={resolvedSponsorshipImageUrl} alt="Sponsor" className="h-10 md:h-14 w-auto mt-3 object-contain" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </motion.div>
@@ -1354,7 +1387,7 @@ function GameBoardContent() {
                 className="flex-1 flex flex-col items-center justify-center gap-12"
               >
                 <div className="text-center">
-                  <h2 className="font-display text-7xl font-bold text-white mb-6">
+                  <h2 className="font-display text-6xl md:text-7xl lg:text-8xl font-extrabold text-white mb-6 drop-shadow-md">
                     Game Over!
                   </h2>
                   {leaderboard?.entries[0] && (
@@ -1371,7 +1404,7 @@ function GameBoardContent() {
                 </div>
 
                 <div className="flex flex-col items-center gap-6 mt-8">
-                  <p className="font-display text-4xl font-bold text-purple-400 tracking-wider uppercase">
+                  <p className="font-display text-7xl md:text-8xl lg:text-9xl font-black text-cyan-300 tracking-wider uppercase drop-shadow-md">
                     Thanks for Playing!
                   </p>
                   <div className="flex items-center gap-16">
@@ -1379,13 +1412,13 @@ function GameBoardContent() {
                       <div className="bg-white p-4 rounded-2xl shadow-xl">
                         <Image src="/google-QR.png" alt="Leave a Google Review" width={180} height={180} className="w-48 h-48" />
                       </div>
-                      <span className="font-display text-xl font-semibold text-gray-300">Leave a Review</span>
+                      <span className="font-display text-3xl md:text-4xl font-bold text-amber-300 drop-shadow-md">Leave a Review</span>
                     </div>
                     <div className="flex flex-col items-center gap-4">
                       <div className="bg-white p-4 rounded-2xl shadow-xl">
                         <Image src="/website-QR.png" alt="Visit website" width={180} height={180} className="w-48 h-48" />
                       </div>
-                      <span className="font-display text-xl font-semibold text-gray-300">More Games</span>
+                      <span className="font-display text-3xl md:text-4xl font-bold text-lime-300 drop-shadow-md">More Games</span>
                     </div>
                   </div>
                 </div>

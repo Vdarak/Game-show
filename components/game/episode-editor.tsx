@@ -614,11 +614,11 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
                 <label className="text-xs text-gray-400 block mb-2">Rules</label>
                 <div className="space-y-2">
                   {rulesArray.map((rule, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <div className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-800 text-[10px] font-medium text-gray-500 flex-shrink-0">
+                    <div key={i} className="flex items-start gap-2">
+                      <div className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-800 text-[10px] font-medium text-gray-500 flex-shrink-0 mt-2">
                         {i + 1}
                       </div>
-                      <Input
+                      <Textarea
                         value={rule}
                         onChange={(e) => {
                           const newRules = [...rulesArray]
@@ -626,7 +626,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
                           setRulesArray(newRules)
                         }}
                         placeholder="Rule text..."
-                        className="bg-gray-900 border-gray-700 text-xs h-8 flex-1"
+                        className="bg-gray-900 border-gray-700 text-xs flex-1 min-h-[56px] resize-y leading-relaxed whitespace-pre-wrap break-words"
                       />
                       <button
                         type="button"
@@ -634,7 +634,7 @@ export function EpisodeEditor({ episodeId, onClose, onUpdate }: EpisodeEditorPro
                           const newRules = rulesArray.filter((_, idx) => idx !== i)
                           setRulesArray(newRules)
                         }}
-                        className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-colors flex-shrink-0 text-sm pl-0 pr-0 pb-0.5"
+                        className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-colors flex-shrink-0 text-sm pl-0 pr-0 pb-0.5 mt-2"
                       >
                         ×
                       </button>
