@@ -58,6 +58,7 @@ export function useHostSession() {
   const isAuthenticated = typeof window !== "undefined" && !!getAuthToken()
   const {
     status: realtimeStatus,
+    lastEvent: realtimeEvent,
     isConnected: isRealtimeConnected,
   } = useSessionStatusWebSocket(state.session?.RoomCode || state.sessionStatus?.RoomCode || null, {
     enabled: !!state.session,
@@ -192,6 +193,17 @@ export function useHostSession() {
       return []
     }
   }, [state.session])
+
+  // Team membership changes can arrive as non-state websocket events.
+  // Refresh teams immediately so controller and gameboard stay in lockstep.
+  useEffect(() => {
+    if (!realtimeEvent || !state.session?.IDGameSession) return
+
+    const eventName = typeof realtimeEvent.event === "string" ? realtimeEvent.event.toLowerCase() : ""
+    if (!eventName.includes("team")) return
+
+    void refreshTeams()
+  }, [realtimeEvent, state.session?.IDGameSession, refreshTeams])
 
   // Refresh responses for current question
   const refreshResponses = useCallback(async (questionId?: string) => {

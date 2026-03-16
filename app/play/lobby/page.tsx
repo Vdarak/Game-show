@@ -21,7 +21,7 @@ export default function LobbyPage() {
     gameSessionId,
     sessionStatus,
     refreshSessionStatus,
-    clearSession,
+    leaveSession,
     isInSession,
     isHydrated,
     isRealtimeConnected,
@@ -29,6 +29,7 @@ export default function LobbyPage() {
 
   const [teams, setTeams] = useState<Team[]>([])
   const [showQR, setShowQR] = useState(false)
+  const [isLeaving, setIsLeaving] = useState(false)
 
   // Generate join URL and QR code
   const joinUrl =
@@ -75,9 +76,19 @@ export default function LobbyPage() {
     }
   }, [sessionStatus?.Status, router])
 
-  const handleLeave = () => {
-    clearSession()
-    router.push("/play/join")
+  const handleLeave = async () => {
+    if (isLeaving) return
+
+    setIsLeaving(true)
+
+    try {
+      await leaveSession()
+      router.push("/play/join")
+    } catch {
+      // Hook already surfaces a friendly error message.
+    } finally {
+      setIsLeaving(false)
+    }
   }
 
   if (!team || !roomCode) {
@@ -125,11 +136,14 @@ export default function LobbyPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleLeave}
+            onClick={() => {
+              void handleLeave()
+            }}
+            disabled={isLeaving}
             className="text-gray-200 hover:text-white hover:bg-gray-800"
           >
-            <LogOut className="h-4 w-4 mr-2" />
-            Leave
+            {isLeaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogOut className="h-4 w-4 mr-2" />}
+            {isLeaving ? "Leaving..." : "Leave"}
           </Button>
         </div>
 

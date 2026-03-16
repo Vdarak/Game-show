@@ -58,6 +58,8 @@ function JoinPageContent() {
     isLoading,
     error,
     clearError,
+    kickNotice,
+    consumeKickNotice,
     isInSession,
     isHydrated,
     team,
@@ -147,6 +149,29 @@ function JoinPageContent() {
         </motion.div>
 
         {/* Error Display */}
+        <AnimatePresence>
+          {kickNotice && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-4 p-4 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-between gap-3 text-orange-200 max-w-md w-full"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                <span className="text-sm">{kickNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={consumeKickNotice}
+                className="text-xs uppercase tracking-wide text-orange-100/80 hover:text-orange-100"
+              >
+                Dismiss
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence>
           {error && (
             <motion.div

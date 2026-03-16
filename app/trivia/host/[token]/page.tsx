@@ -69,7 +69,7 @@ export default function HostTokenPage() {
   const responsesPollInFlightRef = useRef(false)
   const leaderboardPollInFlightRef = useRef(false)
   const teamsBroadcastSignatureRef = useRef("")
-  const { status: realtimeStatus, isConnected: isRealtimeConnected } = useSessionStatusWebSocket(
+  const { status: realtimeStatus, lastEvent: realtimeEvent, isConnected: isRealtimeConnected } = useSessionStatusWebSocket(
     isPinValidated ? session?.RoomCode || null : null,
     {
       enabled: isPinValidated && !!session?.RoomCode,
@@ -651,6 +651,23 @@ export default function HostTokenPage() {
     const lb = await sessionsApi.leaderboard(session.IDGameSession)
     setLeaderboard(lb)
   }
+
+  // Refresh teams immediately on websocket team events (join/leave/kick).
+  useEffect(() => {
+    if (!session || !realtimeEvent) return
+
+    const eventName = typeof realtimeEvent.event === "string" ? realtimeEvent.event.toLowerCase() : ""
+    if (!eventName.includes("team")) return
+
+    void sessionsApi
+      .teams(session.IDGameSession)
+      .then((teamsList) => {
+        setTeams(teamsList)
+      })
+      .catch((err) => {
+        console.error("Team event sync error:", err)
+      })
+  }, [session?.IDGameSession, realtimeEvent])
 
   // =============== PIN GATE ===============
   if (!isPinValidated) {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { sessionsApi, ApiClientError } from "@/lib/api-client"
-import { useSessionStatusWebSocket } from "@/hooks/use-session-status-websocket"
+import { useSessionStatusWebSocket, type SessionSocketEvent } from "@/hooks/use-session-status-websocket"
 import type {
   Team,
   CurrentQuestionResponse,
@@ -37,11 +37,13 @@ interface PlayerSessionState {
   // UI state
   isLoading: boolean
   error: string | null
+  kickNotice: string | null
 }
 
 
 const STORAGE_KEY = "trivitime_player_session"
 const RULES_CACHE_PREFIX = "trivitime_player_rules"
+const KICK_NOTICE_KEY = "trivitime_player_kick_notice"
 const ERROR_DISMISS_MS = 4000
 
 function normalizeRulesContent(rules: unknown): string[] | null {
@@ -73,6 +75,21 @@ function getCachedRulesContent(gameSessionId: string): string[] | null {
 function cacheRulesContent(gameSessionId: string, rulesContent: string[]) {
   if (typeof window === "undefined") return
   localStorage.setItem(getRulesCacheKey(gameSessionId), JSON.stringify(rulesContent))
+}
+
+function getStoredKickNotice(): string | null {
+  if (typeof window === "undefined") return null
+  const stored = localStorage.getItem(KICK_NOTICE_KEY)
+  return stored && stored.trim().length > 0 ? stored : null
+}
+
+function setStoredKickNotice(notice: string | null) {
+  if (typeof window === "undefined") return
+  if (notice && notice.trim().length > 0) {
+    localStorage.setItem(KICK_NOTICE_KEY, notice)
+    return
+  }
+  localStorage.removeItem(KICK_NOTICE_KEY)
 }
 
 function normalizeStringArray(values: unknown): string[] | null {
@@ -188,6 +205,25 @@ function normalizeRealtimeQuestion(status: SessionStatusResponse): CurrentQuesti
   }
 }
 
+interface TeamKickedEvent {
+  IDTeam: string
+  TeamName: string | null
+}
+
+function parseTeamKickedEvent(event: SessionSocketEvent | null): TeamKickedEvent | null {
+  if (!event || event.event !== "team_kicked") return null
+
+  const rawTeamId = event.IDTeam ?? event.id_team
+  if (typeof rawTeamId !== "string" || rawTeamId.trim().length === 0) return null
+
+  const rawTeamName = event.TeamName ?? event.team_name
+
+  return {
+    IDTeam: rawTeamId,
+    TeamName: typeof rawTeamName === "string" && rawTeamName.trim().length > 0 ? rawTeamName : null,
+  }
+}
+
 // Map raw API errors to player-friendly messages
 function friendlyError(raw: string): string {
   const lower = raw.toLowerCase()
@@ -203,6 +239,13 @@ function friendlyError(raw: string): string {
   // Joining
   if (lower.includes("room code") || lower.includes("room not found") || lower.includes("invalid room"))
     return "🔍 That room code doesn't exist. Check the code and try again."
+  if (
+    lower.includes("cannot join session") &&
+    lower.includes("active") &&
+    lower.includes("must be in lobby")
+  ) {
+    return "🚫 This game is already in progress. You can only join while the session is in lobby."
+  }
   if (lower.includes("team name") && lower.includes("taken"))
     return "👥 That team name is already taken. Pick a different one!"
   if (lower.includes("team name"))
@@ -225,9 +268,8 @@ function friendlyError(raw: string): string {
   return raw
 }
 
-// -------------------- Hook --------------------
-export function usePlayerSession() {
-  const [state, setState] = useState<PlayerSessionState>({
+function buildInitialPlayerSessionState(kickNotice: string | null = null): PlayerSessionState {
+  return {
     roomCode: null,
     gameSessionId: null,
     team: null,
@@ -240,7 +282,13 @@ export function usePlayerSession() {
     leaderboard: null,
     isLoading: false,
     error: null,
-  })
+    kickNotice,
+  }
+}
+
+// -------------------- Hook --------------------
+export function usePlayerSession() {
+  const [state, setState] = useState<PlayerSessionState>(() => buildInitialPlayerSessionState())
 
   // Track whether localStorage has been loaded
   const [isHydrated, setIsHydrated] = useState(false)
@@ -248,10 +296,23 @@ export function usePlayerSession() {
   const pointPoolRequestKeyRef = useRef<string | null>(null)
   const {
     status: realtimeStatus,
+    lastEvent: realtimeEvent,
     isConnected: isRealtimeConnected,
   } = useSessionStatusWebSocket(state.roomCode, {
     enabled: !!state.roomCode,
   })
+
+  const clearSession = useCallback((options?: { kickNotice?: string | null }) => {
+    const kickNotice = options?.kickNotice ?? null
+
+    setState(buildInitialPlayerSessionState(kickNotice))
+
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(STORAGE_KEY)
+    }
+
+    setStoredKickNotice(kickNotice)
+  }, [])
 
   const applySessionStatus = useCallback((status: SessionStatusResponse) => {
     const normalizedRules = normalizeRulesContent(status.RulesContent)
@@ -324,6 +385,20 @@ export function usePlayerSession() {
     applySessionStatus(realtimeStatus)
   }, [realtimeStatus, applySessionStatus])
 
+  useEffect(() => {
+    const kickedEvent = parseTeamKickedEvent(realtimeEvent)
+    const currentTeam = state.team
+
+    if (!kickedEvent || !currentTeam || kickedEvent.IDTeam !== currentTeam.IDTeam) return
+
+    const targetTeamName = kickedEvent.TeamName || currentTeam.TeamName
+    clearSession({
+      kickNotice: targetTeamName
+        ? `You have been kicked from the game (${targetTeamName}).`
+        : "You have been kicked from the game.",
+    })
+  }, [realtimeEvent, state.team, clearSession])
+
   // Backfill wagers only when websocket question payload does not include them.
   useEffect(() => {
     const sessionId = state.gameSessionId
@@ -390,6 +465,7 @@ export function usePlayerSession() {
   // Restore session from localStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const storedKickNotice = getStoredKickNotice()
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
         try {
@@ -400,10 +476,13 @@ export function usePlayerSession() {
             gameSessionId: parsed.gameSessionId || null,
             team: parsed.team || null,
             rulesContent: parsed.gameSessionId ? (getCachedRulesContent(parsed.gameSessionId) || []) : [],
+            kickNotice: storedKickNotice,
           }))
         } catch {
           localStorage.removeItem(STORAGE_KEY)
         }
+      } else if (storedKickNotice) {
+        setState((prev) => ({ ...prev, kickNotice: storedKickNotice }))
       }
       setIsHydrated(true)
     }
@@ -439,6 +518,7 @@ export function usePlayerSession() {
       }
 
       // Reset all game state when joining a new session
+      setStoredKickNotice(null)
       setState({
         ...updates,
         sessionStatus: null,
@@ -450,6 +530,7 @@ export function usePlayerSession() {
         leaderboard: null,
         isLoading: false,
         error: null,
+        kickNotice: null,
       })
 
       persistSession(updates)
@@ -561,25 +642,33 @@ export function usePlayerSession() {
     }
   }, [state.gameSessionId])
 
-  // Clear session (leave game)
-  const clearSession = useCallback(() => {
-    setState({
-      roomCode: null,
-      gameSessionId: null,
-      team: null,
-      sessionStatus: null,
-      rulesContent: [],
-      currentQuestion: null,
-      availableWagers: [],
-      lastSubmission: null,
-      hasSubmittedCurrentQuestion: false,
-      leaderboard: null,
-      isLoading: false,
-      error: null,
-    })
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(STORAGE_KEY)
+  // Leave session through API then clear local session.
+  const leaveSession = useCallback(async () => {
+    if (!state.gameSessionId || !state.team?.IDTeam) {
+      clearSession()
+      return
     }
+
+    setState((prev) => ({ ...prev, isLoading: true, error: null }))
+
+    try {
+      await sessionsApi.leave({
+        IDGameSession: state.gameSessionId,
+        IDTeam: state.team.IDTeam,
+      })
+
+      clearSession()
+    } catch (err) {
+      const message = err instanceof ApiClientError ? err.detail : "Failed to leave session"
+      setErrorWithAutoDismiss(message)
+      setState((prev) => ({ ...prev, isLoading: false }))
+      throw err
+    }
+  }, [state.gameSessionId, state.team, clearSession, setErrorWithAutoDismiss])
+
+  const consumeKickNotice = useCallback(() => {
+    setStoredKickNotice(null)
+    setState((prev) => ({ ...prev, kickNotice: null }))
   }, [])
 
   // Clear error
@@ -601,7 +690,9 @@ export function usePlayerSession() {
     refreshPointPool,
     submitAnswer,
     refreshLeaderboard,
+    leaveSession,
     clearSession,
+    consumeKickNotice,
     clearError,
   }
 }

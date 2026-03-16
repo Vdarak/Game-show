@@ -280,6 +280,16 @@ export interface JoinSessionRequest {
   AvatarBase64?: string | null
 }
 
+export interface LeaveSessionRequest {
+  IDGameSession: string
+  IDTeam: string
+}
+
+export interface LeaveSessionResponse {
+  left: boolean
+  TeamName?: string
+}
+
 export interface Team {
   IDTeam: string
   IDGameSession: string

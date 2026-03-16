@@ -5,6 +5,11 @@ import type { SessionStatusResponse } from "@/lib/api-types"
 
 type ConnectionState = "idle" | "connecting" | "connected" | "reconnecting" | "disconnected" | "error"
 
+export interface SessionSocketEvent {
+  event: string
+  [key: string]: unknown
+}
+
 interface UseSessionStatusWebSocketOptions {
   enabled?: boolean
   reconnect?: boolean
@@ -61,6 +66,7 @@ export function useSessionStatusWebSocket(
   const { enabled = true, reconnect = true, maxReconnectDelayMs = 10_000 } = options
 
   const [serverStatus, setServerStatus] = useState<SessionStatusResponse | null>(null)
+  const [lastEvent, setLastEvent] = useState<SessionSocketEvent | null>(null)
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle")
   const [lastError, setLastError] = useState<string | null>(null)
   const [localTimerRemaining, setLocalTimerRemaining] = useState<number | null>(null)
@@ -134,6 +140,7 @@ export function useSessionStatusWebSocket(
       setConnectionState("idle")
       setLastError(null)
       setServerStatus(null)
+      setLastEvent(null)
       setLocalTimerRemaining(null)
       return
     }
@@ -166,8 +173,9 @@ export function useSessionStatusWebSocket(
           const parsed = JSON.parse(event.data)
 
           if (parsed && typeof parsed === "object" && "event" in parsed) {
-            const maybePayload = parsed as { event?: string }
-            if (maybePayload.event && maybePayload.event !== "state_update") {
+            const maybePayload = parsed as { event?: unknown }
+            if (typeof maybePayload.event === "string" && maybePayload.event !== "state_update") {
+              setLastEvent(parsed as SessionSocketEvent)
               return
             }
           }
@@ -245,6 +253,7 @@ export function useSessionStatusWebSocket(
 
   return {
     status,
+    lastEvent,
     connectionState,
     isConnected: connectionState === "connected",
     lastError,

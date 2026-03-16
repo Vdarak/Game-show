@@ -98,7 +98,11 @@ function GameBoardContent() {
   const [error, setError] = useState<string | null>(null)
   const [resolvedRoomCode, setResolvedRoomCode] = useState<string | null>(roomCodeFromQuery)
   const [roomResolveAttempted, setRoomResolveAttempted] = useState(false)
-  const { status: realtimeStatus } = useSessionStatusWebSocket(resolvedRoomCode, {
+  const {
+    status: realtimeStatus,
+    lastEvent: realtimeEvent,
+    isConnected: isRealtimeConnected,
+  } = useSessionStatusWebSocket(resolvedRoomCode, {
     enabled: !!resolvedRoomCode,
   })
   const [isMuted, setIsMuted] = useState(false)
@@ -377,6 +381,47 @@ function GameBoardContent() {
     sessionStatus?.GameState,
     sessionStatus?.team_count,
   ])
+
+  // Team joins/leaves can come as separate websocket events from status updates.
+  useEffect(() => {
+    if (!sessionId || !realtimeEvent) return
+
+    const eventName = typeof realtimeEvent.event === "string" ? realtimeEvent.event.toLowerCase() : ""
+    if (!eventName.includes("team")) return
+
+    void sessionsApi
+      .teams(sessionId)
+      .then((teamsData) => {
+        setTeams(teamsData)
+      })
+      .catch((err) => {
+        console.error("Team event sync error:", err)
+      })
+  }, [sessionId, realtimeEvent])
+
+  // Fallback: keep lobby teams fresh even when status frames are sparse.
+  useEffect(() => {
+    if (!sessionId) return
+
+    const shouldPollTeams = !isRealtimeConnected || !sessionStatus || sessionStatus.Status === "lobby"
+    if (!shouldPollTeams) return
+
+    const pollTeams = async () => {
+      try {
+        const teamsData = await sessionsApi.teams(sessionId)
+        setTeams(teamsData)
+      } catch (err) {
+        console.error("Teams fallback poll error:", err)
+      }
+    }
+
+    void pollTeams()
+    const interval = window.setInterval(() => {
+      void pollTeams()
+    }, 1000)
+
+    return () => window.clearInterval(interval)
+  }, [sessionId, sessionStatus?.Status, isRealtimeConnected])
 
   useEffect(() => {
     if (!sessionStatus?.IDEpisode || episode) return

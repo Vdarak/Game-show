@@ -29,6 +29,8 @@ import type {
   HostLinkListItem,
   HostLinkRevokeRequest,
   JoinSessionRequest,
+  LeaveSessionRequest,
+  LeaveSessionResponse,
   Team,
   CurrentQuestionRequest,
   CurrentQuestionResponse,
@@ -284,6 +286,9 @@ export const sessionsApi = {
 
   join: (data: JoinSessionRequest): Promise<Team> =>
     apiRequest("/sessions/join", { body: data }),
+
+  leave: (data: LeaveSessionRequest): Promise<LeaveSessionResponse> =>
+    apiRequest("/sessions/leave", { body: data }),
 
   currentQuestion: (data: CurrentQuestionRequest): Promise<CurrentQuestionResponse> =>
     apiRequest("/sessions/current-question", { body: data }),
