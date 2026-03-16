@@ -1139,11 +1139,11 @@ function GameBoardContent() {
                           className="bg-gray-900/80 backdrop-blur rounded-2xl p-6 border border-gray-800 flex-1 flex items-center justify-center"
                         >
                           <motion.h2
-                            className="font-display text-2xl lg:text-5xl font-bold text-white text-center leading-relaxed"
+                            className="font-display text-2xl lg:text-5xl font-bold text-white text-center leading-relaxed max-w-full whitespace-normal break-words"
                             initial={{ width: 0 }}
                             animate={{ width: "100%" }}
                             transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }}
-                            style={{ overflow: "hidden", whiteSpace: "nowrap" }}
+                            style={{ overflow: "hidden", whiteSpace: "normal", overflowWrap: "anywhere" }}
                           >
                             {currentQuestion.QuestionText}
                           </motion.h2>
