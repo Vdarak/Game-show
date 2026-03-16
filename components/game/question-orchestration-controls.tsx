@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -22,11 +22,12 @@ import {
     SkipBack,
 } from "lucide-react"
 import { sessionsApi } from "@/lib/api-client"
-import type { Question, Round, TeamResponse, Team, GameState, SessionStatusResponse } from "@/lib/api-types"
+import type { Question, Round, RoundWithQuestions, TeamResponse, Team, GameState, SessionStatusResponse } from "@/lib/api-types"
 
 interface QuestionOrchestrationControlsProps {
     currentQuestion: Question | null
     currentRound: Round | null
+    allRounds?: RoundWithQuestions[]
     sessionStatus: SessionStatusResponse | null
     teams: Team[]
     responses: TeamResponse[]
@@ -38,6 +39,7 @@ interface QuestionOrchestrationControlsProps {
     onResetQuestion: () => Promise<void>
     onPrevQuestion: () => Promise<void>
     onRefreshStatus: () => Promise<unknown>
+    onRevealAnswerClick?: () => void
     isLoading: boolean
 }
 
@@ -56,6 +58,7 @@ const GAMEBOARD_STATE_LABELS: Record<string, { label: string; icon: string; colo
 export function QuestionOrchestrationControls({
     currentQuestion,
     currentRound,
+    allRounds = [],
     sessionStatus,
     teams,
     responses,
@@ -67,6 +70,7 @@ export function QuestionOrchestrationControls({
     onResetQuestion,
     onPrevQuestion,
     onRefreshStatus,
+    onRevealAnswerClick,
     isLoading,
 }: QuestionOrchestrationControlsProps) {
     const [advancing, setAdvancing] = useState(false)
@@ -92,6 +96,127 @@ export function QuestionOrchestrationControls({
     const hostNotes = (currentQuestion?.Notes ?? [])
         .map((note) => note.trim())
         .filter((note) => note.length > 0)
+    const sortedRounds = useMemo(
+        () => [...allRounds].sort((a, b) => a.RoundNumber - b.RoundNumber),
+        [allRounds]
+    )
+
+    const findQuestionInRounds = useCallback((roundNumber: number, questionOrder: number): Question | null => {
+        const round = sortedRounds.find((candidate) => candidate.RoundNumber === roundNumber)
+        if (!round) return null
+
+        return round.questions.find((candidate) => candidate.QuestionOrder === questionOrder) || null
+    }, [sortedRounds])
+
+    const getCurrentPosition = useCallback(() => {
+        if (sessionStatus?.CurrentRound === null || sessionStatus?.CurrentRound === undefined) return null
+        if (sessionStatus?.CurrentQuestion === null || sessionStatus?.CurrentQuestion === undefined) return null
+
+        return {
+            roundNumber: sessionStatus.CurrentRound,
+            questionOrder: sessionStatus.CurrentQuestion,
+        }
+    }, [sessionStatus?.CurrentRound, sessionStatus?.CurrentQuestion])
+
+    const getNextTarget = useCallback(() => {
+        const currentPosition = getCurrentPosition()
+        if (!currentPosition) return null
+
+        const currentRoundIndex = sortedRounds.findIndex(
+            (round) => round.RoundNumber === currentPosition.roundNumber
+        )
+        if (currentRoundIndex === -1) return null
+
+        const orderedCurrentRoundQuestions = [...sortedRounds[currentRoundIndex].questions].sort(
+            (a, b) => a.QuestionOrder - b.QuestionOrder
+        )
+        const currentQuestionIndex = orderedCurrentRoundQuestions.findIndex(
+            (question) => question.QuestionOrder === currentPosition.questionOrder
+        )
+        if (currentQuestionIndex === -1) return null
+
+        if (currentQuestionIndex + 1 < orderedCurrentRoundQuestions.length) {
+            const targetQuestion = orderedCurrentRoundQuestions[currentQuestionIndex + 1]
+            return {
+                roundNumber: sortedRounds[currentRoundIndex].RoundNumber,
+                questionOrder: targetQuestion.QuestionOrder,
+                question: targetQuestion,
+            }
+        }
+
+        for (let index = currentRoundIndex + 1; index < sortedRounds.length; index += 1) {
+            const orderedRoundQuestions = [...sortedRounds[index].questions].sort(
+                (a, b) => a.QuestionOrder - b.QuestionOrder
+            )
+            if (orderedRoundQuestions.length > 0) {
+                const targetQuestion = orderedRoundQuestions[0]
+                return {
+                    roundNumber: sortedRounds[index].RoundNumber,
+                    questionOrder: targetQuestion.QuestionOrder,
+                    question: targetQuestion,
+                }
+            }
+        }
+
+        return null
+    }, [getCurrentPosition, sortedRounds])
+
+    const getPrevTarget = useCallback(() => {
+        const currentPosition = getCurrentPosition()
+        if (!currentPosition) return null
+
+        const currentRoundIndex = sortedRounds.findIndex(
+            (round) => round.RoundNumber === currentPosition.roundNumber
+        )
+        if (currentRoundIndex === -1) return null
+
+        const orderedCurrentRoundQuestions = [...sortedRounds[currentRoundIndex].questions].sort(
+            (a, b) => a.QuestionOrder - b.QuestionOrder
+        )
+        const currentQuestionIndex = orderedCurrentRoundQuestions.findIndex(
+            (question) => question.QuestionOrder === currentPosition.questionOrder
+        )
+        if (currentQuestionIndex === -1) return null
+
+        if (currentQuestionIndex - 1 >= 0) {
+            const targetQuestion = orderedCurrentRoundQuestions[currentQuestionIndex - 1]
+            return {
+                roundNumber: sortedRounds[currentRoundIndex].RoundNumber,
+                questionOrder: targetQuestion.QuestionOrder,
+                question: targetQuestion,
+            }
+        }
+
+        for (let index = currentRoundIndex - 1; index >= 0; index -= 1) {
+            const orderedRoundQuestions = [...sortedRounds[index].questions].sort(
+                (a, b) => a.QuestionOrder - b.QuestionOrder
+            )
+            if (orderedRoundQuestions.length > 0) {
+                const targetQuestion = orderedRoundQuestions[orderedRoundQuestions.length - 1]
+                return {
+                    roundNumber: sortedRounds[index].RoundNumber,
+                    questionOrder: targetQuestion.QuestionOrder,
+                    question: targetQuestion,
+                }
+            }
+        }
+
+        return null
+    }, [getCurrentPosition, sortedRounds])
+
+    const getResetTarget = useCallback(() => {
+        const currentPosition = getCurrentPosition()
+        if (!currentPosition) return null
+
+        return {
+            roundNumber: currentPosition.roundNumber,
+            questionOrder: currentPosition.questionOrder,
+            question:
+                findQuestionInRounds(currentPosition.roundNumber, currentPosition.questionOrder) ||
+                currentQuestion ||
+                null,
+        }
+    }, [currentQuestion, findQuestionInRounds, getCurrentPosition])
 
     // Video steps depend on showVideo toggle
     const showVideoSteps = showVideo && hasQuestionVideo
@@ -102,20 +227,81 @@ export function QuestionOrchestrationControls({
     const gradedCount = responses.filter(r => r.IsCorrect !== null).length
     const correctCount = responses.filter(r => r.IsCorrect === true).length
 
+    const sendOptimisticGameboardUpdate = useCallback((payload: {
+        gameState: GameState
+        currentRound?: number | null
+        currentQuestion?: number | null
+        question?: Question | null
+        ttlMs?: number
+    }) => {
+        const actionId = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+        try {
+            const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+            bc.postMessage({
+                type: "OPTIMISTIC_GAMEBOARD_UPDATE",
+                actionId,
+                gameState: payload.gameState,
+                currentRound: payload.currentRound ?? null,
+                currentQuestion: payload.currentQuestion ?? null,
+                question: payload.question ?? null,
+                ttlMs: payload.ttlMs ?? 7000,
+            })
+            bc.close()
+        } catch {
+            // BroadcastChannel not supported
+        }
+
+        return actionId
+    }, [sessionId])
+
+    const clearOptimisticGameboardUpdate = useCallback((actionId: string) => {
+        try {
+            const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+            bc.postMessage({
+                type: "CLEAR_OPTIMISTIC_GAMEBOARD_UPDATE",
+                actionId,
+            })
+            bc.close()
+        } catch {
+            // BroadcastChannel not supported
+        }
+    }, [sessionId])
+
     // ---- API Actions ----
-    const handleAdvanceState = useCallback(async () => {
+    const handleAdvanceState = useCallback(async (optimisticGameState?: GameState) => {
+        const actionId = optimisticGameState
+            ? sendOptimisticGameboardUpdate({
+                gameState: optimisticGameState,
+                currentRound: sessionStatus?.CurrentRound ?? null,
+                currentQuestion: sessionStatus?.CurrentQuestion ?? null,
+                question: currentQuestion,
+            })
+            : null
+
         setAdvancing(true)
         try {
             await sessionsApi.advanceState(sessionId)
             await onRefreshStatus()
         } catch (err) {
+            if (actionId) {
+                clearOptimisticGameboardUpdate(actionId)
+            }
             console.error("Failed to advance state:", err)
             const { toast } = await import("sonner")
             toast.error("Failed to advance game state")
         } finally {
             setAdvancing(false)
         }
-    }, [sessionId, onRefreshStatus])
+    }, [
+        clearOptimisticGameboardUpdate,
+        currentQuestion,
+        onRefreshStatus,
+        sendOptimisticGameboardUpdate,
+        sessionId,
+        sessionStatus?.CurrentQuestion,
+        sessionStatus?.CurrentRound,
+    ])
 
     const handleStartTimer = useCallback(async () => {
         setAdvancing(true)
@@ -132,31 +318,93 @@ export function QuestionOrchestrationControls({
     }, [sessionId, onRefreshStatus])
 
     const handleNextQuestion = useCallback(async () => {
-        await onNextQuestion()
-        await onRefreshStatus()
-    }, [onNextQuestion, onRefreshStatus])
+        const nextTarget = getNextTarget()
+        const actionId = nextTarget
+            ? sendOptimisticGameboardUpdate({
+                gameState: "get_ready",
+                currentRound: nextTarget.roundNumber,
+                currentQuestion: nextTarget.questionOrder,
+                question: nextTarget.question,
+            })
+            : null
+
+        try {
+            await onNextQuestion()
+            await onRefreshStatus()
+        } catch {
+            if (actionId) {
+                clearOptimisticGameboardUpdate(actionId)
+            }
+        }
+    }, [
+        clearOptimisticGameboardUpdate,
+        getNextTarget,
+        onNextQuestion,
+        onRefreshStatus,
+        sendOptimisticGameboardUpdate,
+    ])
 
     const handleResetClick = useCallback(async (event: React.MouseEvent<HTMLButtonElement>) => {
         event.preventDefault()
         event.stopPropagation()
+
+        const resetTarget = getResetTarget()
+        const actionId = resetTarget
+            ? sendOptimisticGameboardUpdate({
+                gameState: "get_ready",
+                currentRound: resetTarget.roundNumber,
+                currentQuestion: resetTarget.questionOrder,
+                question: resetTarget.question,
+            })
+            : null
+
         setIsResetting(true)
         try {
             await onResetQuestion()
+        } catch {
+            if (actionId) {
+                clearOptimisticGameboardUpdate(actionId)
+            }
         } finally {
             setIsResetting(false)
         }
-    }, [onResetQuestion])
+    }, [
+        clearOptimisticGameboardUpdate,
+        getResetTarget,
+        onResetQuestion,
+        sendOptimisticGameboardUpdate,
+    ])
 
     const handlePrevClick = useCallback(async (event: React.MouseEvent<HTMLButtonElement>) => {
         event.preventDefault()
         event.stopPropagation()
+
+        const prevTarget = getPrevTarget()
+        const actionId = prevTarget
+            ? sendOptimisticGameboardUpdate({
+                gameState: "get_ready",
+                currentRound: prevTarget.roundNumber,
+                currentQuestion: prevTarget.questionOrder,
+                question: prevTarget.question,
+            })
+            : null
+
         setIsGoingPrev(true)
         try {
             await onPrevQuestion()
+        } catch {
+            if (actionId) {
+                clearOptimisticGameboardUpdate(actionId)
+            }
         } finally {
             setIsGoingPrev(false)
         }
-    }, [onPrevQuestion])
+    }, [
+        clearOptimisticGameboardUpdate,
+        getPrevTarget,
+        onPrevQuestion,
+        sendOptimisticGameboardUpdate,
+    ])
 
     // BroadcastChannel video control helpers
     const sendVideoMessage = useCallback((type: string) => {
@@ -171,7 +419,7 @@ export function QuestionOrchestrationControls({
     const getSteps = () => {
         const steps: {
             id: string; label: string; icon: React.ElementType;
-            action: () => void; canActivate: boolean; gameStates: GameState[]
+            action: () => void; canActivate: boolean; gameStates: GameState[]; optimisticGameState?: GameState
         }[] = []
 
         // Step 1: Announce
@@ -179,9 +427,12 @@ export function QuestionOrchestrationControls({
             id: "announce",
             label: "Announce",
             icon: Megaphone,
-            action: handleAdvanceState,
+            action: () => {
+                void handleAdvanceState("announced")
+            },
             canActivate: gameState === "get_ready",
             gameStates: ["announced"],
+            optimisticGameState: "announced",
         })
 
         if (hasOptions) {
@@ -190,18 +441,24 @@ export function QuestionOrchestrationControls({
                     id: "playVideo",
                     label: "Video + Question",
                     icon: Video,
-                    action: handleAdvanceState,
+                    action: () => {
+                        void handleAdvanceState("video_playing")
+                    },
                     canActivate: gameState === "announced",
                     gameStates: ["video_playing"],
+                    optimisticGameState: "video_playing",
                 })
             }
             steps.push({
                 id: "revealOptions",
                 label: "Reveal Options",
                 icon: ListOrdered,
-                action: handleAdvanceState,
+                action: () => {
+                    void handleAdvanceState("options_revealed")
+                },
                 canActivate: showVideoSteps ? gameState === "video_playing" : gameState === "announced",
                 gameStates: ["options_revealed"],
+                optimisticGameState: "options_revealed",
             })
         } else {
             if (showVideoSteps) {
@@ -209,15 +466,20 @@ export function QuestionOrchestrationControls({
                     id: "playVideo",
                     label: "Video + Question",
                     icon: Video,
-                    action: handleAdvanceState,
+                    action: () => {
+                        void handleAdvanceState("video_playing")
+                    },
                     canActivate: gameState === "announced",
                     gameStates: ["video_playing"],
+                    optimisticGameState: "video_playing",
                 })
                 steps.push({
                     id: "showQuestion",
                     label: "Show Question",
                     icon: Eye,
-                    action: handleAdvanceState,
+                    action: () => {
+                        void handleAdvanceState()
+                    },
                     canActivate: gameState === "video_playing",
                     gameStates: ["options_revealed"],
                 })
@@ -226,7 +488,9 @@ export function QuestionOrchestrationControls({
                     id: "showQuestion",
                     label: "Show Question",
                     icon: Eye,
-                    action: handleAdvanceState,
+                    action: () => {
+                        void handleAdvanceState()
+                    },
                     canActivate: gameState === "announced",
                     gameStates: ["options_revealed"],
                 })
@@ -246,9 +510,13 @@ export function QuestionOrchestrationControls({
             id: "revealAnswer",
             label: "Answer + Video",
             icon: Eye,
-            action: handleAdvanceState,
+            action: () => {
+                onRevealAnswerClick?.()
+                void handleAdvanceState("answer_reveal")
+            },
             canActivate: gameState === "timer_ended",
             gameStates: ["answer_reveal"],
+            optimisticGameState: "answer_reveal",
         })
 
         return steps

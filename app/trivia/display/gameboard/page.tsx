@@ -33,6 +33,25 @@ import type {
   GameState,
 } from "@/lib/api-types"
 
+const OPTIMISTIC_GAMEBOARD_STATES: GameState[] = [
+  "lobby",
+  "welcome",
+  "rules",
+  "get_ready",
+  "announced",
+  "video_playing",
+  "options_revealed",
+  "timer_running",
+  "timer_ended",
+  "answer_reveal",
+  "break",
+  "completed",
+]
+
+const isGameStateValue = (value: unknown): value is GameState => {
+  return typeof value === "string" && OPTIMISTIC_GAMEBOARD_STATES.includes(value as GameState)
+}
+
 // Animated score counter — smoothly counts up/down when score changes
 function AnimatedScore({ score }: { score: number }) {
   const [display, setDisplay] = useState(score)
@@ -86,6 +105,14 @@ function GameBoardContent() {
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [fullscreenLeaderboard, setFullscreenLeaderboard] = useState(false)
   const [revealedRanks, setRevealedRanks] = useState<number[]>([])
+  const [optimisticGameboardUpdate, setOptimisticGameboardUpdate] = useState<{
+    actionId: string
+    gameState: GameState
+    currentRound: number | null
+    currentQuestion: number | null
+    question: Question | null
+    expiresAt: number
+  } | null>(null)
 
   // Track sequential option reveal with local animation state
   const [revealedOptions, setRevealedOptions] = useState<string[]>([])
@@ -147,8 +174,10 @@ function GameBoardContent() {
     setError(null)
   }, [realtimeStatus])
 
-  // Derived from server state
-  const gameState = sessionStatus?.GameState || null
+  // Derived from server state with optimistic controller override for viewer-only updates.
+  const gameState = optimisticGameboardUpdate?.gameState || sessionStatus?.GameState || null
+  const effectiveCurrentRound = optimisticGameboardUpdate?.currentRound ?? sessionStatus?.CurrentRound ?? null
+  const effectiveCurrentQuestion = optimisticGameboardUpdate?.currentQuestion ?? sessionStatus?.CurrentQuestion ?? null
   const timerRemaining = sessionStatus?.TimerRemaining ?? null
   const timerTotal = sessionStatus?.TimerTotal ?? null
 
@@ -178,7 +207,7 @@ function GameBoardContent() {
       IDRound: typeof raw.IDRound === "string" ? raw.IDRound : "",
       QuestionOrder: typeof raw.QuestionOrder === "number"
         ? raw.QuestionOrder
-        : (sessionStatus?.CurrentQuestion ?? 0),
+        : (effectiveCurrentQuestion ?? 0),
       Category: typeof raw.Category === "string"
         ? raw.Category
         : typeof raw.category === "string"
@@ -210,7 +239,7 @@ function GameBoardContent() {
       ScoringModeOverride: null,
       Notes: null,
     } as Question
-  }, [sessionStatus, sessionStatus?.CurrentQuestion])
+  }, [sessionStatus, effectiveCurrentQuestion])
 
   // Generate QR code URL
   const roomCode = sessionStatus?.RoomCode || session?.RoomCode || ""
@@ -293,10 +322,10 @@ function GameBoardContent() {
     }
 
     // Also preload the NEXT question's videos
-    if (sessionStatus?.CurrentRound && sessionStatus?.CurrentQuestion) {
-      const round = episode.rounds.find(r => r.RoundNumber === sessionStatus.CurrentRound)
+    if (effectiveCurrentRound !== null && effectiveCurrentQuestion !== null) {
+      const round = episode.rounds.find(r => r.RoundNumber === effectiveCurrentRound)
       if (round) {
-        const nextQ = round.questions.find(q => q.QuestionOrder === (sessionStatus.CurrentQuestion! + 1))
+        const nextQ = round.questions.find(q => q.QuestionOrder === (effectiveCurrentQuestion + 1))
         if (nextQ?.QuestionVideoUrl) {
           const url = getMediaUrl(nextQ.QuestionVideoUrl)
           if (url) videosToPreload.push(url)
@@ -319,7 +348,7 @@ function GameBoardContent() {
       link.href = url
       document.head.appendChild(link)
     })
-  }, [currentQuestion, episode, sessionStatus?.CurrentRound, sessionStatus?.CurrentQuestion])
+  }, [currentQuestion, episode, effectiveCurrentRound, effectiveCurrentQuestion])
 
   // Keep leaderboard and teams in sync when pushed state changes.
   useEffect(() => {
@@ -365,27 +394,80 @@ function GameBoardContent() {
   }, [sessionStatus?.IDEpisode, episode])
 
   useEffect(() => {
-    if (!sessionStatus || sessionStatus.CurrentRound === null || sessionStatus.CurrentQuestion === null) {
+    const optimisticQuestion = optimisticGameboardUpdate?.question || null
+
+    if (effectiveCurrentRound === null || effectiveCurrentQuestion === null) {
       setCurrentQuestion(null)
       return
     }
 
     if (!episode) {
+      if (optimisticQuestion) {
+        setCurrentQuestion(optimisticQuestion)
+        return
+      }
       if (statusQuestion) {
         setCurrentQuestion(statusQuestion)
       }
       return
     }
 
-    const round = episode.rounds.find((r) => r.RoundNumber === sessionStatus.CurrentRound)
+    const round = episode.rounds.find((r) => r.RoundNumber === effectiveCurrentRound)
     if (!round) {
-      setCurrentQuestion(statusQuestion || null)
+      setCurrentQuestion(optimisticQuestion || statusQuestion || null)
       return
     }
 
-    const question = round.questions.find((q) => q.QuestionOrder === sessionStatus.CurrentQuestion)
-    setCurrentQuestion(question || statusQuestion || null)
-  }, [episode, sessionStatus, sessionStatus?.CurrentRound, sessionStatus?.CurrentQuestion, statusQuestion])
+    const question = round.questions.find((q) => q.QuestionOrder === effectiveCurrentQuestion)
+    setCurrentQuestion(question || optimisticQuestion || statusQuestion || null)
+  }, [
+    episode,
+    effectiveCurrentRound,
+    effectiveCurrentQuestion,
+    optimisticGameboardUpdate?.question,
+    statusQuestion,
+  ])
+
+  useEffect(() => {
+    if (!optimisticGameboardUpdate) return
+
+    const remainingMs = optimisticGameboardUpdate.expiresAt - Date.now()
+    if (remainingMs <= 0) {
+      setOptimisticGameboardUpdate(null)
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setOptimisticGameboardUpdate((previous) => {
+        if (!previous) return previous
+        return previous.actionId === optimisticGameboardUpdate.actionId ? null : previous
+      })
+    }, remainingMs)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [optimisticGameboardUpdate])
+
+  useEffect(() => {
+    if (!optimisticGameboardUpdate || !sessionStatus) return
+
+    const matchesState = sessionStatus.GameState === optimisticGameboardUpdate.gameState
+    const matchesRound =
+      optimisticGameboardUpdate.currentRound === null ||
+      sessionStatus.CurrentRound === optimisticGameboardUpdate.currentRound
+    const matchesQuestion =
+      optimisticGameboardUpdate.currentQuestion === null ||
+      sessionStatus.CurrentQuestion === optimisticGameboardUpdate.currentQuestion
+
+    if (matchesState && matchesRound && matchesQuestion) {
+      setOptimisticGameboardUpdate(null)
+    }
+  }, [
+    optimisticGameboardUpdate,
+    sessionStatus,
+    sessionStatus?.CurrentRound,
+    sessionStatus?.CurrentQuestion,
+    sessionStatus?.GameState,
+  ])
 
   // Listen for BroadcastChannel messages from controller
   useEffect(() => {
@@ -393,8 +475,53 @@ function GameBoardContent() {
     try {
       const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
       bc.onmessage = (event) => {
-        const { type, rank, teams: incomingTeams } = event.data || {}
+        const {
+          type,
+          rank,
+          teams: incomingTeams,
+          actionId,
+          gameState: optimisticState,
+          currentRound: optimisticRound,
+          currentQuestion: optimisticQuestionNumber,
+          question: optimisticQuestionPayload,
+          ttlMs,
+        } = event.data || {}
         switch (type) {
+          case "OPTIMISTIC_GAMEBOARD_UPDATE": {
+            if (!isGameStateValue(optimisticState) || typeof actionId !== "string" || !actionId) {
+              break
+            }
+
+            const parsedRound = typeof optimisticRound === "number" ? optimisticRound : null
+            const parsedQuestion = typeof optimisticQuestionNumber === "number" ? optimisticQuestionNumber : null
+            const parsedQuestionPayload =
+              optimisticQuestionPayload && typeof optimisticQuestionPayload === "object"
+                ? (optimisticQuestionPayload as Question)
+                : null
+            const boundedTtlMs =
+              typeof ttlMs === "number" && Number.isFinite(ttlMs)
+                ? Math.min(15000, Math.max(1500, ttlMs))
+                : 7000
+
+            setOptimisticGameboardUpdate({
+              actionId,
+              gameState: optimisticState,
+              currentRound: parsedRound,
+              currentQuestion: parsedQuestion,
+              question: parsedQuestionPayload,
+              expiresAt: Date.now() + boundedTtlMs,
+            })
+            break
+          }
+          case "CLEAR_OPTIMISTIC_GAMEBOARD_UPDATE":
+            if (typeof actionId !== "string" || !actionId) {
+              break
+            }
+            setOptimisticGameboardUpdate((previous) => {
+              if (!previous) return previous
+              return previous.actionId === actionId ? null : previous
+            })
+            break
           case "SYNC_TEAMS":
             if (Array.isArray(incomingTeams)) {
               const normalizedTeams = incomingTeams
@@ -929,7 +1056,7 @@ function GameBoardContent() {
                     transition={{ delay: 0.2 }}
                     className="text-6xl lg:text-7xl font-bold text-purple-400 uppercase tracking-widest mb-6 drop-shadow-md"
                   >
-                    Round {sessionStatus?.CurrentRound}
+                    Round {effectiveCurrentRound}
                   </motion.p>
                   <motion.p
                     initial={{ y: 20, opacity: 0 }}
@@ -937,7 +1064,7 @@ function GameBoardContent() {
                     transition={{ delay: 0.4 }}
                     className="font-display text-[12vw] xl:text-[200px] leading-none font-bold text-white mb-8 whitespace-nowrap drop-shadow-md"
                   >
-                    Question {sessionStatus?.CurrentQuestion}
+                    Question {effectiveCurrentQuestion}
                   </motion.p>
                   <motion.p
                     initial={{ y: 20, opacity: 0 }}
@@ -1012,7 +1139,7 @@ function GameBoardContent() {
                           className="bg-gray-900/80 backdrop-blur rounded-2xl p-6 border border-gray-800 flex-1 flex items-center justify-center"
                         >
                           <motion.h2
-                            className="font-display text-2xl lg:text-4xl font-bold text-white text-center leading-relaxed"
+                            className="font-display text-2xl lg:text-5xl font-bold text-white text-center leading-relaxed"
                             initial={{ width: 0 }}
                             animate={{ width: "100%" }}
                             transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }}
@@ -1116,11 +1243,11 @@ function GameBoardContent() {
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: i * 0.1 }}
                                         className={`p-3 lg:p-6 rounded-xl border-2 text-center transition-colors duration-300 ${isCorrect
-                                          ? 'border-green-500 bg-green-600/50 backdrop-blur-sm shadow-lg shadow-green-500/30'
+                                          ? 'flex-shrink-0 p-4 lg:p-6 rounded-xl bg-green-900/60 backdrop-blur-sm border-2 border-green-500 text-center shadow-lg shadow-green-500/30'
                                           : 'border-gray-700 bg-gray-800/80'
                                           }`}
                                       >
-                                        <span className={`font-display text-xl lg:text-2xl font-bold ${isCorrect ? 'text-green-400' : option === 'True' ? 'text-blue-400' : 'text-red-400'
+                                        <span className={`font-display text-xl lg:text-5xl drop-shadow-md font-bold ${isCorrect ? 'text-green-400/80' : option === 'True' ? 'text-blue-400' : 'text-red-400'
                                           }`}>
                                           {option}
                                         </span>
@@ -1141,10 +1268,10 @@ function GameBoardContent() {
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="flex-shrink-0 p-4 lg:p-6 rounded-xl bg-green-800/40 backdrop-blur-sm border-2 border-green-500 text-center shadow-lg shadow-green-500/30"
+                      className="flex-shrink-0 p-4 lg:p-6 rounded-xl bg-green-900/60 backdrop-blur-sm border-2 border-green-500 text-center shadow-lg shadow-green-500/30"
                     >
-                      <span className="text-xs lg:text-sm text-green-400 uppercase tracking-wider">Correct Answer</span>
-                      <p className="text-xl lg:text-3xl font-bold text-white mt-2 break-words">
+                      <span className="text-xs lg:text-sm text-white uppercase tracking-wider">Correct Answer</span>
+                      <p className="text-xl lg:text-5xl drop-shadow-md font-display text-green-400/80 mt-2 break-words">
                         {currentQuestion.CorrectAnswer}
                       </p>
                     </motion.div>
@@ -1226,9 +1353,9 @@ function GameBoardContent() {
         {sessionStatus?.Status === "active" && (
           <div className="flex items-center justify-between px-6 py-3 bg-gray-900/80 backdrop-blur border-t border-gray-800">
             <div className="flex items-center gap-2 text-sm text-gray-400">
-              <span>Round {sessionStatus?.CurrentRound}</span>
+              <span>Round {effectiveCurrentRound}</span>
               <span className="text-gray-600">•</span>
-              <span>Q{sessionStatus?.CurrentQuestion}</span>
+              <span>Q{effectiveCurrentQuestion}</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">

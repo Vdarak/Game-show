@@ -93,6 +93,7 @@ export default function TriviaControllerPage() {
   const responsesPollInFlightRef = useRef(false)
   const leaderboardPollInFlightRef = useRef(false)
   const teamsBroadcastSignatureRef = useRef("")
+  const restoredEpisodeHydrationSessionRef = useRef<string | null>(null)
 
   // Sound effects (play in the controller tab)
   const introMusic = useSound("/sounds/intro-music.wav", { loop: true, volume: 0.5 })
@@ -103,6 +104,7 @@ export default function TriviaControllerPage() {
   // Derive gameState for sound triggers
   const gameState = sessionStatus?.GameState || null
   const prevGameStateRef = useRef<string | null>(null)
+  const optimisticAnswerRevealAtRef = useRef<number | null>(null)
 
   // Intro music — auto-plays during lobby/welcome/rules, user can also manually play/stop anytime
   const isInLobbyState = !!gameState && ["lobby", "welcome", "rules"].includes(gameState)
@@ -130,9 +132,22 @@ export default function TriviaControllerPage() {
     }
   }, [introMusic, introMusicPlaying])
 
+  const handleOptimisticAnswerRevealClick = useCallback(() => {
+    optimisticAnswerRevealAtRef.current = Date.now()
+    answerRevealSound.play()
+  }, [answerRevealSound])
+
   // Timer sounds + answer-reveal
   useEffect(() => {
     const prev = prevGameStateRef.current
+    const optimisticRevealAgeMs =
+      optimisticAnswerRevealAtRef.current === null
+        ? null
+        : Date.now() - optimisticAnswerRevealAtRef.current
+
+    if (optimisticRevealAgeMs !== null && optimisticRevealAgeMs > 10000) {
+      optimisticAnswerRevealAtRef.current = null
+    }
 
     // Timer start
     if (gameState === "timer_running" && prev !== "timer_running") {
@@ -148,7 +163,14 @@ export default function TriviaControllerPage() {
     }
     // Answer reveal
     if (gameState === "answer_reveal" && prev !== "answer_reveal") {
-      answerRevealSound.play()
+      const shouldSkipAutoAnswerRevealSound =
+        optimisticRevealAgeMs !== null && optimisticRevealAgeMs >= 0 && optimisticRevealAgeMs < 10000
+
+      if (shouldSkipAutoAnswerRevealSound) {
+        optimisticAnswerRevealAtRef.current = null
+      } else {
+        answerRevealSound.play()
+      }
     }
 
     prevGameStateRef.current = gameState
@@ -198,7 +220,33 @@ export default function TriviaControllerPage() {
     }
   }, [isAuthenticated])
 
-  // No auto-switch — view is set explicitly in handleSelectEpisode
+  // Restore active session context after hard refresh.
+  useEffect(() => {
+    if (!session) {
+      restoredEpisodeHydrationSessionRef.current = null
+      return
+    }
+
+    if (view !== "session") {
+      setView("session")
+    }
+
+    const needsEpisodeHydration = !episode || episode.IDEpisode !== session.IDEpisode
+    if (!needsEpisodeHydration) return
+
+    if (restoredEpisodeHydrationSessionRef.current === session.IDGameSession) return
+    restoredEpisodeHydrationSessionRef.current = session.IDGameSession
+
+    void loadEpisode(session.IDEpisode).catch(() => {
+      // Error is surfaced by hook and toast pipeline.
+    })
+  }, [
+    session?.IDGameSession,
+    session?.IDEpisode,
+    view,
+    episode?.IDEpisode,
+    loadEpisode,
+  ])
 
   // Bootstrap status and react to pushed updates while in session view.
   useEffect(() => {
@@ -559,6 +607,16 @@ export default function TriviaControllerPage() {
     }
   }
 
+  const handleKickTeam = async (teamId: string) => {
+    try {
+      await kickTeam(teamId)
+      toast.success("Team removed")
+    } catch (err) {
+      // Error handled by hook
+      throw err
+    }
+  }
+
   const handleNextQuestion = async () => {
     try {
       const updated = await nextQuestion()
@@ -567,6 +625,7 @@ export default function TriviaControllerPage() {
       }
     } catch (err) {
       // Error handled by hook
+      throw err
     }
   }
 
@@ -576,8 +635,9 @@ export default function TriviaControllerPage() {
       await sessionsApi.resetQuestion(session.IDGameSession)
       await refreshSessionStatus()
       toast.success("Question reset successfully")
-    } catch {
+    } catch (err) {
       toast.error("Failed to reset question")
+      throw err
     }
   }
 
@@ -587,8 +647,9 @@ export default function TriviaControllerPage() {
       await sessionsApi.prevQuestion(session.IDGameSession)
       await refreshSessionStatus()
       toast.success("Moved to previous question")
-    } catch {
+    } catch (err) {
       toast.error("Failed to move to previous question")
+      throw err
     }
   }
 
@@ -1243,6 +1304,7 @@ export default function TriviaControllerPage() {
                           <QuestionOrchestrationControls
                             currentQuestion={currentQuestion}
                             currentRound={currentRound}
+                            allRounds={episode?.rounds || []}
                             sessionStatus={sessionStatus}
                             teams={teams}
                             responses={responses}
@@ -1254,6 +1316,7 @@ export default function TriviaControllerPage() {
                             onResetQuestion={handleResetQuestion}
                             onPrevQuestion={handlePrevQuestion}
                             onRefreshStatus={refreshSessionStatus}
+                            onRevealAnswerClick={handleOptimisticAnswerRevealClick}
                             isLoading={isLoading}
                           />
                           {/* Player Responses */}
@@ -1267,12 +1330,7 @@ export default function TriviaControllerPage() {
                             onGrade={handleGrade}
                             onGradeOverride={handleGradeOverride}
                             onRefresh={handleRefreshResponses}
-                            onKickTeam={async (teamId) => {
-                              if (session) {
-                                await import("@/lib/api-client").then(m => m.sessionsApi.kick({ IDGameSession: session.IDGameSession, IDTeam: teamId }))
-                                toast.success("Team removed")
-                              }
-                            }}
+                            onKickTeam={handleKickTeam}
                           />
                         </>
                       ) : sessionStatus?.Status === "completed" ? (
@@ -1344,6 +1402,7 @@ export default function TriviaControllerPage() {
                         onStartSession={handleStartSession}
                         onStopSession={handleEndSession}
                         onRestartSession={handleRestartSession}
+                        onKickTeam={handleKickTeam}
                         isRestarting={isRestarting}
                       />
 

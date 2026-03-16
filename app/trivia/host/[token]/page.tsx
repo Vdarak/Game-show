@@ -38,10 +38,13 @@ import type {
   GradeOverrideItem,
 } from "@/lib/api-types"
 
+const HOST_LINK_STORAGE_PREFIX = "trivitime_host_link_session"
+
 export default function HostTokenPage() {
   const params = useParams()
   const router = useRouter()
   const token = params.token as string
+  const storageKey = `${HOST_LINK_STORAGE_PREFIX}:${token}`
 
   // PIN gate state
   const [pin, setPin] = useState("")
@@ -90,6 +93,7 @@ export default function HostTokenPage() {
   // Derive gameState for sound triggers
   const gameState = sessionStatus?.GameState || null
   const prevGameStateRef = useRef<string | null>(null)
+  const optimisticAnswerRevealAtRef = useRef<number | null>(null)
 
   // Intro music auto-plays during lobby/welcome/rules
   const isInLobbyState = !!gameState && ["lobby", "welcome", "rules"].includes(gameState)
@@ -104,9 +108,22 @@ export default function HostTokenPage() {
     }
   }, [gameState, introMusicPaused, introMusicPlaying, introMusic, isInLobbyState])
 
+  const handleOptimisticAnswerRevealClick = useCallback(() => {
+    optimisticAnswerRevealAtRef.current = Date.now()
+    answerRevealSound.play()
+  }, [answerRevealSound])
+
   // Timer sounds + answer-reveal
   useEffect(() => {
     const prev = prevGameStateRef.current
+    const optimisticRevealAgeMs =
+      optimisticAnswerRevealAtRef.current === null
+        ? null
+        : Date.now() - optimisticAnswerRevealAtRef.current
+
+    if (optimisticRevealAgeMs !== null && optimisticRevealAgeMs > 10000) {
+      optimisticAnswerRevealAtRef.current = null
+    }
 
     if (gameState === "timer_running" && prev !== "timer_running") {
       timerSound.play()
@@ -118,7 +135,14 @@ export default function HostTokenPage() {
       setTimeout(() => timeUpSound.play(), 50)
     }
     if (gameState === "answer_reveal" && prev !== "answer_reveal") {
-      answerRevealSound.play()
+      const shouldSkipAutoAnswerRevealSound =
+        optimisticRevealAgeMs !== null && optimisticRevealAgeMs >= 0 && optimisticRevealAgeMs < 10000
+
+      if (shouldSkipAutoAnswerRevealSound) {
+        optimisticAnswerRevealAtRef.current = null
+      } else {
+        answerRevealSound.play()
+      }
     }
 
     prevGameStateRef.current = gameState
@@ -154,6 +178,60 @@ export default function HostTokenPage() {
     )
   }, [realtimeStatus])
 
+  // Restore validated host-link session context after refresh.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const stored = localStorage.getItem(storageKey)
+    if (!stored) return
+
+    try {
+      const parsed = JSON.parse(stored) as {
+        session?: Session
+        isPinValidated?: boolean
+      }
+
+      if (parsed.session && parsed.isPinValidated) {
+        setSession(parsed.session)
+        setIsPinValidated(true)
+        setPinError(null)
+      }
+    } catch {
+      localStorage.removeItem(storageKey)
+    }
+  }, [storageKey])
+
+  // Persist validated host-link context whenever session updates.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!isPinValidated || !session) return
+
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        session,
+        isPinValidated: true,
+      })
+    )
+  }, [storageKey, isPinValidated, session])
+
+  // Ensure episode details are hydrated for restored sessions.
+  useEffect(() => {
+    if (!isPinValidated || !session) return
+    if (episode && episode.IDEpisode === session.IDEpisode) return
+
+    const hydrateEpisode = async () => {
+      try {
+        const ep = await episodesApi.get(session.IDEpisode)
+        setEpisode(ep)
+      } catch (err) {
+        console.error("Failed to hydrate episode on restore:", err)
+      }
+    }
+
+    void hydrateEpisode()
+  }, [isPinValidated, session?.IDEpisode, episode?.IDEpisode])
+
   // --------------- PIN VALIDATION ---------------
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -172,6 +250,9 @@ export default function HostTokenPage() {
 
       setIsPinValidated(true)
     } catch {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(storageKey)
+      }
       setPinError("Invalid PIN or expired link")
     }
     setIsValidating(false)
@@ -452,10 +533,12 @@ export default function HostTokenPage() {
       if (updated.Status === "completed") {
         toast.info("Game completed!")
       }
-    } catch {
+    } catch (err) {
       toast.error("Failed to advance")
+      throw err
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   const handleKickTeam = async (teamId: string) => {
@@ -502,10 +585,12 @@ export default function HostTokenPage() {
       await sessionsApi.resetQuestion(session.IDGameSession)
       await refreshSessionStatus()
       toast.success("Question reset successfully")
-    } catch {
+    } catch (err) {
       toast.error("Failed to reset question")
+      throw err
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   const handlePrevQuestion = async () => {
@@ -515,10 +600,12 @@ export default function HostTokenPage() {
       await sessionsApi.prevQuestion(session.IDGameSession)
       await refreshSessionStatus()
       toast.success("Moved to previous question")
-    } catch {
+    } catch (err) {
       toast.error("Failed to move to previous question")
+      throw err
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   const handleRefreshResponses = async () => {
@@ -676,6 +763,7 @@ export default function HostTokenPage() {
                 <QuestionOrchestrationControls
                   currentQuestion={currentQuestion}
                   currentRound={currentRound}
+                  allRounds={episode?.rounds || []}
                   sessionStatus={sessionStatus}
                   teams={teams}
                   responses={responses}
@@ -687,6 +775,7 @@ export default function HostTokenPage() {
                   onResetQuestion={handleResetQuestion}
                   onPrevQuestion={handlePrevQuestion}
                   onRefreshStatus={refreshSessionStatus}
+                  onRevealAnswerClick={handleOptimisticAnswerRevealClick}
                   isLoading={isLoading}
                 />
                 {/* Player Responses */}
@@ -772,6 +861,7 @@ export default function HostTokenPage() {
               onStartSession={handleStartSession}
               onStopSession={handleEndSession}
               onRestartSession={handleRestartSession}
+              onKickTeam={handleKickTeam}
               isRestarting={isRestarting}
             />
 

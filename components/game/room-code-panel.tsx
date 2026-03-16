@@ -13,6 +13,7 @@ import {
   Loader2,
   StopCircle,
   RefreshCw,
+  X,
 } from "lucide-react"
 import type { Session, SessionStatusResponse, Team } from "@/lib/api-types"
 import { toast } from "sonner"
@@ -27,6 +28,7 @@ interface RoomCodePanelProps {
   onStartSession: () => Promise<void>
   onStopSession?: () => Promise<void>
   onRestartSession?: () => Promise<void>
+  onKickTeam?: (teamId: string) => Promise<void>
   isRestarting?: boolean
 }
 
@@ -38,10 +40,13 @@ export function RoomCodePanel({
   onStartSession,
   onStopSession,
   onRestartSession,
+  onKickTeam,
   isRestarting = false,
 }: RoomCodePanelProps) {
   const [copied, setCopied] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState(false)
+  const [teamPendingKick, setTeamPendingKick] = useState<Team | null>(null)
+  const [isKickingTeamId, setIsKickingTeamId] = useState<string | null>(null)
 
   const roomCode = session?.RoomCode || ""
   const joinUrl = typeof window !== "undefined"
@@ -108,6 +113,31 @@ export function RoomCodePanel({
       }
     }
   }, [joinUrl, fallbackCopy])
+
+  const requestKickTeam = useCallback((team: Team) => {
+    if (!onKickTeam) return
+    if (isKickingTeamId) return
+    setTeamPendingKick(team)
+  }, [onKickTeam, isKickingTeamId])
+
+  const cancelKickTeam = useCallback(() => {
+    if (isKickingTeamId) return
+    setTeamPendingKick(null)
+  }, [isKickingTeamId])
+
+  const confirmKickTeam = useCallback(async () => {
+    if (!onKickTeam || !teamPendingKick) return
+
+    setIsKickingTeamId(teamPendingKick.IDTeam)
+    try {
+      await onKickTeam(teamPendingKick.IDTeam)
+      setTeamPendingKick(null)
+    } catch (err) {
+      console.error("Failed to kick team:", err)
+    } finally {
+      setIsKickingTeamId(null)
+    }
+  }, [onKickTeam, teamPendingKick])
 
   const isInLobby = sessionStatus?.Status === "lobby"
   const isActive = sessionStatus?.Status === "active"
@@ -291,6 +321,21 @@ export function RoomCodePanel({
                       <span className="text-xs text-gray-300 font-medium max-w-[80px] truncate">
                         {team.TeamName}
                       </span>
+                      {onKickTeam && (
+                        <button
+                          type="button"
+                          onClick={() => requestKickTeam(team)}
+                          disabled={isLoading || isKickingTeamId === team.IDTeam}
+                          className="ml-0.5 inline-flex items-center justify-center rounded-full p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 disabled:opacity-60 disabled:cursor-not-allowed"
+                          title={`Kick ${team.TeamName}`}
+                        >
+                          {isKickingTeamId === team.IDTeam ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <X className="h-3 w-3" />
+                          )}
+                        </button>
+                      )}
                     </motion.div>
                   ))}
                 </AnimatePresence>
@@ -299,6 +344,65 @@ export function RoomCodePanel({
           </div>
         </div>
       </Card>
+
+      <AnimatePresence>
+        {teamPendingKick && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+            onClick={cancelKickTeam}
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 p-5"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-full bg-red-500/20 p-2">
+                  <X className="h-4 w-4 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg text-white">Kick Team?</h3>
+                  <p className="mt-1 text-sm text-gray-300">
+                    You are about to remove
+                    <span className="font-semibold text-red-300"> {teamPendingKick.TeamName}</span>
+                    from this game session.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={cancelKickTeam}
+                  disabled={!!isKickingTeamId}
+                  className="text-gray-300 hover:text-white"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    void confirmKickTeam()
+                  }}
+                  disabled={!!isKickingTeamId}
+                >
+                  {isKickingTeamId === teamPendingKick.IDTeam ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <X className="h-4 w-4 mr-2" />
+                  )}
+                  Kick Team
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
