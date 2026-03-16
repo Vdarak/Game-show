@@ -244,15 +244,23 @@ export default function HostTokenPage() {
     try {
       const validatedSession = await hostLinksApi.validate({ Token: token, PIN: pin.trim() })
       setSession(validatedSession)
-
-      const ep = await episodesApi.get(validatedSession.IDEpisode)
-      setEpisode(ep)
-
       setIsPinValidated(true)
+      setPinError(null)
+
+      // Episode hydration is best-effort; a failure here should not invalidate a successful PIN.
+      void episodesApi
+        .get(validatedSession.IDEpisode)
+        .then((ep) => {
+          setEpisode(ep)
+        })
+        .catch((err) => {
+          console.error("Host-link episode hydration error:", err)
+        })
     } catch {
       if (typeof window !== "undefined") {
         localStorage.removeItem(storageKey)
       }
+      setIsPinValidated(false)
       setPinError("Invalid PIN or expired link")
     }
     setIsValidating(false)
