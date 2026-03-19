@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -21,6 +21,7 @@ import {
     RotateCcw,
     SkipBack,
 } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import { sessionsApi } from "@/lib/api-client"
 import type { Question, Round, RoundWithQuestions, TeamResponse, Team, GameState, SessionStatusResponse } from "@/lib/api-types"
 
@@ -79,11 +80,19 @@ export function QuestionOrchestrationControls({
     const [questionVideoPlaying, setQuestionVideoPlaying] = useState(true)
     const [answerVideoPlaying, setAnswerVideoPlaying] = useState(true)
     const [videoFrameVisible, setVideoFrameVisible] = useState(true)
+    const [showingBuffer, setShowingBuffer] = useState(false)
 
     // Current game state from server
     const gameState = sessionStatus?.GameState || null
     const timerRemaining = sessionStatus?.TimerRemaining ?? null
     const timerTotal = sessionStatus?.TimerTotal ?? null
+
+    // Reset buffer state when game state changes (e.g. question reset, prev question)
+    useEffect(() => {
+        if (gameState !== "answer_reveal") {
+            setShowingBuffer(false)
+        }
+    }, [gameState])
 
     // Derived state
     const hasQuestionVideo = !!currentQuestion?.QuestionVideoUrl
@@ -160,6 +169,9 @@ export function QuestionOrchestrationControls({
 
         return null
     }, [getCurrentPosition, sortedRounds])
+
+    // Determine if this is the last question across all rounds
+    const isLastQuestion = useMemo(() => getNextTarget() === null, [getNextTarget])
 
     const getPrevTarget = useCallback(() => {
         const currentPosition = getCurrentPosition()
@@ -343,6 +355,28 @@ export function QuestionOrchestrationControls({
         onRefreshStatus,
         sendOptimisticGameboardUpdate,
     ])
+
+    // Send buffer page message to gameboard
+    const handleShowBufferPage = useCallback(() => {
+        try {
+            const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+            bc.postMessage({ type: "SHOW_BUFFER_PAGE" })
+            bc.close()
+        } catch { /* not supported */ }
+        setShowingBuffer(true)
+    }, [sessionId])
+
+    // End the game (wraps onNextQuestion which will trigger game completion)
+    const handleEndGame = useCallback(async () => {
+        try {
+            const bc = new BroadcastChannel(`trivitime-host-${sessionId}`)
+            bc.postMessage({ type: "EXIT_BUFFER_PAGE" })
+            bc.close()
+        } catch { /* not supported */ }
+        setShowingBuffer(false)
+        await onNextQuestion()
+        await onRefreshStatus()
+    }, [sessionId, onNextQuestion, onRefreshStatus])
 
     const handleResetClick = useCallback(async (event: React.MouseEvent<HTMLButtonElement>) => {
         event.preventDefault()
@@ -971,20 +1005,59 @@ export function QuestionOrchestrationControls({
                             <span className="hidden sm:inline">{isGoingPrev ? "Loading..." : "Prev"}</span>
                         </Button>
                         {gameState === "answer_reveal" && (
-                            <Button
-                                onClick={handleNextQuestion}
-                                disabled={isLoading || advancing}
-                                size="sm"
-                                className="bg-purple-600 hover:bg-purple-700 text-white h-8 text-xs"
-                            >
-                                {isLoading ? (
-                                    <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
-                                ) : (
-                                    <SkipForward className="h-3.5 w-3.5 sm:mr-1.5" />
+                            <>
+                                {/* Last question indicator */}
+                                {isLastQuestion && !showingBuffer && (
+                                    <span className="text-xs text-red-400 font-semibold flex items-center gap-1">
+                                        <AlertTriangle className="h-3 w-3" />
+                                        Last Question!
+                                    </span>
                                 )}
-                                <span className="hidden sm:inline">Next Question</span>
-                                <span className="sm:hidden">Next</span>
-                            </Button>
+                                {isLastQuestion ? (
+                                    showingBuffer ? (
+                                        <Button
+                                            onClick={() => { void handleEndGame() }}
+                                            disabled={isLoading || advancing}
+                                            size="sm"
+                                            className="bg-red-600 hover:bg-red-700 text-white h-8 text-xs"
+                                        >
+                                            {isLoading ? (
+                                                <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
+                                            ) : (
+                                                <SkipForward className="h-3.5 w-3.5 sm:mr-1.5" />
+                                            )}
+                                            <span className="hidden sm:inline">End Game</span>
+                                            <span className="sm:hidden">End</span>
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            onClick={handleShowBufferPage}
+                                            disabled={isLoading || advancing}
+                                            size="sm"
+                                            className="bg-yellow-600 hover:bg-yellow-700 text-white h-8 text-xs"
+                                        >
+                                            <SkipForward className="h-3.5 w-3.5 sm:mr-1.5" />
+                                            <span className="hidden sm:inline">Show Buffer Page</span>
+                                            <span className="sm:hidden">Buffer</span>
+                                        </Button>
+                                    )
+                                ) : (
+                                    <Button
+                                        onClick={handleNextQuestion}
+                                        disabled={isLoading || advancing}
+                                        size="sm"
+                                        className="bg-purple-600 hover:bg-purple-700 text-white h-8 text-xs"
+                                    >
+                                        {isLoading ? (
+                                            <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
+                                        ) : (
+                                            <SkipForward className="h-3.5 w-3.5 sm:mr-1.5" />
+                                        )}
+                                        <span className="hidden sm:inline">Next Question</span>
+                                        <span className="sm:hidden">Next</span>
+                                    </Button>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

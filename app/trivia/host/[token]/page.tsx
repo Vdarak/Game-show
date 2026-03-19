@@ -95,18 +95,18 @@ export default function HostTokenPage() {
   const prevGameStateRef = useRef<string | null>(null)
   const optimisticAnswerRevealAtRef = useRef<number | null>(null)
 
-  // Intro music auto-plays during lobby/welcome/rules
+  // Intro music auto-plays during lobby/welcome/rules ONLY when gameboard is open
   const isInLobbyState = !!gameState && ["lobby", "welcome", "rules"].includes(gameState)
 
   useEffect(() => {
-    if (isInLobbyState && !introMusicPaused) {
+    if (isInLobbyState && isGameboardOpen && !introMusicPaused) {
       introMusic.play()
       setIntroMusicPlaying(true)
     } else if (!introMusicPaused && !isInLobbyState && introMusicPlaying) {
       introMusic.stop()
       setIntroMusicPlaying(false)
     }
-  }, [gameState, introMusicPaused, introMusicPlaying, introMusic, isInLobbyState])
+  }, [gameState, isGameboardOpen, introMusicPaused, introMusicPlaying, introMusic, isInLobbyState])
 
   const handleOptimisticAnswerRevealClick = useCallback(() => {
     optimisticAnswerRevealAtRef.current = Date.now()

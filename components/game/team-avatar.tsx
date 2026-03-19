@@ -13,6 +13,7 @@ interface TeamAvatarProps {
   teamId?: string | null
   size?: "sm" | "md" | "lg" | "xl"
   className?: string
+  noFrame?: boolean
 }
 
 const sizeClasses = {
@@ -36,6 +37,7 @@ export function TeamAvatar({
   teamId,
   size = "md",
   className = "",
+  noFrame = false,
 }: TeamAvatarProps) {
   const [primaryImageError, setPrimaryImageError] = useState(false)
   const [fallbackImageError, setFallbackImageError] = useState(false)
@@ -51,7 +53,9 @@ export function TeamAvatar({
     : normalizeAvatarSource(avatarValue, API_BASE_URL)
   const fallbackAvatarPath = getDeterministicAvatarPath(teamName, teamId)
 
-  const avatarClasses = `relative rounded-full overflow-hidden bg-gray-700 flex items-center justify-center ${sizeClasses[size]} ${className}`
+  const avatarClasses = noFrame
+    ? `relative flex items-center justify-center ${sizeClasses[size]} ${className}`
+    : `relative rounded-full overflow-hidden bg-gray-700 flex items-center justify-center ${sizeClasses[size]} ${className}`
 
   if (resolvedImageUrl) {
     return (

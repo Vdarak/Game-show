@@ -95,6 +95,10 @@ export default function TriviaControllerPage() {
   const teamsBroadcastSignatureRef = useRef("")
   const restoredEpisodeHydrationSessionRef = useRef<string | null>(null)
 
+  // Gameboard window tracking — must be before intro music effect
+  const gameboardWindowRef = useRef<Window | null>(null)
+  const [isGameboardOpen, setIsGameboardOpen] = useState(false)
+
   // Sound effects (play in the controller tab)
   const introMusic = useSound("/sounds/intro-music.wav", { loop: true, volume: 0.5 })
   const answerRevealSound = useSound("/sounds/answer-reveal.wav")
@@ -106,11 +110,11 @@ export default function TriviaControllerPage() {
   const prevGameStateRef = useRef<string | null>(null)
   const optimisticAnswerRevealAtRef = useRef<number | null>(null)
 
-  // Intro music — auto-plays during lobby/welcome/rules, user can also manually play/stop anytime
+  // Intro music — auto-plays during lobby/welcome/rules ONLY when gameboard is open
   const isInLobbyState = !!gameState && ["lobby", "welcome", "rules"].includes(gameState)
 
   useEffect(() => {
-    if (isInLobbyState && !introMusicPaused) {
+    if (isInLobbyState && isGameboardOpen && !introMusicPaused) {
       introMusic.play()
       setIntroMusicPlaying(true)
     } else if (!introMusicPaused && !isInLobbyState && introMusicPlaying) {
@@ -118,7 +122,7 @@ export default function TriviaControllerPage() {
       introMusic.stop()
       setIntroMusicPlaying(false)
     }
-  }, [gameState])
+  }, [gameState, isGameboardOpen])
 
   const handleToggleIntroMusic = useCallback(() => {
     if (introMusicPlaying) {
@@ -690,8 +694,6 @@ export default function TriviaControllerPage() {
     setIsRestarting(false)
   }
 
-  const gameboardWindowRef = useRef<Window | null>(null)
-  const [isGameboardOpen, setIsGameboardOpen] = useState(false)
 
   // Check if gameboard window is still open
   useEffect(() => {
@@ -1295,13 +1297,13 @@ export default function TriviaControllerPage() {
                   <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
                     {/* Left Column (3/5) — Game Content */}
                     <div className="lg:col-span-3 space-y-4">
+                      {/* Sound Board — always visible when session is active */}
+                      <SoundBoardPanel
+                        introMusicPlaying={introMusicPlaying}
+                        onToggleIntroMusic={handleToggleIntroMusic}
+                      />
                       {sessionStatus?.Status === "active" && currentQuestion ? (
                         <>
-                          {/* Sound Board */}
-                          <SoundBoardPanel
-                            introMusicPlaying={introMusicPlaying}
-                            onToggleIntroMusic={handleToggleIntroMusic}
-                          />
                           <QuestionOrchestrationControls
                             currentQuestion={currentQuestion}
                             currentRound={currentRound}

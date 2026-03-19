@@ -84,6 +84,49 @@ function AnimatedScore({ score }: { score: number }) {
   )
 }
 
+// Typewriter text — reveals characters one by one with a blinking cursor
+function TypewriterText({ text, className, speed = 35 }: { text: string; className?: string; speed?: number }) {
+  const [visibleChars, setVisibleChars] = useState(0)
+  const prevTextRef = useRef(text)
+
+  useEffect(() => {
+    // Reset when text changes
+    if (text !== prevTextRef.current) {
+      setVisibleChars(0)
+      prevTextRef.current = text
+    }
+
+    if (visibleChars >= text.length) return
+
+    const timer = setInterval(() => {
+      setVisibleChars(prev => {
+        if (prev >= text.length) {
+          clearInterval(timer)
+          return prev
+        }
+        return prev + 1
+      })
+    }, speed)
+
+    return () => clearInterval(timer)
+  }, [text, visibleChars, speed])
+
+  const isComplete = visibleChars >= text.length
+
+  return (
+    <span className={className}>
+      {text.slice(0, visibleChars)}
+      {!isComplete && (
+        <motion.span
+          animate={{ opacity: [1, 0] }}
+          transition={{ duration: 0.5, repeat: Infinity, repeatType: "reverse" }}
+          className="inline-block w-[3px] h-[1em] bg-purple-400 ml-1 align-middle"
+        />
+      )}
+    </span>
+  )
+}
+
 function GameBoardContent() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("session")
@@ -134,6 +177,9 @@ function GameBoardContent() {
   const [questionTextRevealed, setQuestionTextRevealed] = useState(false)
   const [isFlipping, setIsFlipping] = useState(false)
 
+  // Buffer page — shown after last question before ending game
+  const [bufferPageVisible, setBufferPageVisible] = useState(false)
+
   useEffect(() => {
     setResolvedRoomCode(roomCodeFromQuery)
     setRoomResolveAttempted(false)
@@ -181,6 +227,13 @@ function GameBoardContent() {
 
   // Derived from server state with optimistic controller override for viewer-only updates.
   const gameState = optimisticGameboardUpdate?.gameState || sessionStatus?.GameState || null
+
+  // Reset buffer page when game state changes (e.g. question reset)
+  useEffect(() => {
+    if (gameState !== "answer_reveal") {
+      setBufferPageVisible(false)
+    }
+  }, [gameState])
   const effectiveCurrentRound = optimisticGameboardUpdate?.currentRound ?? sessionStatus?.CurrentRound ?? null
   const effectiveCurrentQuestion = optimisticGameboardUpdate?.currentQuestion ?? sessionStatus?.CurrentQuestion ?? null
   const timerRemaining = sessionStatus?.TimerRemaining ?? null
@@ -656,6 +709,12 @@ function GameBoardContent() {
           case "TOGGLE_VIDEO_FRAME":
             setVideoFrameHidden(prev => !prev)
             break
+          case "SHOW_BUFFER_PAGE":
+            setBufferPageVisible(true)
+            break
+          case "EXIT_BUFFER_PAGE":
+            setBufferPageVisible(false)
+            break
         }
       }
       return () => bc.close()
@@ -835,7 +894,7 @@ function GameBoardContent() {
           </div>
 
           <div className="flex items-center gap-4">
-            <img src="/gate-logo.png" alt="GATE" className="h-10 object-contain" />
+            <img src={sponsorLogo} alt="Sponsor" className="h-10 object-contain" />
           </div>
         </div>
 
@@ -963,23 +1022,43 @@ function GameBoardContent() {
                 exit={{ opacity: 0, x: -30 }}
                 className="flex-1 flex items-center justify-center"
               >
-                {/* Prefer rules from live status payload, then episode fallback, then defaults. */}
-                <div className={`${resolvedRulesVideoUrl ? "w-[90vw] flex flex-col items-center gap-4 max-h-full overflow-hidden" : "w-[90vw] mx-auto"}`}>
-                  {/* Video Section (if available) — stacked above rules */}
-                  {resolvedRulesVideoUrl && (
-                    <div className="flex-shrink-0 w-full flex justify-center">
+                {resolvedRulesVideoUrl ? (
+                  /* Left video / Right rules layout */
+                  <div className="w-[92vw] flex flex-row items-stretch gap-6 max-h-[85vh]">
+                    {/* Left — Big Video */}
+                    <div className="flex-[3] min-w-0 flex items-center justify-center">
                       <video
                         ref={rulesVideoRef}
                         src={resolvedRulesVideoUrl}
-                        className="max-h-[35vh] w-auto object-contain rounded-xl border border-gray-700"
+                        className="w-full h-auto max-h-[80vh] object-contain rounded-2xl border border-gray-700"
                         autoPlay
                         playsInline
                       />
                     </div>
-                  )}
-
-                  {/* Rules Text Section */}
-                  <div className={`${resolvedRulesVideoUrl ? "w-full overflow-y-auto max-h-[45vh]" : "w-full"}`}>
+                    {/* Right — Single column rules */}
+                    <div className="flex-[2] min-w-0 overflow-y-auto flex flex-col">
+                      <div className="flex items-center gap-3 mb-4 justify-center">
+                        <h2 className="font-display text-4xl font-bold text-yellow-400 underline drop-shadow-md">RULES</h2>
+                      </div>
+                      <div className="space-y-1">
+                        {resolvedRulesContent.map((rule, i) => (
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.15 + i * 0.1 }}
+                            className="py-1.5 px-2 flex items-start gap-3"
+                          >
+                            <span className="flex-shrink-0 font-display text-xl font-bold text-purple-400 drop-shadow-md">&gt;</span>
+                            <p className="font-display text-lg text-white leading-snug drop-shadow-md">{rule}</p>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* No video — centered single column */
+                  <div className="w-[90vw] mx-auto">
                     <div className="flex items-center gap-3 mb-4 justify-center">
                       <h2 className="font-display text-4xl font-bold text-yellow-400 underline drop-shadow-md">RULES</h2>
                     </div>
@@ -1023,7 +1102,7 @@ function GameBoardContent() {
                       })()}
                     </div>
                   </div>
-                </div>
+                )}
               </motion.div>
             )}
 
@@ -1157,7 +1236,7 @@ function GameBoardContent() {
             )}
 
             {/* ==== QUESTION CONTENT (video_playing, options_revealed, timer_running, timer_ended, answer_reveal) ==== */}
-            {showQuestionContent && currentQuestion && (
+            {showQuestionContent && currentQuestion && !bufferPageVisible && (
               <motion.div
                 key="question-content"
                 initial={{ opacity: 0 }}
@@ -1216,15 +1295,9 @@ function GameBoardContent() {
                           transition={{ duration: 0.5 }}
                           className="bg-gray-900/80 backdrop-blur rounded-2xl p-6 border border-gray-800 flex-1 flex items-center justify-center"
                         >
-                          <motion.h2
-                            className="font-display text-2xl lg:text-5xl font-bold text-white text-center leading-relaxed max-w-full whitespace-normal break-words"
-                            initial={{ width: 0 }}
-                            animate={{ width: "100%" }}
-                            transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }}
-                            style={{ overflow: "hidden", whiteSpace: "normal", overflowWrap: "anywhere" }}
-                          >
-                            {currentQuestion.QuestionText}
-                          </motion.h2>
+                          <h2 className="font-display text-2xl lg:text-5xl font-bold text-white text-center leading-relaxed max-w-full whitespace-normal break-words">
+                            <TypewriterText text={currentQuestion.QuestionText} speed={35} />
+                          </h2>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -1255,7 +1328,7 @@ function GameBoardContent() {
                   </div>
                 </div>
                 {/* Answer Options — Sequential Reveal */}
-                <div className="flex-shrink-0 max-h-[34vh] xl:max-h-[38vh] overflow-y-auto pr-1">
+                <div className={`flex-shrink-0 max-h-[34vh] xl:max-h-[38vh] pr-1 ${isShowingAnswer ? 'overflow-visible' : 'overflow-y-auto'}`}>
                   {(() => {
                     const isTrueFalse = currentQuestion.QuestionType === "true_false" ||
                       (currentQuestion.Options?.length === 2 &&
@@ -1281,8 +1354,17 @@ function GameBoardContent() {
                                     {isRevealed && (
                                       <motion.div
                                         initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                                        animate={isCorrect ? {
+                                          opacity: 1, y: 0,
+                                          scale: [1, 1.05, 1.05, 1.05, 1],
+                                          x: [0, 0, -3, 3, -3, 3, 0, 0],
+                                        } : { opacity: 1, y: 0, scale: 1 }}
+                                        transition={isCorrect ? {
+                                          opacity: { duration: 0.3 },
+                                          y: { type: "spring", stiffness: 300, damping: 25 },
+                                          scale: { duration: 1.8, repeat: Infinity, ease: "easeInOut" },
+                                          x: { duration: 1.8, repeat: Infinity, ease: "easeInOut" },
+                                        } : { type: "spring", stiffness: 300, damping: 25 }}
                                         className={`p-2.5 lg:p-3 rounded-xl border-2 transition-colors duration-300 ${isCorrect
                                           ? 'border-green-500 bg-green-600/50 backdrop-blur-sm shadow-lg shadow-green-500/30'
                                           : 'border-gray-700 bg-gray-800/80 hover:border-gray-600'
@@ -1318,8 +1400,17 @@ function GameBoardContent() {
                                     {isRevealed && (
                                       <motion.div
                                         initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: i * 0.1 }}
+                                        animate={isCorrect ? {
+                                          opacity: 1, y: 0,
+                                          scale: [1, 1.05, 1.05, 1.05, 1],
+                                          x: [0, 0, -3, 3, -3, 3, 0, 0],
+                                        } : { opacity: 1, y: 0 }}
+                                        transition={isCorrect ? {
+                                          opacity: { delay: i * 0.1 },
+                                          y: { delay: i * 0.1 },
+                                          scale: { duration: 1.8, repeat: Infinity, ease: "easeInOut" },
+                                          x: { duration: 1.8, repeat: Infinity, ease: "easeInOut" },
+                                        } : { delay: i * 0.1 }}
                                         className={`p-3 lg:p-6 rounded-xl border-2 text-center transition-colors duration-300 ${isCorrect
                                           ? 'flex-shrink-0 p-4 lg:p-6 rounded-xl bg-green-900/60 backdrop-blur-sm border-2 border-green-500 text-center shadow-lg shadow-green-500/30'
                                           : 'border-gray-700 bg-gray-800/80'
@@ -1348,12 +1439,52 @@ function GameBoardContent() {
                       animate={{ opacity: 1, y: 0 }}
                       className="flex-shrink-0 p-4 lg:p-6 rounded-xl bg-green-900/60 backdrop-blur-sm border-2 border-green-500 text-center shadow-lg shadow-green-500/30"
                     >
-                      <span className="text-xs lg:text-sm text-white uppercase tracking-wider">Correct Answer</span>
-                      <p className="text-xl lg:text-5xl drop-shadow-md font-display text-green-400/80 mt-2 break-words">
-                        {currentQuestion.CorrectAnswer}
-                      </p>
+                      <motion.div
+                        animate={{
+                          scale: [1, 1.05, 1.05, 1.05, 1],
+                          x: [0, 0, -3, 3, -3, 3, 0, 0],
+                        }}
+                        transition={{
+                          duration: 1.8,
+                          repeat: Infinity,
+                          ease: "easeInOut",
+                        }}
+                      >
+                        <span className="text-xs lg:text-sm text-white uppercase tracking-wider">Correct Answer</span>
+                        <p className="text-xl lg:text-5xl drop-shadow-md font-display text-green-400/80 mt-2 break-words">
+                          {currentQuestion.CorrectAnswer}
+                        </p>
+                      </motion.div>
                     </motion.div>
                   )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* ==== BUFFER PAGE STATE ==== */}
+            {bufferPageVisible && (
+              <motion.div
+                key="buffer_page"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.1 }}
+                transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                className="flex-1 flex items-center justify-center"
+              >
+                <div className="text-center">
+                  <h2 className="font-display text-6xl lg:text-[10rem] leading-none font-bold text-white mb-6 drop-shadow-md">
+                    Tallying Up The Scores!
+                  </h2>
+                  <div className="flex gap-3 justify-center mt-8">
+                    {[0, 1, 2, 3, 4].map(i => (
+                      <motion.div
+                        key={i}
+                        className="w-4 h-4 rounded-full bg-yellow-400"
+                        animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
+                        transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.15 }}
+                      />
+                    ))}
+                  </div>
                 </div>
               </motion.div>
             )}

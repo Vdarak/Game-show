@@ -79,6 +79,11 @@ export default function LobbyPage() {
   const handleLeave = async () => {
     if (isLeaving) return
 
+    const confirmed = window.confirm(
+      "If you leave a game in progress, you may not be able to join back. Are you sure?"
+    )
+    if (!confirmed) return
+
     setIsLeaving(true)
 
     try {
@@ -159,6 +164,7 @@ export default function LobbyPage() {
               teamName={team.TeamName}
               teamId={team.IDTeam}
               size="xl"
+              noFrame
             />
             <div className="flex-1">
               <h2 className="text-2xl font-display font-bold text-white">
@@ -274,6 +280,7 @@ export default function LobbyPage() {
                       teamName={t.TeamName}
                       teamId={t.IDTeam}
                       size="sm"
+                      noFrame
                     />
                   <span className="truncate max-w-[120px]">{t.TeamName}</span>
                   {t.IDTeam === team.IDTeam && (

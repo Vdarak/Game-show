@@ -204,9 +204,14 @@ export default function GamePage() {
               ))}
             </div>
           </div>
-          <Button onClick={() => router.push("/play/join")} className="mt-6 w-full max-w-md mx-auto">
-            Play Again
-          </Button>
+          <a
+            href="https://search.google.com/local/writereview?placeid=ChIJS50c9a4Qk6gRDGkOsmNv2IY&source=g.page.m.dd._&laa=lu-desktop-reviews-dialog-review-solicitation"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 w-full max-w-md mx-auto block text-center px-6 py-3 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-black font-semibold text-lg transition-colors"
+          >
+            Leave a Review
+          </a>
         </div>
       </div>
     )
@@ -379,6 +384,7 @@ export default function GamePage() {
                 teamName={team.TeamName}
                 teamId={team.IDTeam}
                 size="lg"
+                noFrame
               />
               <span className="text-white font-semibold truncate max-w-[150px]">{team.TeamName}</span>
             </div>
@@ -430,6 +436,7 @@ export default function GamePage() {
               teamName={team.TeamName}
               teamId={team.IDTeam}
               size="lg"
+              noFrame
             />
             <span className="text-white font-semibold truncate max-w-[150px]">{team.TeamName}</span>
           </div>
