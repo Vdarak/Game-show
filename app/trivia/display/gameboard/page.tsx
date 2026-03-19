@@ -200,8 +200,8 @@ function GameBoardContent() {
     const rawQuestionType = raw.QuestionType ?? raw.question_type
     const questionType: Question["QuestionType"] =
       rawQuestionType === "multiple_choice" ||
-      rawQuestionType === "true_false" ||
-      rawQuestionType === "open_ended"
+        rawQuestionType === "true_false" ||
+        rawQuestionType === "open_ended"
         ? rawQuestionType
         : options?.length === 2 && options.every((opt) => opt === "True" || opt === "False")
           ? "true_false"
@@ -1391,12 +1391,12 @@ function GameBoardContent() {
                     Game Over!
                   </h2>
                   {leaderboard?.entries[0] && (
-                    <p className="text-4xl text-gray-400">
+                    <p className="text-4xl text-gray-200">
                       Winner:{" "}
                       <span className="text-yellow-400 font-bold">
                         {leaderboard.entries[0].TeamName}
                       </span>
-                      <span className="text-gray-500 ml-3">
+                      <span className="text-gray-200 ml-3">
                         ({leaderboard.entries[0].TotalScore} pts)
                       </span>
                     </p>
@@ -1404,7 +1404,7 @@ function GameBoardContent() {
                 </div>
 
                 <div className="flex flex-col items-center gap-6 mt-8">
-                  <p className="font-display text-7xl md:text-8xl lg:text-9xl font-black text-cyan-300 tracking-wider uppercase drop-shadow-md">
+                  <p className="font-display text-7xl md:text-8xl lg:text-9xl font-black text-white tracking-wider uppercase drop-shadow-md">
                     Thanks for Playing!
                   </p>
                   <div className="flex items-center gap-16">
