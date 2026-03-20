@@ -248,10 +248,10 @@ export default function GamePage() {
                   <span className="text-xs sm:text-sm text-white font-medium tracking-wider uppercase drop-shadow">presented by</span>
                   <Image src="/gate-logo.png" alt="GATE" width={80} height={28} className="h-6 sm:h-8 w-auto drop-shadow" />
                 </div>
-                {sessionStatus?.SponsorshipImage && (
+                {(sessionStatus?.SponsorshipImage || team?.SponsorshipImage) && (
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-xs sm:text-sm text-white font-medium tracking-wider uppercase drop-shadow">sponsored by</span>
-                    <img src={sessionStatus.SponsorshipImage} alt="Sponsor" className="h-6 sm:h-8 w-auto object-contain drop-shadow" />
+                    <img src={sessionStatus?.SponsorshipImage || team?.SponsorshipImage || ""} alt="Sponsor" className="h-6 sm:h-8 w-auto object-contain drop-shadow" />
                   </div>
                 )}
               </motion.div>
@@ -321,18 +321,18 @@ export default function GamePage() {
           )
 
         case "break":
-          if (sessionStatus?.SponsorshipVideoUrl || sessionStatus?.SponsorshipImage) {
+          if (sessionStatus?.SponsorshipVideoUrl || (sessionStatus?.SponsorshipImage || team?.SponsorshipImage)) {
             return (
               <div className="text-center flex flex-col items-center gap-6">
-                <h2 className="font-display text-3xl font-bold text-yellow-400 drop-shadow-md">
+                <h2 className="font-display text-3xl font-bold text-white drop-shadow-md">
                   A word from our sponsors
                 </h2>
-                {sessionStatus.SponsorshipImage && (
-                  <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/20 shadow-xl">
-                    <img src={sessionStatus.SponsorshipImage} alt="Sponsor" className="h-24 w-auto object-contain drop-shadow-xl" />
+                {(sessionStatus?.SponsorshipImage || team?.SponsorshipImage) && (
+                  <div className="p-4 rounded-2xl">
+                    <img src={sessionStatus?.SponsorshipImage || team?.SponsorshipImage || ""} alt="Sponsor" className="h-24 w-auto object-contain drop-shadow-xl" />
                   </div>
                 )}
-                {sessionStatus.SponsorshipVideoUrl && (
+                {sessionStatus?.SponsorshipVideoUrl && (
                   <p className="text-purple-300 mt-2 animate-pulse uppercase tracking-widest text-sm font-semibold">Watch the main screen!</p>
                 )}
               </div>
@@ -388,7 +388,11 @@ export default function GamePage() {
               />
               <span className="text-white font-semibold truncate max-w-[150px]">{team.TeamName}</span>
             </div>
-            <div className="px-3 py-1 rounded-full bg-gray-950/70 text-gray-200 text-sm">{roomCode}</div>
+            {(sessionStatus?.SponsorshipImage || team?.SponsorshipImage) ? (
+              <img src={sessionStatus?.SponsorshipImage || team?.SponsorshipImage || ""} alt="Sponsor" className="h-6 w-auto object-contain drop-shadow" />
+            ) : (
+              <div className="px-3 py-1 rounded-full bg-gray-950/70 text-gray-200 text-sm">{roomCode}</div>
+            )}
           </div>
 
           {/* State Content */}
@@ -440,7 +444,11 @@ export default function GamePage() {
             />
             <span className="text-white font-semibold truncate max-w-[150px]">{team.TeamName}</span>
           </div>
-          <div className="px-3 py-1 rounded-full bg-gray-800 text-gray-400 text-sm">{roomCode}</div>
+          {(sessionStatus?.SponsorshipImage || team?.SponsorshipImage) ? (
+            <img src={sessionStatus?.SponsorshipImage || team?.SponsorshipImage || ""} alt="Sponsor" className="h-6 w-auto object-contain drop-shadow" />
+          ) : (
+            <div className="px-3 py-1 rounded-full bg-gray-800 text-gray-400 text-sm">{roomCode}</div>
+          )}
         </div>
 
         {/* Timer Bar — from server */}

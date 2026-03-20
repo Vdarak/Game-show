@@ -297,6 +297,7 @@ export interface Team {
   AvatarBlobPath?: string | null
   AvatarBase64?: string | null
   JoinedAt: string
+  SponsorshipImage?: string | null
 }
 
 // -------------------- Player Question --------------------

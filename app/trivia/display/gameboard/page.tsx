@@ -746,7 +746,7 @@ function GameBoardContent() {
   const isCompleted = gameState === "completed" || sessionStatus?.Status === "completed"
 
   // Get sponsor info from episode - default to gate-logo.png
-  const sponsorLogo = episode?.SponsorConfig?.logo || "/gate-logo.png"
+  const sponsorLogo = episode?.SponsorshipImage || "/gate-logo.png"
 
   const statusPayload = sessionStatus as (SessionStatusResponse & {
     current_category?: string | null
@@ -878,7 +878,7 @@ function GameBoardContent() {
         {/* ==== TOP BAR ==== */}
         <div className="flex items-center justify-between px-6 py-4 bg-gray-900/90 backdrop-blur border-b border-gray-800">
           <div className="flex items-center">
-            <img src={sponsorLogo} alt="Sponsor" className="h-10 object-contain" />
+            <img src="/gate-logo.png" alt="GATE" className="h-10 object-contain" />
           </div>
 
           <div className="flex-1 flex justify-center">
@@ -1150,16 +1150,16 @@ function GameBoardContent() {
                       </div>
 
                       <div className="flex-[3] min-h-0 flex items-center justify-center">
-                        <div className={`w-full max-w-5xl grid gap-4 ${resolvedSponsorshipImageUrl ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"}`}>
-                          <div className="rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center">
-                            <span className="text-xs md:text-sm text-gray-300 uppercase tracking-[0.2em]">Presented by</span>
-                            <img src="/gate-logo.png" alt="GATE" className="h-10 md:h-14 w-auto mt-3 object-contain" />
+                        <div className={`w-full max-w-5xl grid gap-4 ${resolvedSponsorshipImageUrl ? "grid-cols-1 md:grid-cols-12" : "grid-cols-1"}`}>
+                          <div className={`${resolvedSponsorshipImageUrl ? 'md:col-span-4' : ''} rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center`}>
+                            <span className="text-xs md:text-sm text-gray-400 uppercase tracking-[0.2em] mb-2">Presented by</span>
+                            <img src="/gate-logo.png" alt="GATE" className="h-8 md:h-10 w-auto object-contain opacity-80" />
                           </div>
 
                           {resolvedSponsorshipImageUrl && (
-                            <div className="rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center">
-                              <span className="text-xs md:text-sm text-gray-300 uppercase tracking-[0.2em]">Sponsored by</span>
-                              <img src={resolvedSponsorshipImageUrl} alt="Sponsor" className="h-10 md:h-14 w-auto mt-3 object-contain" />
+                            <div className="md:col-span-8 rounded-2xl bg-gray-900/70 border border-yellow-500/30 p-5 flex flex-col items-center justify-center text-center shadow-[0_0_30px_rgba(250,175,0,0.15)]">
+                              <span className="text-xs md:text-sm text-yellow-500/80 font-bold uppercase tracking-[0.3em] mb-4">Sponsored by</span>
+                              <img src={resolvedSponsorshipImageUrl} alt="Sponsor" className="h-16 md:h-28 w-auto object-contain drop-shadow-xl" />
                             </div>
                           )}
                         </div>
@@ -1177,16 +1177,16 @@ function GameBoardContent() {
                         Break Time
                       </h2>
 
-                      <div className={`w-full max-w-5xl grid gap-4 ${resolvedSponsorshipImageUrl ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"}`}>
-                        <div className="rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center">
-                          <span className="text-xs md:text-sm text-gray-300 uppercase tracking-[0.2em]">Presented by</span>
-                          <img src="/gate-logo.png" alt="GATE" className="h-10 md:h-14 w-auto mt-3 object-contain" />
+                      <div className={`w-full max-w-5xl grid gap-4 ${resolvedSponsorshipImageUrl ? "grid-cols-1 md:grid-cols-12" : "grid-cols-1"}`}>
+                        <div className={`${resolvedSponsorshipImageUrl ? 'md:col-span-4' : ''} rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center`}>
+                          <span className="text-xs md:text-sm text-gray-400 uppercase tracking-[0.2em] mb-2">Presented by</span>
+                          <img src="/gate-logo.png" alt="GATE" className="h-8 md:h-10 w-auto object-contain opacity-80" />
                         </div>
 
                         {resolvedSponsorshipImageUrl && (
-                          <div className="rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center">
-                            <span className="text-xs md:text-sm text-gray-300 uppercase tracking-[0.2em]">Sponsored by</span>
-                            <img src={resolvedSponsorshipImageUrl} alt="Sponsor" className="h-10 md:h-14 w-auto mt-3 object-contain" />
+                          <div className="md:col-span-8 rounded-2xl bg-gray-900/70 border border-yellow-500/30 p-5 flex flex-col items-center justify-center text-center shadow-[0_0_30px_rgba(250,175,0,0.15)]">
+                            <span className="text-xs md:text-sm text-yellow-500/80 font-bold uppercase tracking-[0.3em] mb-4">Sponsored by</span>
+                            <img src={resolvedSponsorshipImageUrl} alt="Sponsor" className="h-16 md:h-28 w-auto object-contain drop-shadow-xl" />
                           </div>
                         )}
                       </div>
