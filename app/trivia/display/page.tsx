@@ -7,6 +7,7 @@ import { sessionsApi } from "@/lib/api-client"
 import { useSessionStatusWebSocket } from "@/hooks/use-session-status-websocket"
 import { DitherBackground } from "@/components/game/dither-background"
 import { TeamAvatar } from "@/components/game/team-avatar"
+import Image from "next/image"
 import { Loader2, Trophy, Clock, Users, QrCode, Medal } from "lucide-react"
 import { getAvatarValue } from "@/lib/frontend-avatars"
 import type {
@@ -180,13 +181,13 @@ function TriviaDisplayContent() {
             >
               {/* Left side - QR Code */}
               <div className="flex-1 flex flex-col items-center justify-center p-8">
-                <motion.h1
+                <motion.div
                   initial={{ y: -20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  className="font-display text-6xl font-bold text-white mb-8"
+                  className="mb-8"
                 >
-                  Trivi-Time
-                </motion.h1>
+                  <Image src="/trivi-time-logo.png" alt="Trivi Time" width={400} height={120} className="w-[40vw] max-w-[400px] h-auto drop-shadow-2xl" priority />
+                </motion.div>
 
                 {qrCodeUrl && (
                   <motion.div

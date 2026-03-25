@@ -15,7 +15,7 @@ const rubik = Rubik({
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 export const metadata: Metadata = {
-  title: "GATE | Jordan White",
+  title: "Games And Trivia Ent.",
   description: "Interactive game show application with offline support",
   generator: "v0.app",
   manifest: "/manifest.json",

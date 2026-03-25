@@ -127,6 +127,25 @@ function TypewriterText({ text, className, speed = 35 }: { text: string; classNa
   )
 }
 
+function getTextSizeClass(text: string): string {
+  const length = text.length
+
+  if (length < 100) {
+    return "text-2xl lg:text-5xl leading-relaxed"
+  }
+  if (length < 180) {
+    return "text-xl lg:text-4xl leading-normal"
+  }
+  if (length < 280) {
+    return "text-lg lg:text-3xl leading-snug"
+  }
+  if (length < 400) {
+    return "text-base lg:text-2xl leading-tight"
+  }
+
+  return "text-sm lg:text-xl leading-tight"
+}
+
 function GameBoardContent() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("session")
@@ -875,31 +894,36 @@ function GameBoardContent() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col relative z-10">
-        {/* ==== TOP BAR ==== */}
-        <div className="flex items-center justify-between px-6 py-4 bg-gray-900/90 backdrop-blur border-b border-gray-800">
-          <div className="flex items-center">
-            <img src="/gate-logo.png" alt="GATE" className="h-10 object-contain" />
+        {/* ==== TOP HEADER (NO BACKGROUND) ==== */}
+        <div className="w-full z-50 flex items-start justify-between px-8 py-6 shrink-0">
+          {/* Left: GATE Logo */}
+          <div className="flex items-start">
+            <img src="/gate-logo.png" alt="GATE" className="h-12 lg:h-16 object-contain drop-shadow-xl" />
           </div>
 
-          <div className="flex-1 flex justify-center">
+          {/* Center: Game State */}
+          <div className="flex-1 flex justify-center mt-2">
             <div className="text-center">
-              <p className={`text-xl font-display font-bold ${gameState === "break" ? "text-yellow-400" :
+              <p className={`text-2xl lg:text-4xl font-display font-bold tracking-wide ${gameState === "break" ? "text-yellow-400" :
                 isLobby ? "text-yellow-400" :
                   isCompleted ? "text-green-400" :
                     "text-purple-400"
-                }`}>
+                } drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]`}>
                 {isLobby ? "Waiting for Players" : isCompleted ? "Game Complete" : getHeaderText()}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <img src={sponsorLogo} alt="Sponsor" className="h-10 object-contain" />
+          {/* Right: Sponsor Logo - MASSIVE */}
+          <div className="flex items-start justify-end">
+            <div className="h-28 lg:h-40 max-w-[280px] lg:max-w-[400px] flex items-start justify-end">
+              <img src={sponsorLogo} alt="Sponsor" className="max-h-full max-w-full object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]" />
+            </div>
           </div>
         </div>
 
         {/* ==== MAIN CONTENT AREA ==== */}
-        <div className="flex-1 flex flex-col p-4 xl:p-6 gap-4 overflow-hidden">
+        <div className="flex-1 flex flex-col p-4 xl:p-6 gap-4 overflow-hidden relative z-10">
           <AnimatePresence mode="wait">
             {/* ==== LOBBY STATE ==== */}
             {isLobby && (
@@ -911,6 +935,7 @@ function GameBoardContent() {
                 className="flex-1 flex items-center justify-center"
               >
                 <div className="flex flex-col items-center gap-8 lg:gap-12 flex-1">
+                  <Image src="/trivi-time-logo.png" alt="Trivi Time" width={600} height={180} className="w-[40vw] max-w-[400px] h-auto drop-shadow-2xl" />
                   <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-16 flex-1 justify-center">
                     {roomCode && (
                       <motion.div
@@ -996,16 +1021,18 @@ function GameBoardContent() {
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.9 }}
-                    className="flex flex-row items-end justify-center gap-16 mt-6"
+                    className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-24 mt-8"
                   >
-                    <div className="flex flex-col items-center gap-3">
-                      <span className="text-lg lg:text-xl text-white font-medium tracking-wider uppercase">presented by</span>
-                      <Image src="/gate-logo.png" alt="GATE" width={120} height={56} className="h-10 lg:h-14 w-auto drop-shadow" />
+                    <div className="flex flex-col items-center gap-4">
+                      <span className="text-lg lg:text-xl text-white font-medium tracking-wider uppercase drop-shadow-sm">presented by</span>
+                      <Image src="/gate-logo.png" alt="GATE" width={160} height={70} className="h-12 lg:h-16 w-auto drop-shadow-xl" />
                     </div>
                     {episode?.SponsorshipImage && (
-                      <div className="flex flex-col items-center gap-3">
-                        <span className="text-lg lg:text-xl text-white font-medium tracking-wider uppercase">sponsored by</span>
-                        <img src={episode.SponsorshipImage} alt="Sponsor" className="h-10 lg:h-14 w-auto object-contain drop-shadow" />
+                      <div className="flex flex-col items-center gap-4">
+                        <span className="text-xl lg:text-2xl text-white font-bold tracking-wider uppercase drop-shadow-md">sponsored by</span>
+                        <div className="h-28 lg:h-40 max-w-[350px] lg:max-w-[500px] flex items-center justify-center">
+                          <img src={episode.SponsorshipImage} alt="Sponsor" className="max-h-full max-w-full object-contain drop-shadow-2xl" />
+                        </div>
                       </div>
                     )}
                   </motion.div>
@@ -1020,17 +1047,17 @@ function GameBoardContent() {
                 initial={{ opacity: 0, x: 30 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -30 }}
-                className="flex-1 flex items-center justify-center"
+                className="flex-1 flex items-stretch justify-center min-h-0 pb-4"
               >
                 {resolvedRulesVideoUrl ? (
                   /* Left video / Right rules layout */
-                  <div className="w-[92vw] flex flex-row items-stretch gap-6 max-h-[85vh]">
+                  <div className="w-full flex flex-row items-stretch gap-6 h-full min-h-0">
                     {/* Left — Big Video */}
-                    <div className="flex-[3] min-w-0 flex items-center justify-center">
+                    <div className="flex-[3] relative min-w-0 min-h-0 flex items-center justify-center bg-black/40 rounded-2xl overflow-hidden shadow-2xl border border-gray-700/50">
                       <video
                         ref={rulesVideoRef}
                         src={resolvedRulesVideoUrl}
-                        className="w-full h-auto max-h-[80vh] object-contain rounded-2xl border border-gray-700"
+                        className="w-full h-full object-cover"
                         autoPlay
                         playsInline
                       />
@@ -1120,7 +1147,8 @@ function GameBoardContent() {
                   <h2 className="font-display text-8xl lg:text-[12rem] leading-none font-bold text-white mb-6 drop-shadow-md">
                     Get Ready!
                   </h2>
-                  <p className="text-xl text-gray-200">Next question is coming up...</p>
+                  <p className="text-xl text-gray-200 mb-8">Next question is coming up...</p>
+                  <Image src="/trivi-time-logo.png" alt="Trivi Time" width={500} height={150} className="w-[30vw] max-w-[300px] h-auto drop-shadow-xl mx-auto" />
                 </div>
               </motion.div>
             )}
@@ -1151,17 +1179,17 @@ function GameBoardContent() {
 
                       <div className="flex-[3] min-h-0 flex items-center justify-center">
                         <div className={`w-full max-w-5xl grid gap-4 ${resolvedSponsorshipImageUrl ? "grid-cols-1 md:grid-cols-12" : "grid-cols-1"}`}>
+                          {resolvedSponsorshipImageUrl && (
+                            <div className="md:col-span-8 rounded-2xl bg-gray-900/70 border border-yellow-500/30 p-5 flex flex-col items-center justify-center text-center shadow-[0_0_30px_rgba(250,175,0,0.15)]">
+                              <span className="text-xs md:text-sm text-yellow-500/80 font-bold uppercase tracking-[0.3em] mb-4">Sponsored by</span>
+                              <img src={resolvedSponsorshipImageUrl} alt="Sponsor" className="h-24 md:h-36 max-w-full object-contain drop-shadow-xl" />
+                            </div>
+                          )}
+
                           <div className={`${resolvedSponsorshipImageUrl ? 'md:col-span-4' : ''} rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center`}>
                             <span className="text-xs md:text-sm text-gray-400 uppercase tracking-[0.2em] mb-2">Presented by</span>
                             <img src="/gate-logo.png" alt="GATE" className="h-8 md:h-10 w-auto object-contain opacity-80" />
                           </div>
-
-                          {resolvedSponsorshipImageUrl && (
-                            <div className="md:col-span-8 rounded-2xl bg-gray-900/70 border border-yellow-500/30 p-5 flex flex-col items-center justify-center text-center shadow-[0_0_30px_rgba(250,175,0,0.15)]">
-                              <span className="text-xs md:text-sm text-yellow-500/80 font-bold uppercase tracking-[0.3em] mb-4">Sponsored by</span>
-                              <img src={resolvedSponsorshipImageUrl} alt="Sponsor" className="h-16 md:h-28 w-auto object-contain drop-shadow-xl" />
-                            </div>
-                          )}
                         </div>
                       </div>
                     </>
@@ -1173,22 +1201,23 @@ function GameBoardContent() {
                       >
                         <Coffee className="h-20 w-20 text-yellow-400 mx-auto drop-shadow-lg" />
                       </motion.div>
+                      <Image src="/trivi-time-logo.png" alt="Trivi Time" width={500} height={150} className="w-[35vw] max-w-[350px] h-auto drop-shadow-2xl mb-4" />
                       <h2 className="font-display text-6xl lg:text-8xl font-bold text-white drop-shadow-xl">
                         Break Time
                       </h2>
 
                       <div className={`w-full max-w-5xl grid gap-4 ${resolvedSponsorshipImageUrl ? "grid-cols-1 md:grid-cols-12" : "grid-cols-1"}`}>
+                        {resolvedSponsorshipImageUrl && (
+                          <div className="md:col-span-8 rounded-2xl bg-gray-900/70 border border-yellow-500/30 p-5 flex flex-col items-center justify-center text-center shadow-[0_0_30px_rgba(250,175,0,0.15)]">
+                            <span className="text-xs md:text-sm text-yellow-500/80 font-bold uppercase tracking-[0.3em] mb-4">Sponsored by</span>
+                            <img src={resolvedSponsorshipImageUrl} alt="Sponsor" className="h-24 md:h-36 max-w-full object-contain drop-shadow-xl" />
+                          </div>
+                        )}
+
                         <div className={`${resolvedSponsorshipImageUrl ? 'md:col-span-4' : ''} rounded-2xl bg-gray-900/70 border border-gray-700 p-5 flex flex-col items-center justify-center text-center`}>
                           <span className="text-xs md:text-sm text-gray-400 uppercase tracking-[0.2em] mb-2">Presented by</span>
                           <img src="/gate-logo.png" alt="GATE" className="h-8 md:h-10 w-auto object-contain opacity-80" />
                         </div>
-
-                        {resolvedSponsorshipImageUrl && (
-                          <div className="md:col-span-8 rounded-2xl bg-gray-900/70 border border-yellow-500/30 p-5 flex flex-col items-center justify-center text-center shadow-[0_0_30px_rgba(250,175,0,0.15)]">
-                            <span className="text-xs md:text-sm text-yellow-500/80 font-bold uppercase tracking-[0.3em] mb-4">Sponsored by</span>
-                            <img src={resolvedSponsorshipImageUrl} alt="Sponsor" className="h-16 md:h-28 w-auto object-contain drop-shadow-xl" />
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
@@ -1295,7 +1324,7 @@ function GameBoardContent() {
                           transition={{ duration: 0.5 }}
                           className="bg-gray-900/80 backdrop-blur rounded-2xl p-6 border border-gray-800 flex-1 flex items-center justify-center"
                         >
-                          <h2 className="font-display text-2xl lg:text-5xl font-bold text-white text-center leading-relaxed max-w-full whitespace-normal break-words">
+                          <h2 className={`font-display font-bold text-white text-center max-w-full break-words whitespace-pre-wrap ${getTextSizeClass(currentQuestion.QuestionText)}`}>
                             <TypewriterText text={currentQuestion.QuestionText} speed={35} />
                           </h2>
                         </motion.div>
@@ -1515,14 +1544,14 @@ function GameBoardContent() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex-1 flex flex-col items-center justify-center gap-12"
+                className="flex-1 min-h-0 w-full flex flex-col items-center justify-evenly py-4"
               >
-                <div className="text-center">
-                  <h2 className="font-display text-6xl md:text-7xl lg:text-8xl font-extrabold text-white mb-6 drop-shadow-md">
+                <div className="text-center shrink-0">
+                  <h2 className="font-display text-[8vw] lg:text-[6rem] leading-none font-extrabold text-white mb-2 drop-shadow-md">
                     Game Over!
                   </h2>
                   {leaderboard?.entries[0] && (
-                    <p className="text-4xl text-gray-200">
+                    <p className="text-[3vw] lg:text-3xl text-gray-200">
                       Winner:{" "}
                       <span className="text-yellow-400 font-bold">
                         {leaderboard.entries[0].TeamName}
@@ -1534,22 +1563,34 @@ function GameBoardContent() {
                   )}
                 </div>
 
-                <div className="flex flex-col items-center gap-6 mt-8">
-                  <p className="font-display text-7xl md:text-8xl lg:text-9xl font-black text-white tracking-wider uppercase drop-shadow-md">
+                <div className="flex flex-col items-center shrink min-h-0 w-full mt-4 lg:mt-8">
+                  <p className="font-display text-[10vw] lg:text-[8rem] leading-none font-black text-white tracking-wider uppercase drop-shadow-md mb-6 lg:mb-10 text-center">
                     Thanks for Playing!
                   </p>
-                  <div className="flex items-center gap-16">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="bg-white p-4 rounded-2xl shadow-xl">
-                        <Image src="/google-QR.png" alt="Leave a Google Review" width={180} height={180} className="w-48 h-48" />
+
+                  <div className="flex flex-row items-end justify-center gap-6 lg:gap-16 w-full max-w-7xl shrink min-h-0">
+                    {/* Left QR */}
+                    <div className="flex flex-col items-center shrink min-h-0 min-w-0">
+                      <div className="bg-white p-2 lg:p-4 rounded-2xl shadow-xl shrink min-h-0 flex items-center justify-center">
+                        <img src="/google-QR.png" alt="Leave a Google Review" className="max-h-[18vh] lg:max-h-[25vh] w-auto object-contain" />
                       </div>
-                      <span className="font-display text-3xl md:text-4xl font-bold text-amber-300 drop-shadow-md">Leave a Review</span>
+                      <span className="font-display text-[2.5vw] lg:text-4xl font-bold text-amber-300 drop-shadow-md mt-3 lg:mt-5 whitespace-nowrap">Leave a Review</span>
                     </div>
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="bg-white p-4 rounded-2xl shadow-xl">
-                        <Image src="/website-QR.png" alt="Visit website" width={180} height={180} className="w-48 h-48" />
+
+                    {/* Center Logo */}
+                    <div className="flex flex-col items-center justify-center shrink min-h-0 px-2 lg:px-8">
+                      <div className="flex items-center justify-center shrink min-h-0">
+                        <img src="/trivi-time-logo.png" alt="Trivi Time" className="max-h-[12vh] lg:max-h-[16vh] w-auto object-contain drop-shadow-2xl" />
                       </div>
-                      <span className="font-display text-3xl md:text-4xl font-bold text-lime-300 drop-shadow-md">More Games</span>
+                      <span className="font-display text-[2.5vw] lg:text-4xl font-bold text-transparent select-none drop-shadow-none mt-3 lg:mt-5">Trivi Time</span> {/* Invisible alignment text */}
+                    </div>
+
+                    {/* Right QR */}
+                    <div className="flex flex-col items-center shrink min-h-0 min-w-0">
+                      <div className="bg-white p-2 lg:p-4 rounded-2xl shadow-xl shrink min-h-0 flex items-center justify-center">
+                        <img src="/website-QR.png" alt="Visit website" className="max-h-[18vh] lg:max-h-[25vh] w-auto object-contain" />
+                      </div>
+                      <span className="font-display text-[2.5vw] lg:text-4xl font-bold text-lime-300 drop-shadow-md mt-3 lg:mt-5 whitespace-nowrap">More Games</span>
                     </div>
                   </div>
                 </div>
@@ -1558,26 +1599,13 @@ function GameBoardContent() {
           </AnimatePresence>
         </div>
 
-        {/* ==== BOTTOM BAR: QR Code always visible during active ==== */}
+        {/* ==== BOTTOM BAR: Round/Question info only during active (QR removed once game commences) ==== */}
         {sessionStatus?.Status === "active" && (
-          <div className="flex items-center justify-between px-6 py-3 bg-gray-900/80 backdrop-blur border-t border-gray-800">
+          <div className="flex items-center justify-center px-6 py-3 bg-gray-900/80 backdrop-blur border-t border-gray-800">
             <div className="flex items-center gap-2 text-sm text-gray-400">
               <span>Round {effectiveCurrentRound}</span>
               <span className="text-gray-600">•</span>
               <span>Q{effectiveCurrentQuestion}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-xs text-gray-500">Join the game</p>
-                <p className="font-display text-lg text-purple-400 tracking-wider">{roomCode}</p>
-              </div>
-              {qrCodeUrl && (
-                <img
-                  src={qrCodeUrl}
-                  alt="Scan to join"
-                  className="w-16 h-16 rounded-lg border border-gray-700"
-                />
-              )}
             </div>
           </div>
         )}

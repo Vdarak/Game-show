@@ -283,9 +283,10 @@ export default function GamePage() {
 
         case "get_ready":
           return (
-            <div className="text-center">
+            <div className="text-center flex flex-col items-center">
               <h2 className="font-display text-6xl sm:text-[5rem] font-bold text-white mb-4 drop-shadow-md">Get Ready!</h2>
-              <p className="text-gray-200">Next question is coming up...</p>
+              <p className="text-gray-200 mb-8">Next question is coming up...</p>
+              <img src="/trivi-time-logo.png" alt="Trivi Time" className="w-[60vw] max-w-[250px] sm:max-w-[300px] h-auto object-contain opacity-90 drop-shadow-xl" />
             </div>
           )
 
@@ -302,21 +303,24 @@ export default function GamePage() {
               </motion.p>
               {currentQuestion?.Category && (
                 <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-                  className="text-3xl sm:text-5xl font-semibold text-gray-300 drop-shadow-md">
+                  className="text-3xl sm:text-5xl font-semibold text-gray-300 drop-shadow-md mb-8">
                   {currentQuestion.Category}
                 </motion.p>
               )}
+              <motion.img initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.8 }}
+                src="/trivi-time-logo.png" alt="Trivi Time" className="w-[50vw] max-w-[200px] sm:max-w-[250px] h-auto object-contain mx-auto opacity-80 drop-shadow-lg" />
             </div>
           )
 
         case "video_playing":
           return (
-            <div className="text-center">
+            <div className="text-center flex flex-col items-center">
               <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ repeat: Infinity, duration: 3 }}>
-                <MonitorPlay className="h-16 w-16 text-blue-400 mx-auto mb-4" />
+                <MonitorPlay className="h-16 w-16 text-blue-400 mx-auto mb-4 drop-shadow-md" />
               </motion.div>
-              <h2 className="font-display text-3xl font-bold text-white mb-2">Watch the Screen!</h2>
-              <p className="text-gray-200">A video is playing on the gameboard</p>
+              <h2 className="font-display text-3xl font-bold text-white mb-2 drop-shadow-md">Watch the Screen!</h2>
+              <p className="text-gray-200 mb-8 drop-shadow">A video is playing on the gameboard</p>
+              <img src="/trivi-time-logo.png" alt="Trivi Time" className="w-[50vw] max-w-[200px] h-auto object-contain opacity-90 drop-shadow-lg" />
             </div>
           )
 
@@ -335,27 +339,30 @@ export default function GamePage() {
                 {sessionStatus?.SponsorshipVideoUrl && (
                   <p className="text-purple-300 mt-2 animate-pulse uppercase tracking-widest text-sm font-semibold">Watch the main screen!</p>
                 )}
+                <img src="/trivi-time-logo.png" alt="Trivi Time" className="w-[50vw] max-w-[200px] h-auto object-contain opacity-90 drop-shadow-xl mt-4" />
               </div>
             )
           }
           return (
-            <div className="text-center">
+            <div className="text-center flex flex-col items-center">
               <motion.div animate={{ y: [0, -6, 0] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}>
                 <Coffee className="h-16 w-16 text-yellow-400 mx-auto mb-4 drop-shadow-md" />
               </motion.div>
               <h2 className="font-display text-4xl font-bold text-white mb-2 drop-shadow-md">Break Time</h2>
-              <p className="text-gray-200 drop-shadow-md">Sit tight — we&apos;ll be right back!</p>
+              <p className="text-gray-200 drop-shadow-md mb-8">Sit tight — we&apos;ll be right back!</p>
+              <img src="/trivi-time-logo.png" alt="Trivi Time" className="w-[60vw] max-w-[250px] h-auto object-contain opacity-90 drop-shadow-xl" />
             </div>
           )
 
         default:
           return (
-            <div className="text-center">
+            <div className="text-center flex flex-col items-center">
               <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-                <Clock className="h-16 w-16 text-purple-400 mb-4 mx-auto" />
+                <Clock className="h-16 w-16 text-purple-400 mb-4 mx-auto drop-shadow-md" />
               </motion.div>
-              <h3 className="font-display text-xl font-semibold text-white mb-2">Waiting for Question</h3>
-              <p className="text-gray-200 text-center">The host will reveal the next question soon</p>
+              <h3 className="font-display text-xl font-semibold text-white mb-2 drop-shadow-md">Waiting for Question</h3>
+              <p className="text-gray-200 text-center mb-10 drop-shadow">The host will reveal the next question soon</p>
+              <img src="/trivi-time-logo.png" alt="Trivi Time" className="w-[50vw] max-w-[200px] h-auto object-contain opacity-80 drop-shadow-lg" />
             </div>
           )
       }
@@ -377,24 +384,30 @@ export default function GamePage() {
         </div>
         <div className="relative z-10 flex flex-col min-h-[100dvh] p-4 sm:p-6 pb-12">
           {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <TeamAvatar
-                avatarPath={getAvatarValue(team)}
-                teamName={team.TeamName}
-                teamId={team.IDTeam}
-                size="lg"
-                noFrame
-              />
-              <span className="text-white font-semibold truncate max-w-[150px]">{team.TeamName}</span>
+          <div className="w-full z-50 flex items-start justify-between mb-4 shrink-0">
+            <div className="flex flex-col items-start gap-1">
+              <div className="flex items-center gap-2 bg-gray-950/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-gray-800 shadow-xl">
+                <TeamAvatar
+                  avatarPath={getAvatarValue(team)}
+                  teamName={team.TeamName}
+                  teamId={team.IDTeam}
+                  size="sm"
+                  noFrame
+                />
+                <span className="text-white text-sm font-semibold truncate max-w-[120px]">{team.TeamName}</span>
+              </div>
             </div>
-            {(sessionStatus?.SponsorshipImage || team?.SponsorshipImage) ? (
-              <img src={sessionStatus?.SponsorshipImage || team?.SponsorshipImage || ""} alt="Sponsor" className="h-6 w-auto object-contain drop-shadow" />
-            ) : (
-              <div className="px-3 py-1 rounded-full bg-gray-950/70 text-gray-200 text-sm">{roomCode}</div>
-            )}
+            <div className="flex items-start justify-end">
+              {(sessionStatus?.SponsorshipImage || team?.SponsorshipImage) ? (
+                <div className="h-16 sm:h-24 max-w-[160px] sm:max-w-[200px] flex items-start justify-end">
+                  <img src={sessionStatus?.SponsorshipImage || team?.SponsorshipImage || ""} alt="Sponsor" className="max-h-full max-w-full object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.6)]" />
+                </div>
+              ) : (
+                <div className="px-3 py-1 rounded-full bg-gray-900/80 backdrop-blur border border-gray-700 text-gray-200 text-sm shadow-xl">{roomCode}</div>
+              )}
+            </div>
           </div>
-
+          
           {/* State Content */}
           <div className="flex-1 flex items-center justify-center">
             <AnimatePresence mode="wait">
@@ -433,22 +446,28 @@ export default function GamePage() {
       {/* Content */}
       <div className="relative z-10 flex flex-col min-h-[100dvh] p-4 pb-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <TeamAvatar
-              avatarPath={getAvatarValue(team)}
-              teamName={team.TeamName}
-              teamId={team.IDTeam}
-              size="lg"
-              noFrame
-            />
-            <span className="text-white font-semibold truncate max-w-[150px]">{team.TeamName}</span>
+        <div className="w-full z-50 flex items-start justify-between mb-4 shrink-0">
+          <div className="flex flex-col items-start gap-1">
+            <div className="flex items-center gap-2 bg-gray-950/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-gray-800 shadow-xl">
+              <TeamAvatar
+                avatarPath={getAvatarValue(team)}
+                teamName={team.TeamName}
+                teamId={team.IDTeam}
+                size="sm"
+                noFrame
+              />
+              <span className="text-white text-sm font-semibold truncate max-w-[120px]">{team.TeamName}</span>
+            </div>
           </div>
-          {(sessionStatus?.SponsorshipImage || team?.SponsorshipImage) ? (
-            <img src={sessionStatus?.SponsorshipImage || team?.SponsorshipImage || ""} alt="Sponsor" className="h-6 w-auto object-contain drop-shadow" />
-          ) : (
-            <div className="px-3 py-1 rounded-full bg-gray-800 text-gray-400 text-sm">{roomCode}</div>
-          )}
+          <div className="flex items-start justify-end">
+            {(sessionStatus?.SponsorshipImage || team?.SponsorshipImage) ? (
+              <div className="h-16 sm:h-24 max-w-[160px] sm:max-w-[200px] flex items-start justify-end">
+                <img src={sessionStatus?.SponsorshipImage || team?.SponsorshipImage || ""} alt="Sponsor" className="max-h-full max-w-full object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.6)]" />
+              </div>
+            ) : (
+              <div className="px-3 py-1 rounded-full bg-gray-900/80 backdrop-blur border border-gray-700 text-gray-200 text-sm shadow-xl">{roomCode}</div>
+            )}
+          </div>
         </div>
 
         {/* Timer Bar — from server */}
@@ -516,7 +535,7 @@ export default function GamePage() {
 
                 {/* Question Text */}
                 <div className="bg-gray-950/80 backdrop-blur-lg rounded-xl p-4 border border-gray-700 mb-4">
-                  <p className="font-display text-xl font-bold text-white text-center leading-relaxed">
+                  <p className="font-display text-xl font-bold text-white text-center leading-relaxed whitespace-pre-wrap">
                     {currentQuestion.QuestionText}
                   </p>
                 </div>

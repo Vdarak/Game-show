@@ -919,6 +919,9 @@ function RoundSettings({ round, onUpdate }: RoundSettingsProps) {
   const [scoringMode, setScoringMode] = useState(round.ScoringMode)
   const [negativeScoring, setNegativeScoring] = useState(round.NegativeScoring)
   const [pointPool, setPointPool] = useState(round.PointPoolOptions)
+  const [isLargeWager, setIsLargeWager] = useState(
+    round.PointPoolOptions.length === 1 && [20, 25, 50].includes(round.PointPoolOptions[0])
+  )
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const initializedRef = useRef(false)
   const hasPendingChangesRef = useRef(false)
@@ -1029,15 +1032,35 @@ function RoundSettings({ round, onUpdate }: RoundSettingsProps) {
         <div className="h-5 w-px bg-gray-700 hidden sm:block" />
 
         {/* Point Pool */}
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 items-center">
+          <div className="flex items-center gap-1.5 mr-2">
+            <Switch 
+              checked={isLargeWager} 
+              onCheckedChange={(checked) => {
+                setIsLargeWager(checked)
+                if (checked) {
+                  setPointPool([20])
+                } else {
+                  setPointPool(Array.from({ length: Math.max(round.questions.length, 1) }, (_, i) => i + 1))
+                }
+              }} 
+            />
+            <span className="text-xs text-gray-400" title="Use fixed large wagers (20, 25, 50) instead of dynamic point pools">Large Wagers</span>
+          </div>
           {(() => {
             const qCount = Math.max(round.questions.length, 1)
-            const presets = [
+            const normalPresets = [
               { values: Array.from({ length: qCount }, (_, i) => i + 1) },
               { values: Array.from({ length: qCount }, (_, i) => (i + 1) * 2) },
               { values: Array.from({ length: qCount }, (_, i) => (i + 1) * 5) },
               { values: Array.from({ length: qCount }, (_, i) => (i + 1) * 2 - 1) },
             ]
+            const largePresets = [
+              { values: [20] },
+              { values: [25] },
+              { values: [50] },
+            ]
+            const presets = isLargeWager ? largePresets : normalPresets
             return presets.map((preset, idx) => (
               <button
                 key={`${idx}-${preset.values.join("-")}`}
