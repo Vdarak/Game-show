@@ -25,6 +25,8 @@ import {
   RefreshCw,
   Play,
   CheckCircle2,
+  SkipBack,
+  SkipForward,
 } from "lucide-react"
 import type {
   Session,
@@ -34,11 +36,45 @@ import type {
   TeamResponse,
   Question,
   Round,
+  RoundWithQuestions,
   EpisodeWithRounds,
   GradeOverrideItem,
 } from "@/lib/api-types"
 
 const HOST_LINK_STORAGE_PREFIX = "trivitime_host_link_session"
+
+const toFiniteNumber = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const mergeDefined = <T extends object>(base: T, incoming: Partial<T>): T => {
+  const merged: Record<string, unknown> = { ...(base as Record<string, unknown>) }
+  for (const [key, value] of Object.entries(incoming as Record<string, unknown>)) {
+    if (value !== undefined) {
+      merged[key] = value
+    }
+  }
+  return merged as T
+}
+
+const extractRealtimeQuestionId = (status: SessionStatusResponse | null): string | null => {
+  if (!status || typeof status !== "object") return null
+  const rawQuestion = (status as unknown as { question?: unknown }).question
+  if (!rawQuestion || typeof rawQuestion !== "object") return null
+
+  const idQuestion = (rawQuestion as Record<string, unknown>).IDQuestion
+  if (typeof idQuestion === "string" && idQuestion.trim()) return idQuestion
+
+  const idQuestionSnake = (rawQuestion as Record<string, unknown>).id_question
+  if (typeof idQuestionSnake === "string" && idQuestionSnake.trim()) return idQuestionSnake
+
+  return null
+}
 
 export default function HostTokenPage() {
   const params = useParams()
@@ -69,6 +105,7 @@ export default function HostTokenPage() {
   const responsesPollInFlightRef = useRef(false)
   const leaderboardPollInFlightRef = useRef(false)
   const teamsBroadcastSignatureRef = useRef("")
+  const unresolvedQuestionSignatureRef = useRef("")
   const { status: realtimeStatus, lastEvent: realtimeEvent, isConnected: isRealtimeConnected } = useSessionStatusWebSocket(
     isPinValidated ? session?.RoomCode || null : null,
     {
@@ -167,13 +204,10 @@ export default function HostTokenPage() {
   useEffect(() => {
     if (!realtimeStatus) return
 
-    setSessionStatus(realtimeStatus)
+    setSessionStatus((prev) => (prev ? mergeDefined(prev, realtimeStatus) : realtimeStatus))
     setSession((prev) =>
       prev
-        ? {
-            ...prev,
-            ...realtimeStatus,
-          }
+        ? mergeDefined(prev, realtimeStatus)
         : prev
     )
   }, [realtimeStatus])
@@ -272,13 +306,10 @@ export default function HostTokenPage() {
     if (!session) return null
     try {
       const status = await sessionsApi.status(session.IDGameSession)
-      setSessionStatus(status)
+      setSessionStatus((prev) => (prev ? mergeDefined(prev, status) : status))
       setSession((prev) =>
         prev
-          ? {
-              ...prev,
-              ...status,
-            }
+          ? mergeDefined(prev, status)
           : prev
       )
       return status
@@ -339,26 +370,83 @@ export default function HostTokenPage() {
           setTeams(teamsList)
         }
 
-        if (sessionStatus.CurrentRound && sessionStatus.CurrentQuestion && episode) {
-          const round = episode.rounds.find((r) => r.RoundNumber === sessionStatus.CurrentRound) || null
-          setCurrentRound(round)
+        const normalizedRound = toFiniteNumber(sessionStatus.CurrentRound)
+        const normalizedQuestion = toFiniteNumber(sessionStatus.CurrentQuestion)
+        const realtimeQuestionId = extractRealtimeQuestionId(sessionStatus)
 
-          if (round) {
-            const question = round.questions.find((q) => q.QuestionOrder === sessionStatus.CurrentQuestion) || null
-            setCurrentQuestion(question)
+        let resolvedRound: RoundWithQuestions | null = null
+        let resolvedQuestion: Question | null = null
 
+        if (episode && normalizedRound !== null && normalizedQuestion !== null) {
+          const roundByNumber = episode.rounds.find((r) => r.RoundNumber === normalizedRound) || null
+          const roundByIndex =
+            !roundByNumber && normalizedRound > 0 && normalizedRound <= episode.rounds.length
+              ? episode.rounds[normalizedRound - 1]
+              : null
+
+          resolvedRound = roundByNumber || roundByIndex
+
+          if (resolvedRound) {
+            const questionByOrder =
+              resolvedRound.questions.find((q) => q.QuestionOrder === normalizedQuestion) || null
+            const questionByIndex =
+              !questionByOrder &&
+              normalizedQuestion > 0 &&
+              normalizedQuestion <= resolvedRound.questions.length
+                ? resolvedRound.questions[normalizedQuestion - 1]
+                : null
+
+            resolvedQuestion = questionByOrder || questionByIndex
+          }
+        }
+
+        if (!resolvedQuestion && episode && realtimeQuestionId) {
+          for (const round of episode.rounds) {
+            const question = round.questions.find((q) => q.IDQuestion === realtimeQuestionId) || null
             if (question) {
-              setResponses((prev) => {
-                if (prev.length === 0) return prev
-                return prev.every((response) => response.IDQuestion === question.IDQuestion)
-                  ? prev
-                  : []
-              })
-              return
+              resolvedRound = round
+              resolvedQuestion = question
+              break
             }
           }
         }
 
+        if (resolvedQuestion) {
+          unresolvedQuestionSignatureRef.current = ""
+          setCurrentRound(resolvedRound)
+          setCurrentQuestion(resolvedQuestion)
+          setResponses((prev) => {
+            if (prev.length === 0) return prev
+            return prev.every((response) => response.IDQuestion === resolvedQuestion.IDQuestion)
+              ? prev
+              : []
+          })
+          return
+        }
+
+        const isGetReadyTransition = sessionStatus.Status === "active" && sessionStatus.GameState === "get_ready"
+        const unresolvedSignature = `${sessionStatus.IDGameSession}:${String(
+          sessionStatus.CurrentRound
+        )}:${String(sessionStatus.CurrentQuestion)}:${String(realtimeQuestionId ?? "")}`
+
+        if (isGetReadyTransition) {
+          if (unresolvedQuestionSignatureRef.current !== unresolvedSignature) {
+            unresolvedQuestionSignatureRef.current = unresolvedSignature
+            console.warn("[HostController] Could not resolve question during get_ready transition", {
+              round: sessionStatus.CurrentRound,
+              question: sessionStatus.CurrentQuestion,
+              realtimeQuestionId,
+              episodeRounds: episode?.rounds.map((round) => round.RoundNumber) || [],
+            })
+          }
+
+          setCurrentRound(resolvedRound)
+          setCurrentQuestion(null)
+          setResponses([])
+          return
+        }
+
+        unresolvedQuestionSignatureRef.current = ""
         setCurrentRound(null)
         setCurrentQuestion(null)
         setResponses([])
@@ -739,6 +827,8 @@ export default function HostTokenPage() {
   // =============== MAIN HOST CONTROLLER ===============
   const isActive = sessionStatus?.Status === "active"
   const isCompleted = sessionStatus?.Status === "completed"
+  const isQuestionTransitioning = isActive && !currentQuestion && sessionStatus?.GameState === "get_ready"
+  const isFirstQuestion = sessionStatus?.CurrentRound === 1 && sessionStatus?.CurrentQuestion === 1
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -784,40 +874,106 @@ export default function HostTokenPage() {
           {/* Left Column (3/5) — Game Navigation */}
           <div className="lg:col-span-3 space-y-4">
             {/* Current Question Card */}
-            {isActive && currentQuestion ? (
-              <>
-                <QuestionOrchestrationControls
-                  currentQuestion={currentQuestion}
-                  currentRound={currentRound}
-                  allRounds={episode?.rounds || []}
-                  sessionStatus={sessionStatus}
-                  teams={teams}
-                  responses={responses}
-                  showVideo={showVideo}
-                  sessionId={session!.IDGameSession}
-                  isGrading={isGrading}
-                  onGrade={handleGrade}
-                  onNextQuestion={handleNextQuestion}
-                  onResetQuestion={handleResetQuestion}
-                  onPrevQuestion={handlePrevQuestion}
-                  onRefreshStatus={refreshSessionStatus}
-                  onRevealAnswerClick={handleOptimisticAnswerRevealClick}
-                  isLoading={isLoading}
-                />
-                {/* Player Responses */}
-                <IncomingAnswersPanel
-                  sessionId={session!.IDGameSession}
-                  teams={teams}
-                  responses={responses}
-                  currentQuestion={currentQuestion}
-                  currentRound={currentRound}
-                  isGrading={isGrading}
-                  onGrade={handleGrade}
-                  onGradeOverride={handleGradeOverride}
-                  onRefresh={handleRefreshResponses}
-                  onKickTeam={handleKickTeam}
-                />
-              </>
+            {isActive ? (
+              currentQuestion ? (
+                <>
+                  <QuestionOrchestrationControls
+                    currentQuestion={currentQuestion}
+                    currentRound={currentRound}
+                    allRounds={episode?.rounds || []}
+                    sessionStatus={sessionStatus}
+                    teams={teams}
+                    responses={responses}
+                    showVideo={showVideo}
+                    sessionId={session!.IDGameSession}
+                    isGrading={isGrading}
+                    onGrade={handleGrade}
+                    onNextQuestion={handleNextQuestion}
+                    onResetQuestion={handleResetQuestion}
+                    onPrevQuestion={handlePrevQuestion}
+                    onRefreshStatus={refreshSessionStatus}
+                    onRevealAnswerClick={handleOptimisticAnswerRevealClick}
+                    isLoading={isLoading}
+                  />
+                  {/* Player Responses */}
+                  <IncomingAnswersPanel
+                    sessionId={session!.IDGameSession}
+                    teams={teams}
+                    responses={responses}
+                    currentQuestion={currentQuestion}
+                    currentRound={currentRound}
+                    isGrading={isGrading}
+                    onGrade={handleGrade}
+                    onGradeOverride={handleGradeOverride}
+                    onRefresh={handleRefreshResponses}
+                    onKickTeam={handleKickTeam}
+                  />
+                </>
+              ) : isQuestionTransitioning ? (
+                <Card className="bg-gray-800 border-gray-700 overflow-hidden">
+                  <div className="p-5">
+                    <div className="py-6 text-center">
+                      <Loader2 className="h-10 w-10 text-purple-400 mx-auto mb-3 animate-spin" />
+                      <p className="font-display text-base font-semibold text-gray-200">Loading next question...</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Round {sessionStatus?.CurrentRound ?? "-"} · Q{sessionStatus?.CurrentQuestion ?? "-"}
+                      </p>
+                      <div className="mt-4 flex items-center justify-center gap-2">
+                        <Button
+                          onClick={() => { void handlePrevQuestion() }}
+                          disabled={isLoading || isFirstQuestion}
+                          variant="outline"
+                          size="sm"
+                          className="border-gray-700 text-gray-300 hover:bg-gray-700"
+                        >
+                          <SkipBack className="h-3.5 w-3.5 mr-1.5" />
+                          Prev
+                        </Button>
+                        <Button
+                          onClick={() => { void handleNextQuestion() }}
+                          disabled={isLoading}
+                          size="sm"
+                          className="bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                          <SkipForward className="h-3.5 w-3.5 mr-1.5" />
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ) : (
+                <Card className="bg-gray-800 border-gray-700 overflow-hidden">
+                  <div className="p-5">
+                    <div className="py-6 text-center">
+                      <Play className="h-10 w-10 text-gray-600 mx-auto mb-3" />
+                      <p className="font-display text-base font-semibold text-gray-400">Waiting for Question Data</p>
+                      <p className="text-sm text-gray-500 mt-1">Refreshing controller state...</p>
+                      <div className="mt-4 flex items-center justify-center gap-2">
+                        <Button
+                          onClick={() => { void handlePrevQuestion() }}
+                          disabled={isLoading || isFirstQuestion}
+                          variant="outline"
+                          size="sm"
+                          className="border-gray-700 text-gray-300 hover:bg-gray-700"
+                        >
+                          <SkipBack className="h-3.5 w-3.5 mr-1.5" />
+                          Prev
+                        </Button>
+                        <Button
+                          onClick={() => { void handleNextQuestion() }}
+                          disabled={isLoading}
+                          size="sm"
+                          className="bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                          <SkipForward className="h-3.5 w-3.5 mr-1.5" />
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )
             ) : isCompleted ? (
               <Card className="bg-gray-800 border-gray-700 overflow-hidden">
                 <div className="p-5">

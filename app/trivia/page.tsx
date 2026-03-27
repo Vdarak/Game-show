@@ -38,6 +38,8 @@ import {
   Share2,
   Copy,
   Clock,
+  SkipBack,
+  SkipForward,
 } from "lucide-react"
 import type { Episode, HostLinkListItem, HostLinkResponse } from "@/lib/api-types"
 
@@ -671,6 +673,9 @@ export default function TriviaControllerPage() {
   const respondedCount = responses.length
   const gradedCount = responses.filter(r => r.IsCorrect !== null).length
   const correctCount = responses.filter(r => r.IsCorrect === true).length
+  const isQuestionTransitioning =
+    sessionStatus?.Status === "active" && !currentQuestion && sessionStatus?.GameState === "get_ready"
+  const isFirstQuestion = sessionStatus?.CurrentRound === 1 && sessionStatus?.CurrentQuestion === 1
 
   const handleEndSession = async () => {
     if (!confirm("Are you sure you want to end this game session?")) return
@@ -1302,40 +1307,106 @@ export default function TriviaControllerPage() {
                         introMusicPlaying={introMusicPlaying}
                         onToggleIntroMusic={handleToggleIntroMusic}
                       />
-                      {sessionStatus?.Status === "active" && currentQuestion ? (
-                        <>
-                          <QuestionOrchestrationControls
-                            currentQuestion={currentQuestion}
-                            currentRound={currentRound}
-                            allRounds={episode?.rounds || []}
-                            sessionStatus={sessionStatus}
-                            teams={teams}
-                            responses={responses}
-                            showVideo={showVideo}
-                            sessionId={session!.IDGameSession}
-                            isGrading={isGrading}
-                            onGrade={handleGrade}
-                            onNextQuestion={handleNextQuestion}
-                            onResetQuestion={handleResetQuestion}
-                            onPrevQuestion={handlePrevQuestion}
-                            onRefreshStatus={refreshSessionStatus}
-                            onRevealAnswerClick={handleOptimisticAnswerRevealClick}
-                            isLoading={isLoading}
-                          />
-                          {/* Player Responses */}
-                          <IncomingAnswersPanel
-                            sessionId={session!.IDGameSession}
-                            teams={teams}
-                            responses={responses}
-                            currentQuestion={currentQuestion}
-                            currentRound={currentRound}
-                            isGrading={isGrading}
-                            onGrade={handleGrade}
-                            onGradeOverride={handleGradeOverride}
-                            onRefresh={handleRefreshResponses}
-                            onKickTeam={handleKickTeam}
-                          />
-                        </>
+                      {sessionStatus?.Status === "active" ? (
+                        currentQuestion ? (
+                          <>
+                            <QuestionOrchestrationControls
+                              currentQuestion={currentQuestion}
+                              currentRound={currentRound}
+                              allRounds={episode?.rounds || []}
+                              sessionStatus={sessionStatus}
+                              teams={teams}
+                              responses={responses}
+                              showVideo={showVideo}
+                              sessionId={session!.IDGameSession}
+                              isGrading={isGrading}
+                              onGrade={handleGrade}
+                              onNextQuestion={handleNextQuestion}
+                              onResetQuestion={handleResetQuestion}
+                              onPrevQuestion={handlePrevQuestion}
+                              onRefreshStatus={refreshSessionStatus}
+                              onRevealAnswerClick={handleOptimisticAnswerRevealClick}
+                              isLoading={isLoading}
+                            />
+                            {/* Player Responses */}
+                            <IncomingAnswersPanel
+                              sessionId={session!.IDGameSession}
+                              teams={teams}
+                              responses={responses}
+                              currentQuestion={currentQuestion}
+                              currentRound={currentRound}
+                              isGrading={isGrading}
+                              onGrade={handleGrade}
+                              onGradeOverride={handleGradeOverride}
+                              onRefresh={handleRefreshResponses}
+                              onKickTeam={handleKickTeam}
+                            />
+                          </>
+                        ) : isQuestionTransitioning ? (
+                          <Card className="bg-gray-800 border-gray-700 overflow-hidden">
+                            <div className="p-5">
+                              <div className="py-6 text-center">
+                                <Loader2 className="h-10 w-10 text-purple-400 mx-auto mb-3 animate-spin" />
+                                <p className="font-display text-base font-semibold text-gray-200">Loading next question...</p>
+                                <p className="text-sm text-gray-500 mt-1">
+                                  Round {sessionStatus?.CurrentRound ?? "-"} · Q{sessionStatus?.CurrentQuestion ?? "-"}
+                                </p>
+                                <div className="mt-4 flex items-center justify-center gap-2">
+                                  <Button
+                                    onClick={() => { void handlePrevQuestion() }}
+                                    disabled={isLoading || isFirstQuestion}
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-gray-700 text-gray-300 hover:bg-gray-700"
+                                  >
+                                    <SkipBack className="h-3.5 w-3.5 mr-1.5" />
+                                    Prev
+                                  </Button>
+                                  <Button
+                                    onClick={() => { void handleNextQuestion() }}
+                                    disabled={isLoading}
+                                    size="sm"
+                                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                                  >
+                                    <SkipForward className="h-3.5 w-3.5 mr-1.5" />
+                                    Next
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </Card>
+                        ) : (
+                          <Card className="bg-gray-800 border-gray-700 overflow-hidden">
+                            <div className="p-5">
+                              <div className="py-6 text-center">
+                                <Play className="h-10 w-10 text-gray-600 mx-auto mb-3" />
+                                <p className="font-display text-base font-semibold text-gray-400">Waiting for Question Data</p>
+                                <p className="text-sm text-gray-500 mt-1">Refreshing controller state...</p>
+                                <div className="mt-4 flex items-center justify-center gap-2">
+                                  <Button
+                                    onClick={() => { void handlePrevQuestion() }}
+                                    disabled={isLoading || isFirstQuestion}
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-gray-700 text-gray-300 hover:bg-gray-700"
+                                  >
+                                    <SkipBack className="h-3.5 w-3.5 mr-1.5" />
+                                    Prev
+                                  </Button>
+                                  <Button
+                                    onClick={() => { void handleNextQuestion() }}
+                                    disabled={isLoading}
+                                    size="sm"
+                                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                                  >
+                                    <SkipForward className="h-3.5 w-3.5 mr-1.5" />
+                                    Next
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </Card>
+                        )
                       ) : sessionStatus?.Status === "completed" ? (
                         <Card className="bg-gray-800 border-gray-700 overflow-hidden">
                           <div className="p-5">

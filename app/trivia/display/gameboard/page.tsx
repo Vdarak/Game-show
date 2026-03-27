@@ -184,6 +184,7 @@ function GameBoardContent() {
   const [revealedOptions, setRevealedOptions] = useState<string[]>([])
   const prevGameStateRef = useRef<GameState | null>(null)
   const prevQuestionIdRef = useRef<string | null>(null)
+  const prevBoardCursorRef = useRef<string | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const rulesVideoRef = useRef<HTMLVideoElement>(null)
@@ -257,6 +258,18 @@ function GameBoardContent() {
   const effectiveCurrentQuestion = optimisticGameboardUpdate?.currentQuestion ?? sessionStatus?.CurrentQuestion ?? null
   const timerRemaining = sessionStatus?.TimerRemaining ?? null
   const timerTotal = sessionStatus?.TimerTotal ?? null
+
+  // Also reset buffer when host navigates to a different question cursor.
+  useEffect(() => {
+    const cursorKey = `${effectiveCurrentRound ?? "none"}:${effectiveCurrentQuestion ?? "none"}:${currentQuestion?.IDQuestion ?? "none"}`
+    const prevCursorKey = prevBoardCursorRef.current
+
+    if (prevCursorKey && prevCursorKey !== cursorKey) {
+      setBufferPageVisible(false)
+    }
+
+    prevBoardCursorRef.current = cursorKey
+  }, [effectiveCurrentRound, effectiveCurrentQuestion, currentQuestion?.IDQuestion])
 
   // WS payload includes question data in realtime updates; normalize it as fallback
   const statusQuestion = useMemo(() => {
@@ -903,15 +916,17 @@ function GameBoardContent() {
 
           {/* Center: Game State */}
           <div className="flex-1 flex justify-center mt-2">
-            <div className="text-center">
-              <p className={`text-2xl lg:text-4xl font-display font-bold tracking-wide ${gameState === "break" ? "text-yellow-400" :
-                isLobby ? "text-yellow-400" :
-                  isCompleted ? "text-green-400" :
-                    "text-purple-400"
-                } drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]`}>
-                {isLobby ? "Waiting for Players" : isCompleted ? "Game Complete" : getHeaderText()}
-              </p>
-            </div>
+            {!bufferPageVisible && (
+              <div className="text-center">
+                <p className={`text-2xl lg:text-4xl font-display font-bold tracking-wide ${gameState === "break" ? "text-yellow-400" :
+                  isLobby ? "text-yellow-400" :
+                    isCompleted ? "text-green-400" :
+                      "text-purple-400"
+                  } drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]`}>
+                  {isLobby ? "Waiting for Players" : isCompleted ? "Game Complete" : getHeaderText()}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Right: Sponsor Logo - MASSIVE */}
@@ -1134,7 +1149,7 @@ function GameBoardContent() {
             )}
 
             {/* ==== GET READY STATE ==== */}
-            {gameState === "get_ready" && (
+            {gameState === "get_ready" && !bufferPageVisible && (
               <motion.div
                 key="get_ready"
                 initial={{ opacity: 0, scale: 0.9 }}

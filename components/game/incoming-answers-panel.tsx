@@ -45,6 +45,7 @@ export function IncomingAnswersPanel({
 }: IncomingAnswersPanelProps) {
   const [manualOverrides, setManualOverrides] = useState<Map<string, boolean>>(new Map())
   const [isOverriding, setIsOverriding] = useState(false)
+  const missingWagerLogRef = useRef<Set<string>>(new Set())
 
   // Reset manual overrides when question changes
   useEffect(() => {
@@ -195,6 +196,26 @@ export function IncomingAnswersPanel({
                 const hasResponded = !!response
                 const isCorrect = response ? isCorrectAnswer(response.AnswerText) : false
                 const overrideValue = response ? manualOverrides.get(response.IDResponse) : undefined
+                const hasValidWager =
+                  !!response &&
+                  typeof response.WageredPoints === "number" &&
+                  Number.isFinite(response.WageredPoints)
+
+                if (response && !hasValidWager) {
+                  const logKey = `${currentQuestion.IDQuestion}:${response.IDResponse}:${team.IDTeam}`
+                  if (!missingWagerLogRef.current.has(logKey)) {
+                    missingWagerLogRef.current.add(logKey)
+                    console.warn("[IncomingAnswersPanel] Missing wager value for response", {
+                      sessionId,
+                      questionId: currentQuestion.IDQuestion,
+                      responseId: response.IDResponse,
+                      teamId: team.IDTeam,
+                      teamName: team.TeamName,
+                      rawWageredPoints: response.WageredPoints,
+                    })
+                  }
+                }
+
                 // Use override if set, otherwise use auto-graded result
                 const displayCorrect = overrideValue !== undefined ? overrideValue : isCorrect
 
@@ -239,8 +260,8 @@ export function IncomingAnswersPanel({
                     </td>
                     <td className="p-3 text-center">
                       {hasResponded ? (
-                        <span className="text-yellow-400 font-display font-bold">
-                          {response.WageredPoints}
+                        <span className={`font-display font-bold ${hasValidWager ? "text-yellow-400" : "text-orange-300"}`}>
+                          {hasValidWager ? response.WageredPoints : 0}
                         </span>
                       ) : (
                         <span className="text-gray-500">-</span>

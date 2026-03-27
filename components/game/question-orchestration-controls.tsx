@@ -87,13 +87,6 @@ export function QuestionOrchestrationControls({
     const timerRemaining = sessionStatus?.TimerRemaining ?? null
     const timerTotal = sessionStatus?.TimerTotal ?? null
 
-    // Reset buffer state when game state changes (e.g. question reset, prev question)
-    useEffect(() => {
-        if (gameState !== "answer_reveal") {
-            setShowingBuffer(false)
-        }
-    }, [gameState])
-
     // Derived state
     const hasQuestionVideo = !!currentQuestion?.QuestionVideoUrl
     const hasAnswerVideo = !!currentQuestion?.AnswerVideoUrl
@@ -108,6 +101,19 @@ export function QuestionOrchestrationControls({
     const sortedRounds = useMemo(
         () => [...allRounds].sort((a, b) => a.RoundNumber - b.RoundNumber),
         [allRounds]
+    )
+    const orderedQuestions = useMemo(
+        () =>
+            sortedRounds.flatMap((round) =>
+                [...round.questions]
+                    .sort((a, b) => a.QuestionOrder - b.QuestionOrder)
+                    .map((question) => ({
+                        roundNumber: round.RoundNumber,
+                        questionOrder: question.QuestionOrder,
+                        question,
+                    }))
+            ),
+        [sortedRounds]
     )
 
     const findQuestionInRounds = useCallback((roundNumber: number, questionOrder: number): Question | null => {
@@ -127,94 +133,70 @@ export function QuestionOrchestrationControls({
         }
     }, [sessionStatus?.CurrentRound, sessionStatus?.CurrentQuestion])
 
-    const getNextTarget = useCallback(() => {
-        const currentPosition = getCurrentPosition()
-        if (!currentPosition) return null
+    const getCurrentCursor = useCallback(() => {
+        if (orderedQuestions.length === 0) return null
 
-        const currentRoundIndex = sortedRounds.findIndex(
-            (round) => round.RoundNumber === currentPosition.roundNumber
-        )
-        if (currentRoundIndex === -1) return null
-
-        const orderedCurrentRoundQuestions = [...sortedRounds[currentRoundIndex].questions].sort(
-            (a, b) => a.QuestionOrder - b.QuestionOrder
-        )
-        const currentQuestionIndex = orderedCurrentRoundQuestions.findIndex(
-            (question) => question.QuestionOrder === currentPosition.questionOrder
-        )
-        if (currentQuestionIndex === -1) return null
-
-        if (currentQuestionIndex + 1 < orderedCurrentRoundQuestions.length) {
-            const targetQuestion = orderedCurrentRoundQuestions[currentQuestionIndex + 1]
-            return {
-                roundNumber: sortedRounds[currentRoundIndex].RoundNumber,
-                questionOrder: targetQuestion.QuestionOrder,
-                question: targetQuestion,
-            }
-        }
-
-        for (let index = currentRoundIndex + 1; index < sortedRounds.length; index += 1) {
-            const orderedRoundQuestions = [...sortedRounds[index].questions].sort(
-                (a, b) => a.QuestionOrder - b.QuestionOrder
+        if (currentQuestion?.IDQuestion) {
+            const indexById = orderedQuestions.findIndex(
+                (item) => item.question.IDQuestion === currentQuestion.IDQuestion
             )
-            if (orderedRoundQuestions.length > 0) {
-                const targetQuestion = orderedRoundQuestions[0]
+            if (indexById !== -1) {
                 return {
-                    roundNumber: sortedRounds[index].RoundNumber,
-                    questionOrder: targetQuestion.QuestionOrder,
-                    question: targetQuestion,
+                    index: indexById,
+                    ...orderedQuestions[indexById],
                 }
             }
         }
 
-        return null
-    }, [getCurrentPosition, sortedRounds])
+        const currentPosition = getCurrentPosition()
+        if (!currentPosition) return null
+
+        const indexByPosition = orderedQuestions.findIndex(
+            (item) =>
+                item.roundNumber === currentPosition.roundNumber &&
+                item.questionOrder === currentPosition.questionOrder
+        )
+        if (indexByPosition === -1) return null
+
+        return {
+            index: indexByPosition,
+            ...orderedQuestions[indexByPosition],
+        }
+    }, [currentQuestion?.IDQuestion, getCurrentPosition, orderedQuestions])
+
+    const currentCursor = useMemo(() => getCurrentCursor(), [getCurrentCursor])
+
+    const getNextTarget = useCallback(() => {
+        if (!currentCursor) return null
+
+        const nextItem = orderedQuestions[currentCursor.index + 1]
+        if (!nextItem) return null
+
+        return {
+            roundNumber: nextItem.roundNumber,
+            questionOrder: nextItem.questionOrder,
+            question: nextItem.question,
+        }
+    }, [currentCursor, orderedQuestions])
 
     // Determine if this is the last question across all rounds
-    const isLastQuestion = useMemo(() => getNextTarget() === null, [getNextTarget])
+    const isLastQuestion = useMemo(
+        () => !!currentCursor && currentCursor.index === orderedQuestions.length - 1,
+        [currentCursor, orderedQuestions.length]
+    )
 
     const getPrevTarget = useCallback(() => {
-        const currentPosition = getCurrentPosition()
-        if (!currentPosition) return null
+        if (!currentCursor) return null
 
-        const currentRoundIndex = sortedRounds.findIndex(
-            (round) => round.RoundNumber === currentPosition.roundNumber
-        )
-        if (currentRoundIndex === -1) return null
+        const prevItem = orderedQuestions[currentCursor.index - 1]
+        if (!prevItem) return null
 
-        const orderedCurrentRoundQuestions = [...sortedRounds[currentRoundIndex].questions].sort(
-            (a, b) => a.QuestionOrder - b.QuestionOrder
-        )
-        const currentQuestionIndex = orderedCurrentRoundQuestions.findIndex(
-            (question) => question.QuestionOrder === currentPosition.questionOrder
-        )
-        if (currentQuestionIndex === -1) return null
-
-        if (currentQuestionIndex - 1 >= 0) {
-            const targetQuestion = orderedCurrentRoundQuestions[currentQuestionIndex - 1]
-            return {
-                roundNumber: sortedRounds[currentRoundIndex].RoundNumber,
-                questionOrder: targetQuestion.QuestionOrder,
-                question: targetQuestion,
-            }
+        return {
+            roundNumber: prevItem.roundNumber,
+            questionOrder: prevItem.questionOrder,
+            question: prevItem.question,
         }
-
-        for (let index = currentRoundIndex - 1; index >= 0; index -= 1) {
-            const orderedRoundQuestions = [...sortedRounds[index].questions].sort(
-                (a, b) => a.QuestionOrder - b.QuestionOrder
-            )
-            if (orderedRoundQuestions.length > 0) {
-                const targetQuestion = orderedRoundQuestions[orderedRoundQuestions.length - 1]
-                return {
-                    roundNumber: sortedRounds[index].RoundNumber,
-                    questionOrder: targetQuestion.QuestionOrder,
-                    question: targetQuestion,
-                }
-            }
-        }
-
-        return null
-    }, [getCurrentPosition, sortedRounds])
+    }, [currentCursor, orderedQuestions])
 
     const getResetTarget = useCallback(() => {
         const currentPosition = getCurrentPosition()
@@ -232,6 +214,11 @@ export function QuestionOrchestrationControls({
 
     // Video steps depend on showVideo toggle
     const showVideoSteps = showVideo && hasQuestionVideo
+
+    // Reset buffer when the question identity changes.
+    useEffect(() => {
+        setShowingBuffer(false)
+    }, [currentQuestion?.IDQuestion, sessionStatus?.CurrentRound, sessionStatus?.CurrentQuestion])
 
     // Response stats
     const respondedCount = responses.length
@@ -577,6 +564,16 @@ export function QuestionOrchestrationControls({
         return "upcoming"
     }
 
+    // If the game is active but the current question hasn't arrived yet (e.g., during get_ready transition),
+    // show a loading placeholder instead of hiding the controls entirely. This prevents the host UI from
+    // appearing locked up after round transitions.
+    if (!currentQuestion && sessionStatus?.Status === "active" && sessionStatus?.GameState === "get_ready") {
+      return (
+        <div className="flex items-center justify-center p-4 text-gray-400">
+          Loading next question…
+        </div>
+      );
+    }
     if (!currentQuestion || sessionStatus?.Status !== "active") {
         return null
     }
@@ -1004,60 +1001,56 @@ export function QuestionOrchestrationControls({
                             )}
                             <span className="hidden sm:inline">{isGoingPrev ? "Loading..." : "Prev"}</span>
                         </Button>
-                        {gameState === "answer_reveal" && (
-                            <>
-                                {/* Last question indicator */}
-                                {isLastQuestion && !showingBuffer && (
-                                    <span className="text-xs text-red-400 font-semibold flex items-center gap-1">
-                                        <AlertTriangle className="h-3 w-3" />
-                                        Last Question!
-                                    </span>
-                                )}
-                                {isLastQuestion ? (
-                                    showingBuffer ? (
-                                        <Button
-                                            onClick={() => { void handleEndGame() }}
-                                            disabled={isLoading || advancing}
-                                            size="sm"
-                                            className="bg-red-600 hover:bg-red-700 text-white h-8 text-xs"
-                                        >
-                                            {isLoading ? (
-                                                <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
-                                            ) : (
-                                                <SkipForward className="h-3.5 w-3.5 sm:mr-1.5" />
-                                            )}
-                                            <span className="hidden sm:inline">End Game</span>
-                                            <span className="sm:hidden">End</span>
-                                        </Button>
+                        {/* Last-question warning + buffer flow should not depend on answer_reveal state. */}
+                        {isLastQuestion && !showingBuffer && (
+                            <span className="text-xs text-red-400 font-semibold flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Last Question!
+                            </span>
+                        )}
+                        {isLastQuestion ? (
+                            showingBuffer ? (
+                                <Button
+                                    onClick={() => { void handleEndGame() }}
+                                    disabled={isLoading || advancing}
+                                    size="sm"
+                                    className="bg-red-600 hover:bg-red-700 text-white h-8 text-xs"
+                                >
+                                    {isLoading ? (
+                                        <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
                                     ) : (
-                                        <Button
-                                            onClick={handleShowBufferPage}
-                                            disabled={isLoading || advancing}
-                                            size="sm"
-                                            className="bg-yellow-600 hover:bg-yellow-700 text-white h-8 text-xs"
-                                        >
-                                            <SkipForward className="h-3.5 w-3.5 sm:mr-1.5" />
-                                            <span className="hidden sm:inline">Show Buffer Page</span>
-                                            <span className="sm:hidden">Buffer</span>
-                                        </Button>
-                                    )
+                                        <SkipForward className="h-3.5 w-3.5 sm:mr-1.5" />
+                                    )}
+                                    <span className="hidden sm:inline">End Game</span>
+                                    <span className="sm:hidden">End</span>
+                                </Button>
+                            ) : (
+                                <Button
+                                    onClick={handleShowBufferPage}
+                                    disabled={isLoading || advancing}
+                                    size="sm"
+                                    className="bg-yellow-600 hover:bg-yellow-700 text-white h-8 text-xs"
+                                >
+                                    <SkipForward className="h-3.5 w-3.5 sm:mr-1.5" />
+                                    <span className="hidden sm:inline">Show Buffer Page</span>
+                                    <span className="sm:hidden">Buffer</span>
+                                </Button>
+                            )
+                        ) : (
+                            <Button
+                                onClick={handleNextQuestion}
+                                disabled={isLoading || advancing}
+                                size="sm"
+                                className="bg-purple-600 hover:bg-purple-700 text-white h-8 text-xs"
+                            >
+                                {isLoading ? (
+                                    <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
                                 ) : (
-                                    <Button
-                                        onClick={handleNextQuestion}
-                                        disabled={isLoading || advancing}
-                                        size="sm"
-                                        className="bg-purple-600 hover:bg-purple-700 text-white h-8 text-xs"
-                                    >
-                                        {isLoading ? (
-                                            <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
-                                        ) : (
-                                            <SkipForward className="h-3.5 w-3.5 sm:mr-1.5" />
-                                        )}
-                                        <span className="hidden sm:inline">Next Question</span>
-                                        <span className="sm:hidden">Next</span>
-                                    </Button>
+                                    <SkipForward className="h-3.5 w-3.5 sm:mr-1.5" />
                                 )}
-                            </>
+                                <span className="hidden sm:inline">Next Question</span>
+                                <span className="sm:hidden">Next</span>
+                            </Button>
                         )}
                     </div>
                 </div>

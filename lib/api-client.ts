@@ -117,6 +117,7 @@ export function getMediaUrl(path: string | null | undefined): string | undefined
 
 // -------------------- Token Management --------------------
 let authToken: string | null = null
+let hostLinkAuth: { token: string; pin: string } | null = null
 
 export function setAuthToken(token: string | null) {
   authToken = token
@@ -144,6 +145,18 @@ export function clearAuthToken() {
   }
 }
 
+export function setHostLinkAuth(data: { token: string; pin: string } | null) {
+  hostLinkAuth = data
+}
+
+export function getHostLinkAuth(): { token: string; pin: string } | null {
+  return hostLinkAuth
+}
+
+export function clearHostLinkAuth() {
+  hostLinkAuth = null
+}
+
 // -------------------- Fetch Helper --------------------
 class ApiClientError extends Error {
   status: number
@@ -166,6 +179,7 @@ async function apiRequest<T>(
   } = {}
 ): Promise<T> {
   const { method = "POST", body, requiresAuth = false } = options
+  let requestBody = body
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -173,10 +187,36 @@ async function apiRequest<T>(
 
   if (requiresAuth) {
     const token = getAuthToken()
-    if (!token) {
-      throw new ApiClientError(401, "No authentication token available")
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
+    } else {
+      const hostLink = getHostLinkAuth()
+      if (!hostLink) {
+        throw new ApiClientError(401, "No authentication token available")
+      }
+
+      headers["X-Host-Link-Token"] = hostLink.token
+      headers["X-Host-Link-PIN"] = hostLink.pin
+
+      if (requestBody && typeof requestBody === "object" && !Array.isArray(requestBody)) {
+        requestBody = {
+          Token: hostLink.token,
+          PIN: hostLink.pin,
+          ...(requestBody as Record<string, unknown>),
+        }
+      } else if (requestBody === undefined) {
+        requestBody = {
+          Token: hostLink.token,
+          PIN: hostLink.pin,
+        }
+      } else {
+        requestBody = {
+          Token: hostLink.token,
+          PIN: hostLink.pin,
+          payload: requestBody,
+        }
+      }
     }
-    headers["Authorization"] = `Bearer ${token}`
   }
 
   const url = `${API_BASE_URL}${endpoint}`
@@ -187,7 +227,7 @@ async function apiRequest<T>(
     response = await fetch(url, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: requestBody ? JSON.stringify(requestBody) : undefined,
     })
   } catch (err) {
     console.error(`[API] Network error:`, err)

@@ -18,6 +18,9 @@ import type {
   GradeResponse,
   GradeOverrideItem,
   GradeOverrideResponse,
+  Question,
+  Round,
+  RoundWithQuestions,
 } from "@/lib/api-types"
 
 // -------------------- Types --------------------
@@ -40,6 +43,87 @@ interface HostSessionState {
 }
 
 const STORAGE_KEY = "trivitime_host_session"
+
+const toFiniteNumber = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const mergeDefined = <T extends object>(base: T, incoming: Partial<T>): T => {
+  const merged: Record<string, unknown> = { ...(base as Record<string, unknown>) }
+  for (const [key, value] of Object.entries(incoming as Record<string, unknown>)) {
+    if (value !== undefined) {
+      merged[key] = value
+    }
+  }
+  return merged as T
+}
+
+const extractRealtimeQuestionId = (status: SessionStatusResponse | null): string | null => {
+  if (!status || typeof status !== "object") return null
+  const rawQuestion = (status as unknown as { question?: unknown }).question
+  if (!rawQuestion || typeof rawQuestion !== "object") return null
+
+  const idQuestion = (rawQuestion as Record<string, unknown>).IDQuestion
+  if (typeof idQuestion === "string" && idQuestion.trim()) return idQuestion
+
+  const idQuestionSnake = (rawQuestion as Record<string, unknown>).id_question
+  if (typeof idQuestionSnake === "string" && idQuestionSnake.trim()) return idQuestionSnake
+
+  return null
+}
+
+function resolveRoundAndQuestion(
+  episode: EpisodeWithRounds | null,
+  status: Pick<SessionStatusResponse, "CurrentRound" | "CurrentQuestion"> | null,
+  realtimeQuestionId: string | null
+): { round: Round | null; question: Question | null } {
+  if (!episode || !status) {
+    return { round: null, question: null }
+  }
+
+  const normalizedRound = toFiniteNumber(status.CurrentRound)
+  const normalizedQuestion = toFiniteNumber(status.CurrentQuestion)
+  let resolvedRound: RoundWithQuestions | null = null
+  let resolvedQuestion: Question | null = null
+
+  if (normalizedRound !== null && normalizedQuestion !== null) {
+    const roundByNumber = episode.rounds.find((r) => r.RoundNumber === normalizedRound) || null
+    const roundByIndex =
+      !roundByNumber && normalizedRound > 0 && normalizedRound <= episode.rounds.length
+        ? episode.rounds[normalizedRound - 1]
+        : null
+
+    resolvedRound = roundByNumber || roundByIndex
+
+    if (resolvedRound) {
+      const questionByOrder = resolvedRound.questions.find((q) => q.QuestionOrder === normalizedQuestion) || null
+      const questionByIndex =
+        !questionByOrder && normalizedQuestion > 0 && normalizedQuestion <= resolvedRound.questions.length
+          ? resolvedRound.questions[normalizedQuestion - 1]
+          : null
+
+      resolvedQuestion = questionByOrder || questionByIndex
+    }
+  }
+
+  if (!resolvedQuestion && realtimeQuestionId) {
+    for (const round of episode.rounds) {
+      const matchedQuestion = round.questions.find((q) => q.IDQuestion === realtimeQuestionId) || null
+      if (matchedQuestion) {
+        resolvedRound = round
+        resolvedQuestion = matchedQuestion
+        break
+      }
+    }
+  }
+
+  return { round: resolvedRound, question: resolvedQuestion }
+}
 
 // -------------------- Hook --------------------
 export function useHostSession() {
@@ -70,12 +154,9 @@ export function useHostSession() {
 
     setState((prev) => ({
       ...prev,
-      sessionStatus: realtimeStatus,
+      sessionStatus: prev.sessionStatus ? mergeDefined(prev.sessionStatus, realtimeStatus) : realtimeStatus,
       session: prev.session
-        ? {
-            ...prev.session,
-            ...realtimeStatus,
-          }
+        ? mergeDefined(prev.session, realtimeStatus)
         : prev.session,
     }))
   }, [realtimeStatus])
@@ -167,12 +248,9 @@ export function useHostSession() {
       const status = await sessionsApi.status(state.session.IDGameSession)
       setState((prev) => ({
         ...prev,
-        sessionStatus: status,
+        sessionStatus: prev.sessionStatus ? mergeDefined(prev.sessionStatus, status) : status,
         session: prev.session
-          ? {
-              ...prev.session,
-              ...status,
-            }
+          ? mergeDefined(prev.session, status)
           : prev.session,
       }))
       return status
@@ -410,27 +488,37 @@ export function useHostSession() {
 
   // Get current question from episode
   const getCurrentQuestion = useCallback(() => {
-    if (!state.episode || !state.session) return null
+    const statusSource = state.sessionStatus || state.session
+    if (!state.episode || !statusSource) return null
 
-    const { CurrentRound, CurrentQuestion } = state.session
-    if (CurrentRound === null || CurrentQuestion === null) return null
+    const resolved = resolveRoundAndQuestion(
+      state.episode,
+      {
+        CurrentRound: statusSource.CurrentRound,
+        CurrentQuestion: statusSource.CurrentQuestion,
+      },
+      extractRealtimeQuestionId(state.sessionStatus)
+    )
 
-    const round = state.episode.rounds.find((r) => r.RoundNumber === CurrentRound)
-    if (!round) return null
-
-    const question = round.questions.find((q) => q.QuestionOrder === CurrentQuestion)
-    return question || null
-  }, [state.episode, state.session])
+    return resolved.question
+  }, [state.episode, state.session, state.sessionStatus])
 
   // Get current round from episode
   const getCurrentRound = useCallback(() => {
-    if (!state.episode || !state.session) return null
+    const statusSource = state.sessionStatus || state.session
+    if (!state.episode || !statusSource) return null
 
-    const { CurrentRound } = state.session
-    if (CurrentRound === null) return null
+    const resolved = resolveRoundAndQuestion(
+      state.episode,
+      {
+        CurrentRound: statusSource.CurrentRound,
+        CurrentQuestion: statusSource.CurrentQuestion,
+      },
+      extractRealtimeQuestionId(state.sessionStatus)
+    )
 
-    return state.episode.rounds.find((r) => r.RoundNumber === CurrentRound) || null
-  }, [state.episode, state.session])
+    return resolved.round
+  }, [state.episode, state.session, state.sessionStatus])
 
   return {
     // State
