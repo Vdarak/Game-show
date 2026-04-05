@@ -25,6 +25,7 @@ import type {
   GenerateHostLinkRequest,
   HostLinkResponse,
   ValidateHostLinkRequest,
+  ValidateHostLinkResponse,
   HostLinkListRequest,
   HostLinkListItem,
   HostLinkRevokeRequest,
@@ -117,7 +118,7 @@ export function getMediaUrl(path: string | null | undefined): string | undefined
 
 // -------------------- Token Management --------------------
 let authToken: string | null = null
-let hostLinkAuth: { token: string; pin: string } | null = null
+const HOST_TOKEN_STORAGE_KEY = "trivitime_host_token"
 
 export function setAuthToken(token: string | null) {
   authToken = token
@@ -135,6 +136,10 @@ export function getAuthToken(): string | null {
   if (typeof window !== "undefined") {
     authToken = localStorage.getItem("trivitime_token")
   }
+  // Fall back to host token if no admin token exists
+  if (!authToken) {
+    return getHostToken()
+  }
   return authToken
 }
 
@@ -145,16 +150,27 @@ export function clearAuthToken() {
   }
 }
 
-export function setHostLinkAuth(data: { token: string; pin: string } | null) {
-  hostLinkAuth = data
+export function setHostToken(token: string | null) {
+  if (typeof window !== "undefined") {
+    if (token) {
+      localStorage.setItem(HOST_TOKEN_STORAGE_KEY, token)
+    } else {
+      localStorage.removeItem(HOST_TOKEN_STORAGE_KEY)
+    }
+  }
 }
 
-export function getHostLinkAuth(): { token: string; pin: string } | null {
-  return hostLinkAuth
+export function getHostToken(): string | null {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem(HOST_TOKEN_STORAGE_KEY)
+  }
+  return null
 }
 
-export function clearHostLinkAuth() {
-  hostLinkAuth = null
+export function clearHostToken() {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(HOST_TOKEN_STORAGE_KEY)
+  }
 }
 
 // -------------------- Fetch Helper --------------------
@@ -179,7 +195,6 @@ async function apiRequest<T>(
   } = {}
 ): Promise<T> {
   const { method = "POST", body, requiresAuth = false } = options
-  let requestBody = body
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -187,36 +202,10 @@ async function apiRequest<T>(
 
   if (requiresAuth) {
     const token = getAuthToken()
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`
-    } else {
-      const hostLink = getHostLinkAuth()
-      if (!hostLink) {
-        throw new ApiClientError(401, "No authentication token available")
-      }
-
-      headers["X-Host-Link-Token"] = hostLink.token
-      headers["X-Host-Link-PIN"] = hostLink.pin
-
-      if (requestBody && typeof requestBody === "object" && !Array.isArray(requestBody)) {
-        requestBody = {
-          Token: hostLink.token,
-          PIN: hostLink.pin,
-          ...(requestBody as Record<string, unknown>),
-        }
-      } else if (requestBody === undefined) {
-        requestBody = {
-          Token: hostLink.token,
-          PIN: hostLink.pin,
-        }
-      } else {
-        requestBody = {
-          Token: hostLink.token,
-          PIN: hostLink.pin,
-          payload: requestBody,
-        }
-      }
+    if (!token) {
+      throw new ApiClientError(401, "No authentication token available")
     }
+    headers["Authorization"] = `Bearer ${token}`
   }
 
   const url = `${API_BASE_URL}${endpoint}`
@@ -227,7 +216,7 @@ async function apiRequest<T>(
     response = await fetch(url, {
       method,
       headers,
-      body: requestBody ? JSON.stringify(requestBody) : undefined,
+      body: body ? JSON.stringify(body) : undefined,
     })
   } catch (err) {
     console.error(`[API] Network error:`, err)
@@ -401,7 +390,7 @@ export const hostLinksApi = {
   generate: (data: GenerateHostLinkRequest): Promise<HostLinkResponse> =>
     apiRequest("/host-link/generate", { body: data, requiresAuth: true }),
 
-  validate: (data: ValidateHostLinkRequest): Promise<Session> =>
+  validate: (data: ValidateHostLinkRequest): Promise<ValidateHostLinkResponse> =>
     apiRequest("/host-link/validate", { body: data }),
 
   list: (data?: HostLinkListRequest): Promise<HostLinkListItem[]> =>

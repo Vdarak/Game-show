@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useParams, useRouter } from "next/navigation"
-import { hostLinksApi, sessionsApi, episodesApi } from "@/lib/api-client"
+import { hostLinksApi, sessionsApi, episodesApi, setHostToken, clearHostToken, getHostToken, ApiClientError } from "@/lib/api-client"
 import { useSessionStatusWebSocket } from "@/hooks/use-session-status-websocket"
 import { useSound } from "@/lib/use-sound"
 import { Button } from "@/components/ui/button"
@@ -223,12 +223,18 @@ export default function HostTokenPage() {
       const parsed = JSON.parse(stored) as {
         session?: Session
         isPinValidated?: boolean
+        hostAccessToken?: string
       }
 
       if (parsed.session && parsed.isPinValidated) {
         setSession(parsed.session)
         setIsPinValidated(true)
         setPinError(null)
+
+        // Rehydrate host JWT so getAuthToken() finds it
+        if (parsed.hostAccessToken) {
+          setHostToken(parsed.hostAccessToken)
+        }
       }
     } catch {
       localStorage.removeItem(storageKey)
@@ -245,6 +251,7 @@ export default function HostTokenPage() {
       JSON.stringify({
         session,
         isPinValidated: true,
+        hostAccessToken: getHostToken(),
       })
     )
   }, [storageKey, isPinValidated, session])
@@ -266,6 +273,22 @@ export default function HostTokenPage() {
     void hydrateEpisode()
   }, [isPinValidated, session?.IDEpisode, episode?.IDEpisode])
 
+  // --------------- HOST AUTH ERROR HANDLER ---------------
+  const handleHostAuthError = useCallback((err: unknown): boolean => {
+    if (err instanceof ApiClientError && err.status === 403) {
+      clearHostToken()
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(storageKey)
+      }
+      setSession(null)
+      setIsPinValidated(false)
+      setPinError("This host link has been revoked or expired.")
+      toast.error("Host access revoked")
+      return true
+    }
+    return false
+  }, [storageKey])
+
   // --------------- PIN VALIDATION ---------------
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -276,14 +299,16 @@ export default function HostTokenPage() {
     setIsValidating(true)
     setPinError(null)
     try {
-      const validatedSession = await hostLinksApi.validate({ Token: token, PIN: pin.trim() })
-      setSession(validatedSession)
+      const result = await hostLinksApi.validate({ Token: token, PIN: pin.trim() })
+      // Store the host JWT so all subsequent requiresAuth calls work
+      setHostToken(result.access_token)
+      setSession(result.session)
       setIsPinValidated(true)
       setPinError(null)
 
       // Episode hydration is best-effort; a failure here should not invalidate a successful PIN.
       void episodesApi
-        .get(validatedSession.IDEpisode)
+        .get(result.session.IDEpisode)
         .then((ep) => {
           setEpisode(ep)
         })
@@ -601,8 +626,10 @@ export default function HostTokenPage() {
       const updated = await sessionsApi.start(session.IDGameSession)
       setSession(updated)
       toast.success("Game started!")
-    } catch {
-      toast.error("Failed to start game")
+    } catch (err) {
+      if (!handleHostAuthError(err)) {
+        toast.error("Failed to start game")
+      }
     }
     setIsLoading(false)
   }
@@ -614,8 +641,10 @@ export default function HostTokenPage() {
       const result = await sessionsApi.grade({ IDGameSession: session.IDGameSession })
       await refreshLeaderboard()
       toast.success(`Graded ${result.total_graded} responses`)
-    } catch {
-      toast.error("Failed to grade responses")
+    } catch (err) {
+      if (!handleHostAuthError(err)) {
+        toast.error("Failed to grade responses")
+      }
     }
     setIsGrading(false)
   }
@@ -630,8 +659,9 @@ export default function HostTokenPage() {
         toast.info("Game completed!")
       }
     } catch (err) {
-      toast.error("Failed to advance")
-      throw err
+      if (!handleHostAuthError(err)) {
+        toast.error("Failed to advance")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -642,8 +672,10 @@ export default function HostTokenPage() {
     try {
       await sessionsApi.kick({ IDGameSession: session.IDGameSession, IDTeam: teamId })
       toast.success("Team removed")
-    } catch {
-      toast.error("Failed to remove team")
+    } catch (err) {
+      if (!handleHostAuthError(err)) {
+        toast.error("Failed to remove team")
+      }
     }
   }
 
@@ -654,8 +686,10 @@ export default function HostTokenPage() {
       const updated = await sessionsApi.end(session.IDGameSession)
       setSession(updated)
       toast.info("Game ended")
-    } catch {
-      toast.error("Failed to end game")
+    } catch (err) {
+      if (!handleHostAuthError(err)) {
+        toast.error("Failed to end game")
+      }
     }
     setIsLoading(false)
   }
@@ -668,8 +702,10 @@ export default function HostTokenPage() {
       const updated = await sessionsApi.restart(session.IDGameSession)
       setSession(updated)
       toast.success("Game restarted!")
-    } catch {
-      toast.error("Failed to restart game")
+    } catch (err) {
+      if (!handleHostAuthError(err)) {
+        toast.error("Failed to restart game")
+      }
     }
     setIsRestarting(false)
   }
@@ -682,8 +718,9 @@ export default function HostTokenPage() {
       await refreshSessionStatus()
       toast.success("Question reset successfully")
     } catch (err) {
-      toast.error("Failed to reset question")
-      throw err
+      if (!handleHostAuthError(err)) {
+        toast.error("Failed to reset question")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -697,8 +734,9 @@ export default function HostTokenPage() {
       await refreshSessionStatus()
       toast.success("Moved to previous question")
     } catch (err) {
-      toast.error("Failed to move to previous question")
-      throw err
+      if (!handleHostAuthError(err)) {
+        toast.error("Failed to move to previous question")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -727,8 +765,10 @@ export default function HostTokenPage() {
       await refreshLeaderboard()
       toast.success(`Graded ${result.updated} responses`)
       await handleRefreshResponses()
-    } catch {
-      toast.error("Failed to grade responses")
+    } catch (err) {
+      if (!handleHostAuthError(err)) {
+        toast.error("Failed to grade responses")
+      }
     }
   }
 

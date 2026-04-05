@@ -253,6 +253,11 @@ export interface ValidateHostLinkRequest {
   PIN: string
 }
 
+export interface ValidateHostLinkResponse {
+  session: Session
+  access_token: string
+}
+
 export interface HostLinkListRequest {
   IDEpisode?: string
 }
