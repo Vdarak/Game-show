@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useParams, useRouter } from "next/navigation"
-import { hostLinksApi, sessionsApi, episodesApi, setHostToken, clearHostToken, getHostToken, ApiClientError } from "@/lib/api-client"
+import { hostLinksApi, sessionsApi, episodesApi, setHostToken, clearHostToken, ApiClientError } from "@/lib/api-client"
 import { useSessionStatusWebSocket } from "@/hooks/use-session-status-websocket"
 import { useSound } from "@/lib/use-sound"
 import { Button } from "@/components/ui/button"
@@ -106,6 +106,7 @@ export default function HostTokenPage() {
   const leaderboardPollInFlightRef = useRef(false)
   const teamsBroadcastSignatureRef = useRef("")
   const unresolvedQuestionSignatureRef = useRef("")
+  const hostAccessTokenRef = useRef<string | null>(null)
   const { status: realtimeStatus, lastEvent: realtimeEvent, isConnected: isRealtimeConnected } = useSessionStatusWebSocket(
     isPinValidated ? session?.RoomCode || null : null,
     {
@@ -231,9 +232,10 @@ export default function HostTokenPage() {
         setIsPinValidated(true)
         setPinError(null)
 
-        // Rehydrate host JWT so getAuthToken() finds it
+        // Rehydrate host JWT so getAuthToken() finds it (in-memory, per-tab)
         if (parsed.hostAccessToken) {
           setHostToken(parsed.hostAccessToken)
+          hostAccessTokenRef.current = parsed.hostAccessToken
         }
       }
     } catch {
@@ -251,7 +253,7 @@ export default function HostTokenPage() {
       JSON.stringify({
         session,
         isPinValidated: true,
-        hostAccessToken: getHostToken(),
+        hostAccessToken: hostAccessTokenRef.current,
       })
     )
   }, [storageKey, isPinValidated, session])
@@ -300,8 +302,9 @@ export default function HostTokenPage() {
     setPinError(null)
     try {
       const result = await hostLinksApi.validate({ Token: token, PIN: pin.trim() })
-      // Store the host JWT so all subsequent requiresAuth calls work
+      // Store the host JWT (in-memory for this tab, ref for persistence)
       setHostToken(result.access_token)
+      hostAccessTokenRef.current = result.access_token
       setSession(result.session)
       setIsPinValidated(true)
       setPinError(null)

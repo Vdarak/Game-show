@@ -118,7 +118,6 @@ export function getMediaUrl(path: string | null | undefined): string | undefined
 
 // -------------------- Token Management --------------------
 let authToken: string | null = null
-const HOST_TOKEN_STORAGE_KEY = "trivitime_host_token"
 
 export function setAuthToken(token: string | null) {
   authToken = token
@@ -136,10 +135,6 @@ export function getAuthToken(): string | null {
   if (typeof window !== "undefined") {
     authToken = localStorage.getItem("trivitime_token")
   }
-  // Fall back to host token if no admin token exists
-  if (!authToken) {
-    return getHostToken()
-  }
   return authToken
 }
 
@@ -150,26 +145,25 @@ export function clearAuthToken() {
   }
 }
 
+/**
+ * Set a session-scoped host JWT (in-memory only, per-tab).
+ * Does NOT write to localStorage — the host page persists its JWT
+ * in its own per-link localStorage blob for refresh survival.
+ * This avoids collisions when multiple host links are open in the same browser.
+ */
 export function setHostToken(token: string | null) {
-  if (typeof window !== "undefined") {
-    if (token) {
-      localStorage.setItem(HOST_TOKEN_STORAGE_KEY, token)
-    } else {
-      localStorage.removeItem(HOST_TOKEN_STORAGE_KEY)
-    }
-  }
-}
-
-export function getHostToken(): string | null {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem(HOST_TOKEN_STORAGE_KEY)
-  }
-  return null
+  authToken = token
 }
 
 export function clearHostToken() {
+  // Only clear in-memory if it's not the admin token from localStorage
   if (typeof window !== "undefined") {
-    localStorage.removeItem(HOST_TOKEN_STORAGE_KEY)
+    const adminToken = localStorage.getItem("trivitime_token")
+    if (authToken !== adminToken) {
+      authToken = null
+    }
+  } else {
+    authToken = null
   }
 }
 

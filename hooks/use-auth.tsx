@@ -13,7 +13,6 @@ import {
   setAuthToken,
   getAuthToken,
   clearAuthToken,
-  clearHostToken,
   ApiClientError,
 } from "@/lib/api-client"
 import type { LoginResponse } from "@/lib/api-types"
@@ -74,7 +73,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Store token
       setAuthToken(response.access_token)
-      clearHostToken()  // clear any host JWT from a prior host-link session
 
       // Store user info
       const authUser: AuthUser = {
@@ -98,7 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     clearAuthToken()
-    clearHostToken()
     localStorage.removeItem("trivitime_user")
     setUser(null)
     setError(null)
