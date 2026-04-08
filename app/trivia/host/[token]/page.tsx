@@ -3,7 +3,16 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useParams, useRouter } from "next/navigation"
-import { hostLinksApi, sessionsApi, episodesApi, setHostToken, clearHostToken, ApiClientError } from "@/lib/api-client"
+import {
+  hostLinksApi,
+  sessionsApi,
+  episodesApi,
+  setHostToken,
+  clearHostToken,
+  setHostSessionTokenBridge,
+  clearHostSessionTokenBridge,
+  ApiClientError,
+} from "@/lib/api-client"
 import { useSessionStatusWebSocket } from "@/hooks/use-session-status-websocket"
 import { useSound } from "@/lib/use-sound"
 import { Button } from "@/components/ui/button"
@@ -106,6 +115,7 @@ export default function HostTokenPage() {
   const responsesPollInFlightRef = useRef(false)
   const leaderboardPollInFlightRef = useRef(false)
   const teamsBroadcastSignatureRef = useRef("")
+  const brandingBroadcastSignatureRef = useRef("")
   const unresolvedQuestionSignatureRef = useRef("")
   const hostAccessTokenRef = useRef<string | null>(null)
   const { status: realtimeStatus, lastEvent: realtimeEvent, isConnected: isRealtimeConnected } = useSessionStatusWebSocket(
@@ -249,6 +259,7 @@ export default function HostTokenPage() {
         if (parsed.hostAccessToken) {
           setHostToken(parsed.hostAccessToken)
           hostAccessTokenRef.current = parsed.hostAccessToken
+          setHostSessionTokenBridge(parsed.session.IDGameSession, parsed.hostAccessToken)
         }
       }
     } catch {
@@ -271,6 +282,11 @@ export default function HostTokenPage() {
     )
   }, [storageKey, isPinValidated, session])
 
+  useEffect(() => {
+    if (!isPinValidated || !session || !hostAccessTokenRef.current) return
+    setHostSessionTokenBridge(session.IDGameSession, hostAccessTokenRef.current)
+  }, [isPinValidated, session?.IDGameSession])
+
   // Ensure episode details are hydrated for restored sessions.
   useEffect(() => {
     if (!isPinValidated || !session) return
@@ -292,6 +308,9 @@ export default function HostTokenPage() {
   const handleHostAuthError = useCallback((err: unknown): boolean => {
     if (err instanceof ApiClientError && err.status === 403) {
       clearHostToken()
+      if (session?.IDGameSession) {
+        clearHostSessionTokenBridge(session.IDGameSession)
+      }
       if (typeof window !== "undefined") {
         localStorage.removeItem(storageKey)
       }
@@ -302,7 +321,7 @@ export default function HostTokenPage() {
       return true
     }
     return false
-  }, [storageKey])
+  }, [session?.IDGameSession, storageKey])
 
   // --------------- PIN VALIDATION ---------------
   const handlePinSubmit = async (e: React.FormEvent) => {
@@ -318,6 +337,7 @@ export default function HostTokenPage() {
       // Store the host JWT (in-memory for this tab, ref for persistence)
       setHostToken(result.access_token)
       hostAccessTokenRef.current = result.access_token
+      setHostSessionTokenBridge(result.session.IDGameSession, result.access_token)
       setSession(result.session)
       setIsPinValidated(true)
       setPinError(null)
@@ -332,6 +352,9 @@ export default function HostTokenPage() {
           console.error("Host-link episode hydration error:", err)
         })
     } catch {
+      if (session?.IDGameSession) {
+        clearHostSessionTokenBridge(session.IDGameSession)
+      }
       if (typeof window !== "undefined") {
         localStorage.removeItem(storageKey)
       }
@@ -374,9 +397,14 @@ export default function HostTokenPage() {
 
   const openGameboard = () => {
     if (session) {
+      if (hostAccessTokenRef.current) {
+        setHostSessionTokenBridge(session.IDGameSession, hostAccessTokenRef.current)
+      }
+
       // If gameboard is already open, just focus it
       if (gameboardWindowRef.current && !gameboardWindowRef.current.closed) {
         gameboardWindowRef.current.focus()
+        broadcastBrandingSync(session.IDGameSession, true)
         return
       }
       const win = window.open(
@@ -386,6 +414,9 @@ export default function HostTokenPage() {
       if (win) {
         gameboardWindowRef.current = win
         setIsGameboardOpen(true)
+        window.setTimeout(() => {
+          broadcastBrandingSync(session.IDGameSession, true)
+        }, 250)
       }
     }
   }
@@ -633,6 +664,44 @@ export default function HostTokenPage() {
       // BroadcastChannel not supported
     }
   }, [session?.IDGameSession, isPinValidated, teams])
+
+  const broadcastBrandingSync = useCallback((targetSessionId: string, force = false) => {
+    const sponsorshipImage = sessionStatus?.SponsorshipImage || episode?.SponsorshipImage || null
+    const sponsorshipVideoUrl = sessionStatus?.SponsorshipVideoUrl || episode?.SponsorshipVideoUrl || null
+    const episodeTitle = episode?.Title || null
+    const signature = `${targetSessionId}:${sponsorshipImage ?? ""}:${sponsorshipVideoUrl ?? ""}:${episodeTitle ?? ""}`
+
+    if (!force && signature === brandingBroadcastSignatureRef.current) return
+    brandingBroadcastSignatureRef.current = signature
+
+    try {
+      const bc = new BroadcastChannel(`trivitime-host-${targetSessionId}`)
+      bc.postMessage({
+        type: "SYNC_BRANDING",
+        sponsorshipImage,
+        sponsorshipVideoUrl,
+        episodeTitle,
+      })
+      bc.close()
+    } catch {
+      // BroadcastChannel not supported
+    }
+  }, [
+    episode?.SponsorshipImage,
+    episode?.SponsorshipVideoUrl,
+    episode?.Title,
+    sessionStatus?.SponsorshipImage,
+    sessionStatus?.SponsorshipVideoUrl,
+  ])
+
+  useEffect(() => {
+    if (!session || !isPinValidated) {
+      brandingBroadcastSignatureRef.current = ""
+      return
+    }
+
+    broadcastBrandingSync(session.IDGameSession)
+  }, [broadcastBrandingSync, isPinValidated, session?.IDGameSession])
 
   // --------------- HANDLERS ---------------
   const handleStartSession = async () => {

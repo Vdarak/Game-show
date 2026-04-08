@@ -4,7 +4,14 @@ import { useEffect, useState, useRef, Suspense, useMemo, useCallback } from "rea
 import { motion, AnimatePresence } from "framer-motion"
 import { useSearchParams } from "next/navigation"
 import Image from "next/image"
-import { sessionsApi, episodesApi, getMediaUrl } from "@/lib/api-client"
+import {
+  sessionsApi,
+  episodesApi,
+  getMediaUrl,
+  setHostToken,
+  getHostSessionTokenBridge,
+  ApiClientError,
+} from "@/lib/api-client"
 import { useSessionStatusWebSocket } from "@/hooks/use-session-status-websocket"
 import { DEFAULT_RULES } from "@/lib/constants"
 import dynamic from "next/dynamic"
@@ -176,6 +183,7 @@ function GameBoardContent() {
   const [error, setError] = useState<string | null>(null)
   const [resolvedRoomCode, setResolvedRoomCode] = useState<string | null>(roomCodeFromQuery)
   const [roomResolveAttempted, setRoomResolveAttempted] = useState(false)
+  const [hostAuthHydrated, setHostAuthHydrated] = useState(false)
   const {
     status: realtimeStatus,
     lastEvent: realtimeEvent,
@@ -201,12 +209,18 @@ function GameBoardContent() {
     currentQuestion: number | null
     question: Question
   } | null>(null)
+  const [controllerBrandingFallback, setControllerBrandingFallback] = useState<{
+    sponsorshipImagePath: string | null
+    sponsorshipVideoPath: string | null
+    episodeTitle: string | null
+  } | null>(null)
 
   // Track sequential option reveal with local animation state
   const [revealedOptions, setRevealedOptions] = useState<string[]>([])
   const prevGameStateRef = useRef<GameState | null>(null)
   const prevQuestionIdRef = useRef<string | null>(null)
   const prevBoardCursorRef = useRef<string | null>(null)
+  const episodeAuthRetryKeyRef = useRef<string | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const rulesVideoRef = useRef<HTMLVideoElement>(null)
@@ -245,6 +259,23 @@ function GameBoardContent() {
     setResolvedRoomCode(roomCodeFromQuery)
     setRoomResolveAttempted(false)
   }, [roomCodeFromQuery, sessionId])
+
+  useEffect(() => {
+    setHostAuthHydrated(false)
+    setControllerBrandingFallback(null)
+
+    if (!sessionId) {
+      setHostAuthHydrated(true)
+      return
+    }
+
+    const bridgedHostToken = getHostSessionTokenBridge(sessionId)
+    if (bridgedHostToken) {
+      setHostToken(bridgedHostToken)
+    }
+
+    setHostAuthHydrated(true)
+  }, [sessionId])
 
   // Bootstrap status once per session to warm room code + optional metadata (rules/category).
   useEffect(() => {
@@ -551,19 +582,52 @@ function GameBoardContent() {
   }, [sessionId, sessionStatus?.Status, isRealtimeConnected])
 
   useEffect(() => {
-    if (!sessionStatus?.IDEpisode || episode) return
+    if (!hostAuthHydrated || !sessionStatus?.IDEpisode) return
+    if (episode?.IDEpisode === sessionStatus.IDEpisode) return
 
     const loadEpisode = async () => {
       try {
         const ep = await episodesApi.get(sessionStatus.IDEpisode)
         setEpisode(ep)
-      } catch {
-        // Display clients may not have auth for episode details.
+        episodeAuthRetryKeyRef.current = null
+      } catch (err) {
+        const statusCode = err instanceof ApiClientError ? err.status : null
+        const retryKey = `${sessionStatus.IDEpisode}:${statusCode ?? "unknown"}`
+
+        const shouldRetryAuth =
+          (statusCode === 401 || statusCode === 403) &&
+          sessionId !== null &&
+          episodeAuthRetryKeyRef.current !== retryKey
+
+        if (shouldRetryAuth) {
+          episodeAuthRetryKeyRef.current = retryKey
+
+          const bridgedHostToken = getHostSessionTokenBridge(sessionId)
+          if (bridgedHostToken) {
+            setHostToken(bridgedHostToken)
+            try {
+              const retryEpisode = await episodesApi.get(sessionStatus.IDEpisode)
+              setEpisode(retryEpisode)
+              return
+            } catch (retryErr) {
+              if (process.env.NODE_ENV !== "production") {
+                console.debug("[Gameboard] Episode retry failed", retryErr)
+              }
+            }
+          }
+        }
+
+        if (process.env.NODE_ENV !== "production") {
+          console.debug("[Gameboard] Episode details unavailable for display client", {
+            statusCode,
+            hasSessionId: !!sessionId,
+          })
+        }
       }
     }
 
     void loadEpisode()
-  }, [sessionStatus?.IDEpisode, episode])
+  }, [hostAuthHydrated, sessionStatus?.IDEpisode, episode?.IDEpisode, sessionId])
 
   useEffect(() => {
     if (effectiveCurrentRound === null || effectiveCurrentQuestion === null) {
@@ -680,6 +744,9 @@ function GameBoardContent() {
           currentRound: optimisticRound,
           currentQuestion: optimisticQuestionNumber,
           question: optimisticQuestionPayload,
+          sponsorshipImage,
+          sponsorshipVideoUrl,
+          episodeTitle,
           ttlMs,
         } = event.data || {}
         switch (type) {
@@ -754,6 +821,37 @@ function GameBoardContent() {
               setTeams(normalizedTeams)
             }
             break
+          case "SYNC_BRANDING": {
+            const normalizedSponsorshipImage =
+              typeof sponsorshipImage === "string" && sponsorshipImage.trim().length > 0
+                ? sponsorshipImage
+                : null
+            const normalizedSponsorshipVideo =
+              typeof sponsorshipVideoUrl === "string" && sponsorshipVideoUrl.trim().length > 0
+                ? sponsorshipVideoUrl
+                : null
+            const normalizedEpisodeTitle =
+              typeof episodeTitle === "string" && episodeTitle.trim().length > 0
+                ? episodeTitle
+                : null
+
+            setControllerBrandingFallback((previous) => {
+              if (
+                previous?.sponsorshipImagePath === normalizedSponsorshipImage &&
+                previous?.sponsorshipVideoPath === normalizedSponsorshipVideo &&
+                previous?.episodeTitle === normalizedEpisodeTitle
+              ) {
+                return previous
+              }
+
+              return {
+                sponsorshipImagePath: normalizedSponsorshipImage,
+                sponsorshipVideoPath: normalizedSponsorshipVideo,
+                episodeTitle: normalizedEpisodeTitle,
+              }
+            })
+            break
+          }
           case "TOGGLE_LEADERBOARD":
             setShowLeaderboard(prev => !prev)
             break
@@ -849,9 +947,6 @@ function GameBoardContent() {
   const isLobby = gameState === "lobby" || sessionStatus?.Status === "lobby"
   const isCompleted = gameState === "completed" || sessionStatus?.Status === "completed"
 
-  // Get sponsor info from episode - default to gate-logo.png
-  const sponsorLogo = episode?.SponsorshipImage || "/gate-logo.png"
-
   const statusPayload = sessionStatus as (SessionStatusResponse & {
     current_category?: string | null
     question_category?: string | null
@@ -880,10 +975,18 @@ function GameBoardContent() {
     sessionStatus?.RulesVideoUrl || statusPayload?.rules_video_url || episode?.RulesVideoUrl || null
   const resolvedRulesVideoUrl = getMediaUrl(resolvedRulesVideoPath)
   const resolvedSponsorshipImagePath =
-    sessionStatus?.SponsorshipImage || statusPayload?.sponsorship_image || episode?.SponsorshipImage || null
+    controllerBrandingFallback?.sponsorshipImagePath ||
+    sessionStatus?.SponsorshipImage ||
+    statusPayload?.sponsorship_image ||
+    episode?.SponsorshipImage ||
+    null
   const resolvedSponsorshipImageUrl = getMediaUrl(resolvedSponsorshipImagePath)
   const resolvedSponsorshipVideoPath =
-    sessionStatus?.SponsorshipVideoUrl || statusPayload?.sponsorship_video_url || episode?.SponsorshipVideoUrl || null
+    controllerBrandingFallback?.sponsorshipVideoPath ||
+    sessionStatus?.SponsorshipVideoUrl ||
+    statusPayload?.sponsorship_video_url ||
+    episode?.SponsorshipVideoUrl ||
+    null
   const resolvedSponsorshipVideoUrl = getMediaUrl(resolvedSponsorshipVideoPath)
 
   // If rules screen is open but rules are still missing, retry public status API once more.
@@ -1054,7 +1157,7 @@ function GameBoardContent() {
           {/* Right: Sponsor Logo - MASSIVE */}
           <div className="flex items-start justify-end">
             <div className="h-28 lg:h-40 max-w-[280px] lg:max-w-[400px] flex items-start justify-end">
-              <img src={sponsorLogo} alt="Sponsor" className="max-h-full max-w-full object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]" />
+              <img src={resolvedSponsorshipImageUrl || "/gate-logo.png"} alt="Sponsor" className="max-h-full max-w-full object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]" />
             </div>
           </div>
         </div>
@@ -1164,11 +1267,11 @@ function GameBoardContent() {
                       <span className="text-lg lg:text-xl text-white font-medium tracking-wider uppercase drop-shadow-sm">presented by</span>
                       <Image src="/gate-logo.png" alt="GATE" width={160} height={70} className="h-12 lg:h-16 w-auto drop-shadow-xl" />
                     </div>
-                    {episode?.SponsorshipImage && (
+                    {resolvedSponsorshipImageUrl && (
                       <div className="flex flex-col items-center gap-4">
                         <span className="text-xl lg:text-2xl text-white font-bold tracking-wider uppercase drop-shadow-md">sponsored by</span>
                         <div className="h-28 lg:h-40 max-w-[350px] lg:max-w-[500px] flex items-center justify-center">
-                          <img src={episode.SponsorshipImage} alt="Sponsor" className="max-h-full max-w-full object-contain drop-shadow-2xl" />
+                          <img src={resolvedSponsorshipImageUrl} alt="Sponsor" className="max-h-full max-w-full object-contain drop-shadow-2xl" />
                         </div>
                       </div>
                     )}

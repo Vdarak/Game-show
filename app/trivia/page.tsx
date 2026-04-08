@@ -95,6 +95,7 @@ export default function TriviaControllerPage() {
   const responsesPollInFlightRef = useRef(false)
   const leaderboardPollInFlightRef = useRef(false)
   const teamsBroadcastSignatureRef = useRef("")
+  const brandingBroadcastSignatureRef = useRef("")
   const restoredEpisodeHydrationSessionRef = useRef<string | null>(null)
 
   // Gameboard window tracking — must be before intro music effect
@@ -393,6 +394,44 @@ export default function TriviaControllerPage() {
       // BroadcastChannel not supported
     }
   }, [session?.IDGameSession, view, teams])
+
+  const broadcastBrandingSync = useCallback((targetSessionId: string, force = false) => {
+    const sponsorshipImage = sessionStatus?.SponsorshipImage || episode?.SponsorshipImage || null
+    const sponsorshipVideoUrl = sessionStatus?.SponsorshipVideoUrl || episode?.SponsorshipVideoUrl || null
+    const episodeTitle = episode?.Title || null
+    const signature = `${targetSessionId}:${sponsorshipImage ?? ""}:${sponsorshipVideoUrl ?? ""}:${episodeTitle ?? ""}`
+
+    if (!force && signature === brandingBroadcastSignatureRef.current) return
+    brandingBroadcastSignatureRef.current = signature
+
+    try {
+      const bc = new BroadcastChannel(`trivitime-host-${targetSessionId}`)
+      bc.postMessage({
+        type: "SYNC_BRANDING",
+        sponsorshipImage,
+        sponsorshipVideoUrl,
+        episodeTitle,
+      })
+      bc.close()
+    } catch {
+      // BroadcastChannel not supported
+    }
+  }, [
+    episode?.SponsorshipImage,
+    episode?.SponsorshipVideoUrl,
+    episode?.Title,
+    sessionStatus?.SponsorshipImage,
+    sessionStatus?.SponsorshipVideoUrl,
+  ])
+
+  useEffect(() => {
+    if (!session || view !== "session") {
+      brandingBroadcastSignatureRef.current = ""
+      return
+    }
+
+    broadcastBrandingSync(session.IDGameSession)
+  }, [broadcastBrandingSync, session?.IDGameSession, view])
 
   // Show errors as toasts
   useEffect(() => {
@@ -717,6 +756,7 @@ export default function TriviaControllerPage() {
       // If gameboard is already open, just focus it
       if (gameboardWindowRef.current && !gameboardWindowRef.current.closed) {
         gameboardWindowRef.current.focus()
+        broadcastBrandingSync(session.IDGameSession, true)
         return
       }
       const win = window.open(
@@ -726,6 +766,9 @@ export default function TriviaControllerPage() {
       if (win) {
         gameboardWindowRef.current = win
         setIsGameboardOpen(true)
+        window.setTimeout(() => {
+          broadcastBrandingSync(session.IDGameSession, true)
+        }, 250)
       }
     }
   }

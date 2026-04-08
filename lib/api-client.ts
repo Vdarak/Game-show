@@ -118,6 +118,16 @@ export function getMediaUrl(path: string | null | undefined): string | undefined
 
 // -------------------- Token Management --------------------
 let authToken: string | null = null
+const HOST_SESSION_TOKEN_BRIDGE_PREFIX = "trivitime_host_token_bridge"
+const HOST_SESSION_TOKEN_BRIDGE_TTL_MS = 12 * 60 * 60 * 1000
+
+type HostSessionTokenBridgePayload = {
+  token: string
+  expiresAt: number
+}
+
+const getHostSessionTokenBridgeKey = (sessionId: string) =>
+  `${HOST_SESSION_TOKEN_BRIDGE_PREFIX}:${sessionId}`
 
 export function setAuthToken(token: string | null) {
   authToken = token
@@ -165,6 +175,60 @@ export function clearHostToken() {
   } else {
     authToken = null
   }
+}
+
+export function setHostSessionTokenBridge(
+  sessionId: string,
+  token: string,
+  ttlMs = HOST_SESSION_TOKEN_BRIDGE_TTL_MS
+) {
+  if (typeof window === "undefined") return
+  if (!sessionId || !token) return
+
+  const payload: HostSessionTokenBridgePayload = {
+    token,
+    expiresAt: Date.now() + Math.max(60_000, ttlMs),
+  }
+
+  try {
+    localStorage.setItem(getHostSessionTokenBridgeKey(sessionId), JSON.stringify(payload))
+  } catch {
+    // Ignore storage failures; host controller can still function in-tab.
+  }
+}
+
+export function getHostSessionTokenBridge(sessionId: string): string | null {
+  if (typeof window === "undefined") return null
+  if (!sessionId) return null
+
+  const key = getHostSessionTokenBridgeKey(sessionId)
+  const raw = localStorage.getItem(key)
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw) as HostSessionTokenBridgePayload
+    if (!parsed || typeof parsed.token !== "string" || typeof parsed.expiresAt !== "number") {
+      localStorage.removeItem(key)
+      return null
+    }
+
+    if (!parsed.token.trim() || parsed.expiresAt <= Date.now()) {
+      localStorage.removeItem(key)
+      return null
+    }
+
+    return parsed.token
+  } catch {
+    localStorage.removeItem(key)
+    return null
+  }
+}
+
+export function clearHostSessionTokenBridge(sessionId: string) {
+  if (typeof window === "undefined") return
+  if (!sessionId) return
+
+  localStorage.removeItem(getHostSessionTokenBridgeKey(sessionId))
 }
 
 // -------------------- Fetch Helper --------------------
