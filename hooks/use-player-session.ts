@@ -417,7 +417,7 @@ export function usePlayerSession() {
       return
     }
 
-    if (pointPoolRequestKeyRef.current === requestKey) return
+    if (pointPoolRequestKeyRef.current === requestKey && state.availableWagers.length > 0) return
     pointPoolRequestKeyRef.current = requestKey
 
     void sessionsApi

@@ -1265,27 +1265,33 @@ export default function TriviaControllerPage() {
 
               {/* No session yet — Create Session CTA */}
               {!session ? (
-                <Card className="bg-gray-800 border-gray-700 overflow-hidden">
-                  <div className="p-10 text-center">
-                    <Play className="h-16 w-16 text-purple-500/40 mx-auto mb-4" />
-                    <p className="font-display text-xl font-semibold text-white mb-2">Ready to Host</p>
-                    <p className="text-sm text-gray-400 mb-6 max-w-md mx-auto">
-                      Create a session to generate a QR code and room link for players to join.
-                    </p>
-                    <Button
-                      onClick={handleCreateSession}
-                      disabled={isLoading}
-                      className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 text-base"
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                      ) : (
-                        <Play className="h-5 w-5 mr-2" />
-                      )}
-                      Create Session
-                    </Button>
-                  </div>
-                </Card>
+                <div className="space-y-4">
+                  <SoundBoardPanel
+                    introMusicPlaying={introMusicPlaying}
+                    onToggleIntroMusic={handleToggleIntroMusic}
+                  />
+                  <Card className="bg-gray-800 border-gray-700 overflow-hidden">
+                    <div className="p-10 text-center">
+                      <Play className="h-16 w-16 text-purple-500/40 mx-auto mb-4" />
+                      <p className="font-display text-xl font-semibold text-white mb-2">Ready to Host</p>
+                      <p className="text-sm text-gray-400 mb-6 max-w-md mx-auto">
+                        Create a session to generate a QR code and room link for players to join.
+                      </p>
+                      <Button
+                        onClick={handleCreateSession}
+                        disabled={isLoading}
+                        className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 text-base"
+                      >
+                        {isLoading ? (
+                          <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        ) : (
+                          <Play className="h-5 w-5 mr-2" />
+                        )}
+                        Create Session
+                      </Button>
+                    </div>
+                  </Card>
+                </div>
               ) : (
                 <div className="space-y-4">
                   {/* Macro Phase Bar — full width at top */}

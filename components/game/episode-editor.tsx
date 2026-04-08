@@ -1145,7 +1145,12 @@ function QuestionCard({
         CorrectAnswer: answer,
         Category: category || undefined,
         QuestionType: type,
-        Options: type === "multiple_choice" ? options.filter((o) => o.trim()) : undefined,
+        Options:
+          type === "multiple_choice"
+            ? options.filter((o) => o.trim())
+            : type === "true_false"
+              ? ["True", "False"]
+              : [],
         Notes: notes.filter((n) => n.trim()).length > 0 ? notes.filter((n) => n.trim()) : null,
       })
     }, 1000)
@@ -1311,6 +1316,7 @@ function QuestionCard({
                       key={qType.value}
                       onClick={() => {
                         setType(qType.value as QuestionType)
+                        setAnswer("")
                         if (qType.value === "true_false") {
                           setOptions(["True", "False"])
                         } else if (qType.value === "multiple_choice") {

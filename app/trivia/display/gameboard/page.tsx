@@ -146,6 +146,22 @@ function getTextSizeClass(text: string): string {
   return "text-sm lg:text-xl leading-tight"
 }
 
+function mergeQuestionFields(primary: Question | null, fallback: Question | null): Question | null {
+  if (!primary) return fallback
+  if (!fallback) return primary
+
+  return {
+    ...primary,
+    Category: primary.Category?.trim() ? primary.Category : fallback.Category,
+    QuestionText: primary.QuestionText?.trim() ? primary.QuestionText : fallback.QuestionText,
+    CorrectAnswer: primary.CorrectAnswer?.trim() ? primary.CorrectAnswer : fallback.CorrectAnswer,
+    Options: Array.isArray(primary.Options) && primary.Options.length > 0 ? primary.Options : fallback.Options,
+    QuestionVideoUrl: primary.QuestionVideoUrl || fallback.QuestionVideoUrl,
+    AnswerVideoUrl: primary.AnswerVideoUrl || fallback.AnswerVideoUrl,
+    Notes: Array.isArray(primary.Notes) && primary.Notes.length > 0 ? primary.Notes : fallback.Notes,
+  }
+}
+
 function GameBoardContent() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("session")
@@ -168,6 +184,7 @@ function GameBoardContent() {
     enabled: !!resolvedRoomCode,
   })
   const [isMuted, setIsMuted] = useState(false)
+  const [isBoardActivated, setIsBoardActivated] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [fullscreenLeaderboard, setFullscreenLeaderboard] = useState(false)
   const [revealedRanks, setRevealedRanks] = useState<number[]>([])
@@ -179,6 +196,11 @@ function GameBoardContent() {
     question: Question | null
     expiresAt: number
   } | null>(null)
+  const [controllerQuestionFallback, setControllerQuestionFallback] = useState<{
+    currentRound: number | null
+    currentQuestion: number | null
+    question: Question
+  } | null>(null)
 
   // Track sequential option reveal with local animation state
   const [revealedOptions, setRevealedOptions] = useState<string[]>([])
@@ -189,6 +211,25 @@ function GameBoardContent() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const rulesVideoRef = useRef<HTMLVideoElement>(null)
   const sponsorVideoRef = useRef<HTMLVideoElement>(null)
+
+  const attemptMediaPlay = useCallback((mediaElement: HTMLVideoElement | null) => {
+    if (!mediaElement) return
+    const playPromise = mediaElement.play()
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {
+        // Ignore autoplay policy errors until activation click happens.
+      })
+    }
+  }, [])
+
+  const handleActivateBoard = useCallback(() => {
+    setIsBoardActivated(true)
+    window.setTimeout(() => {
+      attemptMediaPlay(videoRef.current)
+      attemptMediaPlay(rulesVideoRef.current)
+      attemptMediaPlay(sponsorVideoRef.current)
+    }, 80)
+  }, [attemptMediaPlay])
 
   // Video frame visibility — toggled by controller
   const [videoFrameHidden, setVideoFrameHidden] = useState(false)
@@ -525,7 +566,36 @@ function GameBoardContent() {
   }, [sessionStatus?.IDEpisode, episode])
 
   useEffect(() => {
+    if (effectiveCurrentRound === null || effectiveCurrentQuestion === null) {
+      setControllerQuestionFallback(null)
+      return
+    }
+
+    setControllerQuestionFallback((previous) => {
+      if (!previous) return previous
+      if (
+        previous.currentRound === effectiveCurrentRound &&
+        previous.currentQuestion === effectiveCurrentQuestion
+      ) {
+        return previous
+      }
+      return null
+    })
+  }, [effectiveCurrentRound, effectiveCurrentQuestion])
+
+  useEffect(() => {
     const optimisticQuestion = optimisticGameboardUpdate?.question || null
+    const controllerQuestion =
+      controllerQuestionFallback &&
+      controllerQuestionFallback.currentRound === effectiveCurrentRound &&
+      controllerQuestionFallback.currentQuestion === effectiveCurrentQuestion
+        ? controllerQuestionFallback.question
+        : null
+    const optimisticOrControllerQuestion = mergeQuestionFields(
+      optimisticQuestion || controllerQuestion,
+      controllerQuestion || optimisticQuestion
+    )
+    const fallbackQuestion = mergeQuestionFields(optimisticOrControllerQuestion, statusQuestion)
 
     if (effectiveCurrentRound === null || effectiveCurrentQuestion === null) {
       setCurrentQuestion(null)
@@ -533,25 +603,20 @@ function GameBoardContent() {
     }
 
     if (!episode) {
-      if (optimisticQuestion) {
-        setCurrentQuestion(optimisticQuestion)
-        return
-      }
-      if (statusQuestion) {
-        setCurrentQuestion(statusQuestion)
-      }
+      setCurrentQuestion(fallbackQuestion)
       return
     }
 
     const round = episode.rounds.find((r) => r.RoundNumber === effectiveCurrentRound)
     if (!round) {
-      setCurrentQuestion(optimisticQuestion || statusQuestion || null)
+      setCurrentQuestion(fallbackQuestion)
       return
     }
 
     const question = round.questions.find((q) => q.QuestionOrder === effectiveCurrentQuestion)
-    setCurrentQuestion(question || optimisticQuestion || statusQuestion || null)
+    setCurrentQuestion(mergeQuestionFields(question || null, fallbackQuestion))
   }, [
+    controllerQuestionFallback,
     episode,
     effectiveCurrentRound,
     effectiveCurrentQuestion,
@@ -642,6 +707,13 @@ function GameBoardContent() {
               question: parsedQuestionPayload,
               expiresAt: Date.now() + boundedTtlMs,
             })
+            if (parsedQuestionPayload) {
+              setControllerQuestionFallback({
+                currentRound: parsedRound,
+                currentQuestion: parsedQuestion,
+                question: parsedQuestionPayload,
+              })
+            }
             break
           }
           case "CLEAR_OPTIMISTIC_GAMEBOARD_UPDATE":
@@ -703,7 +775,7 @@ function GameBoardContent() {
             setRevealedRanks([])
             break
           case "RULES_VIDEO_PLAY":
-            rulesVideoRef.current?.play()
+            attemptMediaPlay(rulesVideoRef.current)
             break
           case "RULES_VIDEO_PAUSE":
             rulesVideoRef.current?.pause()
@@ -711,11 +783,11 @@ function GameBoardContent() {
           case "RULES_VIDEO_RESTART":
             if (rulesVideoRef.current) {
               rulesVideoRef.current.currentTime = 0
-              rulesVideoRef.current.play()
+              attemptMediaPlay(rulesVideoRef.current)
             }
             break
           case "QUESTION_VIDEO_PLAY":
-            videoRef.current?.play()
+            attemptMediaPlay(videoRef.current)
             break
           case "QUESTION_VIDEO_PAUSE":
             videoRef.current?.pause()
@@ -723,11 +795,11 @@ function GameBoardContent() {
           case "QUESTION_VIDEO_RESTART":
             if (videoRef.current) {
               videoRef.current.currentTime = 0
-              videoRef.current.play()
+              attemptMediaPlay(videoRef.current)
             }
             break
           case "SPONSOR_VIDEO_PLAY":
-            sponsorVideoRef.current?.play()
+            attemptMediaPlay(sponsorVideoRef.current)
             break
           case "SPONSOR_VIDEO_PAUSE":
             sponsorVideoRef.current?.pause()
@@ -735,7 +807,7 @@ function GameBoardContent() {
           case "SPONSOR_VIDEO_RESTART":
             if (sponsorVideoRef.current) {
               sponsorVideoRef.current.currentTime = 0
-              sponsorVideoRef.current.play()
+              attemptMediaPlay(sponsorVideoRef.current)
             }
             break
           case "TOGGLE_VIDEO_FRAME":
@@ -753,7 +825,7 @@ function GameBoardContent() {
     } catch {
       // BroadcastChannel not supported
     }
-  }, [sessionId])
+  }, [attemptMediaPlay, sessionId])
 
   // Handle fullscreen and keyboard shortcuts
   useEffect(() => {
@@ -855,6 +927,9 @@ function GameBoardContent() {
   const showAnswerVideo = hasAnswerVideo && gameState === "answer_reveal"
   const showAnyVideo = (showQuestionVideo || showAnswerVideo) && !videoFrameHidden
   const isShowingAnswer = gameState === "answer_reveal"
+  const openEndedCorrectAnswer = currentQuestion?.QuestionType === "open_ended"
+    ? currentQuestion.CorrectAnswer.trim()
+    : ""
 
   // States that show question content (after announcement)
   const showQuestionContent = gameState === "video_playing" || gameState === "options_revealed" ||
@@ -863,6 +938,16 @@ function GameBoardContent() {
   // States that show options
   const showOptions = gameState === "options_revealed" || gameState === "timer_running" ||
     gameState === "timer_ended" || gameState === "answer_reveal"
+
+  useEffect(() => {
+    if (!showAnyVideo || !isBoardActivated) return
+
+    const timeoutId = window.setTimeout(() => {
+      attemptMediaPlay(videoRef.current)
+    }, 120)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [attemptMediaPlay, isBoardActivated, showAnyVideo, showAnswerVideo, showQuestionVideo])
 
   // Determine category/header text based on state
   const getHeaderText = () => {
@@ -904,6 +989,43 @@ function GameBoardContent() {
           style={{ width: "100%", height: "100%" }}
         />
       </div>
+
+      <AnimatePresence>
+        {!isBoardActivated && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[70] bg-gray-950/95 backdrop-blur-sm flex items-center justify-center p-6"
+            role="button"
+            tabIndex={0}
+            onClick={handleActivateBoard}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault()
+                handleActivateBoard()
+              }
+            }}
+          >
+            <div className="text-center max-w-xl">
+              <Image
+                src="/trivi-time-logo.png"
+                alt="Trivi Time"
+                width={600}
+                height={180}
+                className="w-[75vw] max-w-[460px] h-auto drop-shadow-2xl mx-auto"
+                priority
+              />
+              <p className="mt-10 font-display text-3xl lg:text-5xl font-bold text-white drop-shadow-md">
+                Click anywhere to activate gameboard
+              </p>
+              <p className="mt-4 text-gray-300 text-base lg:text-lg">
+                This enables video and sound autoplay for this page load.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col relative z-10">
@@ -1075,6 +1197,11 @@ function GameBoardContent() {
                         className="w-full h-full object-cover"
                         autoPlay
                         playsInline
+                        onLoadedData={() => {
+                          if (isBoardActivated) {
+                            attemptMediaPlay(rulesVideoRef.current)
+                          }
+                        }}
                       />
                     </div>
                     {/* Right — Single column rules */}
@@ -1189,6 +1316,11 @@ function GameBoardContent() {
                           autoPlay
                           loop
                           playsInline
+                          onLoadedData={() => {
+                            if (isBoardActivated) {
+                              attemptMediaPlay(sponsorVideoRef.current)
+                            }
+                          }}
                         />
                       </div>
 
@@ -1320,6 +1452,11 @@ function GameBoardContent() {
                             autoPlay
                             playsInline
                             preload="auto"
+                            onLoadedData={() => {
+                              if (isBoardActivated) {
+                                attemptMediaPlay(videoRef.current)
+                              }
+                            }}
                           />
                         </motion.div>
                       </motion.div>
@@ -1478,28 +1615,38 @@ function GameBoardContent() {
 
                   {/* Open Ended - Show answer box */}
                   {currentQuestion.QuestionType === "open_ended" && isShowingAnswer && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex-shrink-0 p-4 lg:p-6 rounded-xl bg-green-900/60 backdrop-blur-sm border-2 border-green-500 text-center shadow-lg shadow-green-500/30"
-                    >
+                    openEndedCorrectAnswer ? (
                       <motion.div
-                        animate={{
-                          scale: [1, 1.05, 1.05, 1.05, 1],
-                          x: [0, 0, -3, 3, -3, 3, 0, 0],
-                        }}
-                        transition={{
-                          duration: 1.8,
-                          repeat: Infinity,
-                          ease: "easeInOut",
-                        }}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex-shrink-0 p-4 lg:p-6 rounded-xl bg-green-900/60 backdrop-blur-sm border-2 border-green-500 text-center shadow-lg shadow-green-500/30"
                       >
-                        <span className="text-xs lg:text-sm text-white uppercase tracking-wider">Correct Answer</span>
-                        <p className="text-xl lg:text-5xl drop-shadow-md font-display text-green-400/80 mt-2 break-words">
-                          {currentQuestion.CorrectAnswer}
-                        </p>
+                        <motion.div
+                          animate={{
+                            scale: [1, 1.05, 1.05, 1.05, 1],
+                            x: [0, 0, -3, 3, -3, 3, 0, 0],
+                          }}
+                          transition={{
+                            duration: 1.8,
+                            repeat: Infinity,
+                            ease: "easeInOut",
+                          }}
+                        >
+                          <span className="text-xs lg:text-sm text-white uppercase tracking-wider">Correct Answer</span>
+                          <p className="text-xl lg:text-5xl drop-shadow-md font-display text-green-400/80 mt-2 break-words">
+                            {openEndedCorrectAnswer}
+                          </p>
+                        </motion.div>
                       </motion.div>
-                    </motion.div>
+                    ) : (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex-shrink-0 p-4 lg:p-6 rounded-xl bg-gray-900/70 backdrop-blur-sm border border-yellow-500/40 text-center"
+                      >
+                        <p className="text-base lg:text-2xl font-display text-yellow-300">See the host screen for the answer.</p>
+                      </motion.div>
+                    )
                   )}
                 </div>
               </motion.div>

@@ -212,6 +212,39 @@ export function QuestionOrchestrationControls({
         }
     }, [currentQuestion, findQuestionInRounds, getCurrentPosition])
 
+    const getQuestionForOptimisticPayload = useCallback((): Question | null => {
+        const roundQuestion =
+            currentCursor?.question ||
+            (
+                sessionStatus?.CurrentRound !== null &&
+                sessionStatus?.CurrentRound !== undefined &&
+                sessionStatus?.CurrentQuestion !== null &&
+                sessionStatus?.CurrentQuestion !== undefined
+                    ? findQuestionInRounds(sessionStatus.CurrentRound, sessionStatus.CurrentQuestion)
+                    : null
+            )
+
+        if (!roundQuestion) return currentQuestion || null
+        if (!currentQuestion) return roundQuestion
+
+        const hasCurrentAnswer = currentQuestion.CorrectAnswer.trim().length > 0
+        const hasRoundAnswer = roundQuestion.CorrectAnswer.trim().length > 0
+        const hasCurrentOptions = Array.isArray(currentQuestion.Options) && currentQuestion.Options.length > 0
+        const hasRoundOptions = Array.isArray(roundQuestion.Options) && roundQuestion.Options.length > 0
+
+        if ((!hasCurrentAnswer && hasRoundAnswer) || (!hasCurrentOptions && hasRoundOptions)) {
+            return roundQuestion
+        }
+
+        return currentQuestion
+    }, [
+        currentCursor?.question,
+        currentQuestion,
+        findQuestionInRounds,
+        sessionStatus?.CurrentQuestion,
+        sessionStatus?.CurrentRound,
+    ])
+
     // Video steps depend on showVideo toggle
     const showVideoSteps = showVideo && hasQuestionVideo
 
@@ -274,7 +307,7 @@ export function QuestionOrchestrationControls({
                 gameState: optimisticGameState,
                 currentRound: sessionStatus?.CurrentRound ?? null,
                 currentQuestion: sessionStatus?.CurrentQuestion ?? null,
-                question: currentQuestion,
+                question: getQuestionForOptimisticPayload(),
             })
             : null
 
@@ -294,7 +327,7 @@ export function QuestionOrchestrationControls({
         }
     }, [
         clearOptimisticGameboardUpdate,
-        currentQuestion,
+        getQuestionForOptimisticPayload,
         onRefreshStatus,
         sendOptimisticGameboardUpdate,
         sessionId,
