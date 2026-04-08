@@ -14,6 +14,7 @@ import { LeaderboardPanel } from "@/components/game/leaderboard-panel"
 import { IncomingAnswersPanel } from "@/components/game/incoming-answers-panel"
 import { QuestionOrchestrationControls } from "@/components/game/question-orchestration-controls"
 import { MacroPhaseBar } from "@/components/game/macro-phase-bar"
+import { SoundBoardPanel } from "@/components/game/sound-board-panel"
 import { Toaster } from "@/components/ui/sonner"
 import { getAvatarValue } from "@/lib/frontend-avatars"
 import { toast } from "sonner"
@@ -145,6 +146,18 @@ export default function HostTokenPage() {
       setIntroMusicPlaying(false)
     }
   }, [gameState, isGameboardOpen, introMusicPaused, introMusicPlaying, introMusic, isInLobbyState])
+
+  const handleToggleIntroMusic = useCallback(() => {
+    if (introMusicPlaying) {
+      introMusic.stop()
+      setIntroMusicPlaying(false)
+      setIntroMusicPaused(true)
+    } else {
+      introMusic.play()
+      setIntroMusicPlaying(true)
+      setIntroMusicPaused(false)
+    }
+  }, [introMusic, introMusicPlaying])
 
   const handleOptimisticAnswerRevealClick = useCallback(() => {
     optimisticAnswerRevealAtRef.current = Date.now()
@@ -916,6 +929,11 @@ export default function HostTokenPage() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
           {/* Left Column (3/5) — Game Navigation */}
           <div className="lg:col-span-3 space-y-4">
+            {/* Sound Board — always visible when session exists */}
+            <SoundBoardPanel
+              introMusicPlaying={introMusicPlaying}
+              onToggleIntroMusic={handleToggleIntroMusic}
+            />
             {/* Current Question Card */}
             {isActive ? (
               currentQuestion ? (
