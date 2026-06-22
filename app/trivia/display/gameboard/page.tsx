@@ -1290,22 +1290,27 @@ function GameBoardContent() {
                 className="flex-1 flex items-stretch justify-center min-h-0 pb-4"
               >
                 {resolvedRulesVideoUrl ? (
-                  /* Left video / Right rules layout */
-                  <div className="w-full flex flex-row items-stretch gap-6 h-full min-h-0">
-                    {/* Left — Big Video */}
-                    <div className="flex-[3] relative min-w-0 min-h-0 flex items-center justify-center bg-black/40 rounded-2xl overflow-hidden shadow-2xl border border-gray-700/50">
-                      <video
-                        ref={rulesVideoRef}
-                        src={resolvedRulesVideoUrl}
-                        className="w-full h-full object-cover"
-                        autoPlay
-                        playsInline
-                        onLoadedData={() => {
-                          if (isBoardActivated) {
-                            attemptMediaPlay(rulesVideoRef.current)
-                          }
-                        }}
-                      />
+                  /* Rules video: 16:9 LANDSCAPE — host records wide (16:9), object-cover fills perfectly */
+                  <div className="w-full flex flex-row items-center gap-6 h-full min-h-0">
+                    {/* Left — 16:9 Video Box, centered and perfectly fitted */}
+                    <div className="flex-[3] min-w-0 min-h-0 flex items-center justify-center">
+                      <div
+                        className="rounded-2xl overflow-hidden shadow-2xl border border-gray-700/50 bg-black"
+                        style={{ height: '100%', aspectRatio: '16 / 9', maxWidth: '100%' }}
+                      >
+                        <video
+                          ref={rulesVideoRef}
+                          src={resolvedRulesVideoUrl}
+                          className="w-full h-full object-cover"
+                          autoPlay
+                          playsInline
+                          onLoadedData={() => {
+                            if (isBoardActivated) {
+                              attemptMediaPlay(rulesVideoRef.current)
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                     {/* Right — Single column rules */}
                     <div className="flex-[2] min-w-0 overflow-y-auto flex flex-col">
@@ -1410,21 +1415,28 @@ function GameBoardContent() {
                 <div className="w-full h-full max-w-7xl mx-auto flex flex-col gap-5 min-h-0">
                   {resolvedSponsorshipVideoUrl ? (
                     <>
-                      <div className="flex-[7] min-h-0 w-full rounded-2xl border-2 border-yellow-500/40 overflow-hidden shadow-2xl bg-black">
-                        <video
-                          ref={sponsorVideoRef}
-                          src={resolvedSponsorshipVideoUrl}
-                          className="w-full h-full object-cover"
-                          muted={isMuted}
-                          autoPlay
-                          loop
-                          playsInline
-                          onLoadedData={() => {
-                            if (isBoardActivated) {
-                              attemptMediaPlay(sponsorVideoRef.current)
-                            }
-                          }}
-                        />
+                      {/* Break/sponsor video is 16:9 LANDSCAPE. */}
+                      {/* Box sized to min(full width, available-height * 16/9) — always 16:9, no black bars. */}
+                      <div className="flex-[7] min-h-0 w-full flex items-center justify-center">
+                        <div
+                          className="rounded-2xl border-2 border-yellow-500/40 overflow-hidden shadow-2xl bg-black"
+                          style={{ width: '100%', aspectRatio: '16 / 9', maxHeight: '100%' }}
+                        >
+                          <video
+                            ref={sponsorVideoRef}
+                            src={resolvedSponsorshipVideoUrl}
+                            className="w-full h-full object-cover"
+                            muted={isMuted}
+                            autoPlay
+                            loop
+                            playsInline
+                            onLoadedData={() => {
+                              if (isBoardActivated) {
+                                attemptMediaPlay(sponsorVideoRef.current)
+                              }
+                            }}
+                          />
+                        </div>
                       </div>
 
                       <div className="flex-[3] min-h-0 flex items-center justify-center">
@@ -1529,19 +1541,21 @@ function GameBoardContent() {
                   transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   className="flex-1 flex gap-4 min-h-0"
                 >
-                  {/* Video Frame — single element, src swaps between question/answer */}
+                  {/* Video Frame — 9:16 PORTRAIT frame. Host must record in portrait (9:16). */}
+                  {/* Frame height = parent flex height. Width auto-derived from 9:16 aspect ratio. */}
+                  {/* object-cover fills the exact 9:16 box — zero black bars. */}
                   <AnimatePresence>
                     {showAnyVideo && (
                       <motion.div
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: "35%", opacity: 1 }}
-                        exit={{ width: 0, opacity: 0 }}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        className="flex-shrink-0 overflow-hidden"
-                        style={{ perspective: "1000px" }}
+                        className="flex-shrink-0 h-full overflow-hidden"
+                        style={{ aspectRatio: '9 / 16', perspective: '1000px' }}
                       >
                         <motion.div
-                          className="h-full rounded-2xl overflow-hidden bg-black border border-gray-800 flex items-center justify-center"
+                          className="w-full h-full rounded-2xl overflow-hidden bg-black border border-gray-800"
                           animate={isFlipping ? { rotateX: [0, 90, 0] } : { rotateX: 0 }}
                           transition={{ duration: 0.6, ease: "easeInOut" }}
                           style={{ transformStyle: "preserve-3d" }}
@@ -1550,7 +1564,7 @@ function GameBoardContent() {
                             ref={videoRef}
                             key={showAnswerVideo ? "answer-video" : "question-video"}
                             src={getMediaUrl(showAnswerVideo ? currentQuestion.AnswerVideoUrl : currentQuestion.QuestionVideoUrl)!}
-                            className="w-full h-full object-cover object-center"
+                            className="w-full h-full object-cover"
                             muted={isMuted}
                             autoPlay
                             playsInline

@@ -126,19 +126,33 @@ export function SponsorVideoScreen({ videoUrl, sponsorLogo, footerText, onVideoE
       </div>
 
       {/* Sponsor Video Content */}
-      <div className="relative z-10 flex items-center justify-center w-full max-w-[90vw] h-[calc(100vh-180px)] mt-24">
+      {/*
+        16:9 LANDSCAPE frame. Host records in landscape wide (16:9).
+        Box is sized to fit within available screen space on BOTH axes using min():
+        - max width: 92vw
+        - max width from height constraint: (available-height) * 16/9
+        The smaller wins. Video uses object-cover — fills perfectly, zero black bars.
+      */}
+      <div
+        className="relative z-10 flex items-center justify-center w-full px-4 sm:px-8"
+        style={{ marginTop: '5.5rem', height: 'calc(100vh - 5.5rem)', paddingBottom: '1.5rem' }}
+      >
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
           transition={{ duration: 0.5 }}
-          className="relative w-full max-w-[80vw] aspect-video rounded-3xl overflow-hidden shadow-2xl border-4 border-orange-500"
+          className="rounded-3xl overflow-hidden shadow-2xl border-4 border-orange-500 bg-black"
+          style={{
+            width: 'min(92vw, calc((100vh - 7rem) * (16 / 9)))',
+            aspectRatio: '16 / 9',
+          }}
         >
           <video
             ref={videoRef}
             controls
             onEnded={handleVideoEnded}
-            className="w-full h-full object-contain bg-black"
+            className="w-full h-full object-cover"
             src={videoUrl}
             preload="metadata"
           >
